@@ -1,13 +1,48 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
 :root {
   --background: #f8fafc;
   --foreground: #0f172a;
-  --surface: #ffffff;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
   --border: #e2e8f0;
+  --input: #e2e8f0;
+  --muted: #f1f5f9;
   --muted-foreground: #64748b;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0f172a;
+
+  /* Brand teal — doubles as shadcn's --primary/--ring so generated
+     components (Button, focus rings, …) pick it up automatically. */
   --brand: #0f766e;
   --brand-foreground: #ffffff;
+  --primary: var(--brand);
+  --primary-foreground: var(--brand-foreground);
+  --ring: var(--brand);
+  --accent: #f0fdfa;
+  --accent-foreground: #0f766e;
+  --destructive: oklch(0.577 0.245 27.325);
+
+  /* Desktop sidebar nav chrome (see components/AppShell). */
+  --sidebar: #f8fafc;
+  --sidebar-foreground: #0f172a;
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: var(--brand-foreground);
+  --sidebar-accent: #f0fdfa;
+  --sidebar-accent-foreground: #0f766e;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: var(--brand);
+
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
 
   /* Softened signal palette — plan F.2: no red "SAT" button, no alarm colors. */
   --signal-buy-bg: #ecfdf5;
@@ -21,14 +56,78 @@
   --touch-target: 48px;
 }
 
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0b1120;
+    --foreground: #e2e8f0;
+    --card: #111827;
+    --card-foreground: #e2e8f0;
+    --popover: #111827;
+    --popover-foreground: #e2e8f0;
+    --border: #1f2937;
+    --input: #1f2937;
+    --muted: #1e293b;
+    --muted-foreground: #94a3b8;
+    --secondary: #1e293b;
+    --secondary-foreground: #e2e8f0;
+
+    --brand: #2dd4bf;
+    --brand-foreground: #06251f;
+    --accent: #0f2b27;
+    --accent-foreground: #5eead4;
+    --destructive: oklch(0.704 0.191 22.216);
+
+    --sidebar: #0b1120;
+    --sidebar-foreground: #e2e8f0;
+    --sidebar-accent: #0f2b27;
+    --sidebar-accent-foreground: #5eead4;
+    --sidebar-border: #1f2937;
+
+    --signal-buy-bg: #052e21;
+    --signal-buy-foreground: #34d399;
+    --signal-hold-bg: #1e293b;
+    --signal-hold-foreground: #cbd5e1;
+    --signal-caution-bg: #2a1a05;
+    --signal-caution-foreground: #fbbf24;
+  }
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-surface: var(--surface);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
   --color-border: var(--border);
+  --color-input: var(--input);
+  --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-ring: var(--ring);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
 
   --color-signal-buy-bg: var(--signal-buy-bg);
   --color-signal-buy-foreground: var(--signal-buy-foreground);
@@ -40,26 +139,16 @@
   --spacing-touch: var(--touch-target);
 
   --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --font-mono: ui-monospace, monospace;
+  --font-heading: var(--font-geist-sans);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0b1120;
-    --foreground: #e2e8f0;
-    --surface: #111827;
-    --border: #1f2937;
-    --muted-foreground: #94a3b8;
-    --brand: #2dd4bf;
-    --brand-foreground: #06251f;
-
-    --signal-buy-bg: #052e21;
-    --signal-buy-foreground: #34d399;
-    --signal-hold-bg: #1e293b;
-    --signal-hold-foreground: #cbd5e1;
-    --signal-caution-bg: #2a1a05;
-    --signal-caution-foreground: #fbbf24;
-  }
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
 html {
@@ -68,8 +157,6 @@ html {
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
   /* No route in this app should ever need horizontal scroll (plan rule 4). */
   overflow-x: hidden;
@@ -82,4 +169,16 @@ body {
 
 .safe-area-top {
   padding-top: env(safe-area-inset-top);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
 }

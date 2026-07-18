@@ -1,0 +1,51 @@
+"use client";
+
+import { useState } from "react";
+import dynamic from "next/dynamic";
+import { Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+
+// Not in the initial bundle — nobody sees this until they tap the FAB.
+const AddPositionForm = dynamic(
+  () => import("@/components/portfolio/AddPositionForm").then((m) => m.AddPositionForm),
+  { loading: () => <div className="h-72" /> },
+);
+
+export function AddPositionSheet() {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <Button
+        type="button"
+        size="icon-touch"
+        onClick={() => setOpen(true)}
+        aria-label="Pozisyon ekle"
+        className="fixed right-4 bottom-24 z-20 size-14 rounded-full shadow-lg md:right-8 md:bottom-8"
+      >
+        <Plus className="size-6" />
+      </Button>
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent
+          side="bottom"
+          className="sm:inset-x-auto sm:mx-auto sm:max-w-md sm:rounded-t-2xl"
+        >
+          <SheetHeader>
+            <SheetTitle>Pozisyon ekle</SheetTitle>
+            <SheetDescription className="sr-only">
+              BIST, altın, kripto veya döviz pozisyonu ekle.
+            </SheetDescription>
+          </SheetHeader>
+          <AddPositionForm onSaved={() => setOpen(false)} />
+        </SheetContent>
+      </Sheet>
+    </>
+  );
+}

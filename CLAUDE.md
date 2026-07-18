@@ -9,16 +9,18 @@ Kişisel kullanım için Türkçe bir PWA: nakit akışı defteri + haber tetikl
 1. **Dil:** Tüm UI metinleri, hata mesajları ve LLM promptları Türkçe. Kod yorumları İngilizce olabilir.
 2. **Yasal:** Her öneri yüzeyinin EN ÜSTÜNDE, sunucu tarafında statik olarak şu metin basılır (LLM'e bırakılmaz): "Bu öneriler yalnızca bilgilendirme amaçlıdır; yatırım tavsiyesi niteliği taşımaz. SPK lisanslı bir danışmana başvurunuz."
 3. **Auth:** Geçerli oturum olmadan hiçbir finansal veri render edilmez. Supabase Auth (email/şifre + Google OAuth). Tüm kullanıcı tablolarında RLS: `auth.uid() = user_id`.
-4. **Mobil:** 375px viewport, dokunma hedefleri ≥ 48px, yatay scroll yok, Lighthouse mobil ≥ 90. Gelir/gider ekleme ana ekrandan ≤ 3 dokunuş.
+4. **Arayüz:** shadcn/ui bileşen kütüphanesiyle hem mobil hem masaüstü için modern, responsive tasarım — masaüstü mobilin küçültülmüş hali değil, ayrı düşünülmüş bir layout (örn. mobilde alt tab bar, masaüstünde sol sidebar nav). Mobil: 375px viewport, dokunma hedefleri ≥ 48px, yatay scroll yok, Lighthouse mobil ≥ 90. Gelir/gider ekleme ana ekrandan ≤ 3 dokunuş.
 5. **Fiyat uydurma yasak:** LLM bağlamına giren her fiyat aynı istek döngüsünde canlı API'den gelir. API düşerse o varlık sınıfı için "Veri alınamadı — öneri ertelendi" gösterilir; bayat/uydurma veri asla.
 6. **Tazelik:** Nitelikli olay (BIST-100 ±%2, USD/TRY ±%1.5, faiz kararı, TÜFE) sonrası 24 saat içinde pozisyon sinyalleri yenilenir. Haftada ≥ 5 yeni alım önerisi.
 
 ## Onaylanmış mimari kararlar
 
-- **BIST verisi:** 15 dk gecikmeli ücretsiz veri, `lib/providers/` altında değiştirilebilir adaptör arayüzü (`PriceProvider` interface). Investing.com kazıma YAPMA (T4). Gecikme UI'da açıkça gösterilir.
-- **Haberler:** NewsAPI değil, Türk RSS beyaz listesi: AA, Bloomberg HT, Dünya, Reuters TR. `fast-xml-parser` ile parse.
-- **Cron:** Vercel Cron değil, Supabase pg_cron + Edge Functions.
+- **BIST verisi:** Investing.com kazıma YAPMA (T4). Yahoo Finance chart API (`.IS` ticker'ları, örn. `XU100.IS`) — resmi olmayan ama scraping değil, JSON endpoint (T3). `supabase/functions/_shared/providers/` altında değiştirilebilir adaptör (`bist.ts`). Gecikme UI'da açıkça gösterilir.
+- **Altın:** Ayrı bir altın API'si yok — Binance'in PAXGUSDT paritesi (1 PAXG ≈ 1 ons altın) + USDT/TRY çapraz kuru üzerinden gram altın TRY türetiliyor (`binance.ts`, T3 — PAXG spota göre küçük prim/iskontolu işlem görebilir).
+- **Haberler:** NewsAPI değil, Türk RSS beyaz listesi: AA, Bloomberg HT, Dünya, NTV Ekonomi. (Reuters TR listedeydi ama Reuters artık genel erişime açık RSS sunmuyor — 2026-07-18'de doğrulanıp NTV Ekonomi ile değiştirildi.) `fast-xml-parser` ile parse.
+- **Cron:** Vercel Cron değil, Supabase pg_cron + Edge Functions. Cron→function auth: özel bir secret değil, platformun kendi `apikey`/secret-key mekanizması (`@supabase/server`'ın `withSupabase({auth:["secret"]})` deseni) — Vault'ta `edge_function_secret_key` adıyla saklanan gerçek Supabase secret key'i gönderilir.
 - **Kripto:** Binance public API (`/api/v3/ticker/price`). **Döviz:** TCMB `today.xml` (günlük) + Binance USDT/TRY cross-rate fallback (fallback kullanılınca güven en fazla "orta").
+- **UI kütüphanesi:** shadcn/ui (`base-nova` preset, Base UI primitives, Tailwind v4). Bileşenler `src/components/ui/` altında proje sahipliğinde — gerektiğinde düzenlenir (örn. dokunma hedefi kuralı için `Button`e `size="touch"` / `size="icon-touch"`, `Input`e `h-touch` eklendi). Marka rengi teal (`--brand` = shadcn'in `--primary`/`--ring`'i besler); karanlık mod sistem temalı (`prefers-color-scheme`), manuel toggle yok. Responsive shell: `src/components/AppShell.tsx` — mobilde üst bar + alt tab bar, `md:` (≥768px) üzerinde sol sidebar nav.
 
 ## Veri modeli (özet — tam SQL section 1'de yazılacak)
 
@@ -57,6 +59,7 @@ RLS deseni: kullanıcı tablolarında select/insert/update/delete için `auth.ui
 6. Öneri motoru: context assembler + LLM çağrısı + streaming component
 7. Portföy ekranı + sinyal rozetleri
 8. Ana ekran (üç motorun entegrasyonu)
+8b. Ayarlar: profil (görünen isim düzenleme), veri tazeliği durumu (varlık sınıfı bazında), çıkış yap — planın orijinal "Ekranlar" listesinde vardı ama yazım sırasına bir numara verilmemişti; bölüm 8'den sonra, 9'dan önce tamamlandı.
 9. Lighthouse optimizasyonu: font stratejisi, lazy loading, offline defter için service worker (Serwist)
 
 Her bölümden sonra 5 başarı kriterine ve risk haritasına karşı sessiz gözden geçirme yap; kriter geçmiyorsa ilerlemeden yeniden yaz.

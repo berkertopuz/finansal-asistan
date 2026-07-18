@@ -1,15 +1,14 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist } from "next/font/google";
 import "./globals.css";
 
+// latin-ext, not just latin — ğ/ş/ı/İ (Turkish Latin Extended-A) render in
+// a fallback system font without it, and every screen in this app is
+// Turkish. No Geist_Mono: nothing in the app uses a monospace font, so
+// loading it was a dead network request.
 const geistSans = Geist({
   variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  subsets: ["latin", "latin-ext"],
 });
 
 export const metadata: Metadata = {
@@ -21,7 +20,10 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
+  // No maximumScale cap — that disables pinch-zoom, which fails Lighthouse
+  // accessibility and actively hurts low-vision users. The touch-target
+  // sizing (CLAUDE.md rule 4) is what actually needs to hold up, not a
+  // zoom lock.
   // Lets content flow into the safe-area insets so .safe-area-* padding works.
   viewportFit: "cover",
   themeColor: [
@@ -36,10 +38,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="tr"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
+    <html lang="tr" className={`${geistSans.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
