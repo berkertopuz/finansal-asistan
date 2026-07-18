@@ -1,26 +1,85 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --surface: #ffffff;
+  --border: #e2e8f0;
+  --muted-foreground: #64748b;
+  --brand: #0f766e;
+  --brand-foreground: #ffffff;
+
+  /* Softened signal palette — plan F.2: no red "SAT" button, no alarm colors. */
+  --signal-buy-bg: #ecfdf5;
+  --signal-buy-foreground: #047857;
+  --signal-hold-bg: #f1f5f9;
+  --signal-hold-foreground: #475569;
+  --signal-caution-bg: #fff7ed;
+  --signal-caution-foreground: #b45309;
+
+  /* Minimum touch target size (plan rule 4: ≥48px). */
+  --touch-target: 48px;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+
+  --color-signal-buy-bg: var(--signal-buy-bg);
+  --color-signal-buy-foreground: var(--signal-buy-foreground);
+  --color-signal-hold-bg: var(--signal-hold-bg);
+  --color-signal-hold-foreground: var(--signal-hold-foreground);
+  --color-signal-caution-bg: var(--signal-caution-bg);
+  --color-signal-caution-foreground: var(--signal-caution-foreground);
+
+  --spacing-touch: var(--touch-target);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #0b1120;
+    --foreground: #e2e8f0;
+    --surface: #111827;
+    --border: #1f2937;
+    --muted-foreground: #94a3b8;
+    --brand: #2dd4bf;
+    --brand-foreground: #06251f;
+
+    --signal-buy-bg: #052e21;
+    --signal-buy-foreground: #34d399;
+    --signal-hold-bg: #1e293b;
+    --signal-hold-foreground: #cbd5e1;
+    --signal-caution-bg: #2a1a05;
+    --signal-caution-foreground: #fbbf24;
   }
+}
+
+html {
+  /* Lets safe-area-inset-* resolve on iOS PWAs instead of reporting 0. */
+  height: 100%;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  /* No route in this app should ever need horizontal scroll (plan rule 4). */
+  overflow-x: hidden;
+}
+
+/* Bottom tab bar / FAB live under this so iOS home-indicator area stays clear. */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.safe-area-top {
+  padding-top: env(safe-area-inset-top);
 }
