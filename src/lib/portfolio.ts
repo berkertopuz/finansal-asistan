@@ -26,3 +26,12 @@ export const ASSET_CLASSES: { value: AssetClass; label: string }[] = [
   { value: "crypto", label: "Kripto" },
   { value: "fx", label: "Döviz" },
 ];
+
+// Must match GOLD_SYMBOL / SUPPORTED_FX_SYMBOL in
+// supabase/functions/validate-symbol/index.ts — only one symbol is
+// supported per asset class, so the form auto-assigns it instead of
+// asking the user to type it (and possibly get it wrong).
+export const FIXED_SYMBOLS: Partial<Record<AssetClass, string>> = {
+  gold: "XAU_GRAM",
+  fx: "USDTRY",
+};

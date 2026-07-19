@@ -5,7 +5,7 @@ import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { mutate } from "swr";
 import { addPosition, type AddPositionState } from "@/lib/actions/positions";
-import { ASSET_CLASSES, type AssetClass } from "@/lib/portfolio";
+import { ASSET_CLASSES, FIXED_SYMBOLS, type AssetClass } from "@/lib/portfolio";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -54,17 +54,21 @@ export function AddPositionForm({ onSaved }: { onSaved: () => void }) {
         </ToggleGroup>
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="symbol">Sembol</Label>
-        <Input
-          id="symbol"
-          name="symbol"
-          type="text"
-          placeholder="örn. THYAO, BTC, USDTRY"
-          autoFocus
-          required
-        />
-      </div>
+      {FIXED_SYMBOLS[assetClass] ? (
+        <input type="hidden" name="symbol" value={FIXED_SYMBOLS[assetClass]} />
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="symbol">Sembol</Label>
+          <Input
+            id="symbol"
+            name="symbol"
+            type="text"
+            placeholder="örn. THYAO, BTC"
+            autoFocus
+            required
+          />
+        </div>
+      )}
 
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="quantity">Adet</Label>

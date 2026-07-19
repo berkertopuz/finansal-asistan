@@ -47,6 +47,37 @@ export async function addPosition(
 
   const { asset_class, symbol, quantity, avg_cost_try } = parsed.data;
 
+  // Free-text symbol with no check let anyone type "BOK" and get a phantom
+  // position that never resolves a price — validate-symbol does a real
+  // live-price lookup per asset class before we ever write the row.
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const accessToken = session?.access_token;
+  if (!accessToken) {
+    return { error: "Oturum doğrulanamadı, tekrar giriş yap." };
+  }
+
+  let validatedSymbol = symbol;
+  try {
+    const validateRes = await fetch(
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/validate-symbol`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ asset_class, symbol }),
+      },
+    );
+    const validation: { valid: boolean; symbol?: string; error?: string } =
+      await validateRes.json();
+    if (!validateRes.ok || !validation.valid) {
+      return { error: validation.error ?? "Sembol doğrulanamadı." };
+    }
+    validatedSymbol = validation.symbol ?? symbol;
+  } catch {
+    return { error: "Sembol doğrulanamadı, tekrar dene." };
+  }
+
   // UNIQUE(user_id, asset_class, symbol) — re-adding a held symbol merges
   // into it (weighted-average cost) rather than erroring, matching how a
   // brokerage treats "buy more of something you already hold".
@@ -55,7 +86,7 @@ export async function addPosition(
     .select("id, quantity, avg_cost_try")
     .eq("user_id", user.id)
     .eq("asset_class", asset_class)
-    .eq("symbol", symbol)
+    .eq("symbol", validatedSymbol)
     .maybeSingle();
 
   if (existing) {
@@ -74,7 +105,7 @@ export async function addPosition(
     const { error } = await supabase.from("portfolio_positions").insert({
       user_id: user.id,
       asset_class,
-      symbol,
+      symbol: validatedSymbol,
       quantity,
       avg_cost_try,
     });

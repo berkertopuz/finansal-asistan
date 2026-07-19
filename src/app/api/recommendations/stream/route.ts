@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 
-const RATE_LIMIT_MS = 60 * 60 * 1000;
+// TODO: restore to 60 * 60 * 1000 before real use — 0 while testing so
+// "Yenile" doesn't lock out for an hour on every tap.
+const RATE_LIMIT_MS = 0;
 
 type RefreshResult = {
   generated?: number;
