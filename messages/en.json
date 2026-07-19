@@ -1,0 +1,240 @@
+{
+  "common": {
+    "appName": "Finansal Asistan",
+    "or": "or",
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "close": "Close",
+    "logout": "Log out",
+    "loading": "Loading…",
+    "confirmDelete": "Are you sure you want to delete this?",
+    "offlineBanner": "You're offline — showing the last known data, new entries can't be added."
+  },
+  "nav": {
+    "home": "Home",
+    "ledger": "Ledger",
+    "portfolio": "Portfolio",
+    "recommendations": "Recommendations",
+    "settings": "Settings"
+  },
+  "disclaimer": {
+    "text": "These recommendations are for informational purposes only and do not constitute investment advice. Please consult a licensed advisor."
+  },
+  "assetClass": {
+    "bist": "BIST",
+    "gold": "Gold",
+    "crypto": "Crypto",
+    "fx": "FX"
+  },
+  "auth": {
+    "login": {
+      "title": "Log in",
+      "description": "Continue with your Finansal Asistan account.",
+      "submit": "Log in",
+      "submitPending": "Logging in…",
+      "noAccount": "Don't have an account?",
+      "registerLink": "Sign up"
+    },
+    "register": {
+      "title": "Sign up",
+      "description": "Create an account to use Finansal Asistan.",
+      "submit": "Sign up",
+      "submitPending": "Creating account…",
+      "haveAccount": "Already have an account?",
+      "loginLink": "Log in"
+    },
+    "email": "Email",
+    "password": "Password",
+    "passwordHint": "At least 8 characters.",
+    "google": "Continue with Google",
+    "errors": {
+      "invalidEmail": "Enter a valid email address.",
+      "passwordTooShort": "Password must be at least 8 characters.",
+      "invalidCredentials": "Incorrect email or password.",
+      "signupFailed": "Could not create account. This email may already be in use.",
+      "genericInvalid": "Invalid details."
+    },
+    "signupSuccess": "Click the link sent to your email to verify your account."
+  },
+  "settings": {
+    "profileTitle": "Profile",
+    "emailLabel": "Email",
+    "displayNameLabel": "Display name",
+    "displayNamePlaceholder": "e.g. Berker",
+    "saved": "Saved.",
+    "errors": {
+      "nameTooLong": "Name is too long.",
+      "noSession": "No session found, please log in again.",
+      "saveFailed": "Could not save, please try again.",
+      "genericInvalid": "Invalid details."
+    },
+    "dataFreshness": {
+      "title": "Data freshness",
+      "empty": "No data yet."
+    }
+  },
+  "stale": {
+    "waiting": "Waiting for data…",
+    "updated": "Data updated {time}"
+  },
+  "home": {
+    "surplusTitle": "This month's net surplus",
+    "viewLedger": "View ledger",
+    "latestSignalsTitle": "Latest signals",
+    "emptySignals": "No recommendations yet.",
+    "emptySignalsLink": "Recommendations",
+    "emptySignalsSuffix": "tab lets you generate the first one."
+  },
+  "recommendations": {
+    "signal": {
+      "al": "Buying may be worth considering",
+      "tut": "Holding may be worth considering",
+      "sat": "Selling may be worth considering"
+    },
+    "confidence": {
+      "T1": "high confidence",
+      "T2": "medium confidence",
+      "T3": "low confidence"
+    },
+    "confidenceHint": {
+      "T1": "Price and news flow clearly support this.",
+      "T2": "News flow supports this, but macro uncertainty remains.",
+      "T3": "Generated with limited data, treat with caution."
+    },
+    "source": "Source:",
+    "loadError": "Could not load recommendations. Try refreshing the page.",
+    "empty": "No recommendations yet. Use the Refresh button below to generate the first set.",
+    "refresh": "Refresh",
+    "refreshing": "Refreshing…",
+    "refreshFailed": "Could not generate a recommendation.",
+    "connectionError": "Connection issue, please try again.",
+    "seeAll": "See all recommendations",
+    "staleDataSkip": "No fresh price or news data right now — recommendation postponed.",
+    "alreadyAtCap": "You already have current recommendations, no need for a new one right now.",
+    "noNewFound": "No new recommendation found right now.",
+    "noSession": "No session found.",
+    "sessionInvalid": "Session could not be verified.",
+    "waitMinutes": "Wait {minutes} more minutes before refreshing."
+  },
+  "portfolio": {
+    "quantitySuffix": "units",
+    "costPrefix": "cost",
+    "priceUnavailable": "Data unavailable",
+    "bistDelayNote": "BIST prices are delayed by 15 minutes.",
+    "addPosition": "Add position",
+    "addPositionSheetTitle": "Add position",
+    "addPositionSheetDescription": "Add a BIST, gold, crypto, or FX position.",
+    "assetClassLabel": "Asset class",
+    "symbolLabel": "Symbol",
+    "symbolPlaceholder": "e.g. THYAO, BTC",
+    "quantityLabel": "Quantity",
+    "avgCostLabel": "Average cost (₺, per unit)",
+    "loadError": "Could not load positions. Try refreshing the page.",
+    "empty": "No positions yet. Use the + button at the bottom right to add your first one.",
+    "errors": {
+      "symbolRequired": "Symbol is required.",
+      "symbolTooLong": "Symbol is too long.",
+      "quantityPositive": "Quantity must be greater than 0.",
+      "costNegative": "Cost cannot be negative.",
+      "costTooHigh": "Cost looks too high.",
+      "noSession": "No session found, please log in again.",
+      "sessionInvalid": "Session could not be verified, please log in again.",
+      "symbolValidationFailed": "Could not validate symbol.",
+      "symbolValidationRetry": "Could not validate symbol, please try again.",
+      "saveFailed": "Could not save, please try again.",
+      "genericInvalid": "Invalid details."
+    }
+  },
+  "ledger": {
+    "nav": {
+      "all": "All",
+      "income": "Income",
+      "expense": "Expenses",
+      "subscription": "Subscriptions"
+    },
+    "kind": {
+      "income": "Income",
+      "expense": "Expense",
+      "subscription": "Subscription"
+    },
+    "recurrence": {
+      "none": "One-off",
+      "weekly": "Weekly",
+      "monthly": "Monthly",
+      "yearly": "Yearly"
+    },
+    "category": {
+      "maaş": "Salary",
+      "serbest": "Freelance",
+      "kira": "Rent",
+      "fatura": "Bill",
+      "abonelik": "Subscription",
+      "market": "Groceries",
+      "ulaşım": "Transport",
+      "diğer": "Other"
+    },
+    "summary": {
+      "title": "This month's summary",
+      "income": "Income",
+      "expense": "Expense",
+      "subscription": "Subscription",
+      "netSurplus": "Net surplus"
+    },
+    "table": {
+      "date": "Date",
+      "kind": "Type",
+      "category": "Category",
+      "description": "Description",
+      "recurrence": "Recurrence",
+      "amount": "Amount",
+      "actions": "Actions",
+      "empty": "No entries this month.",
+      "loadError": "Could not load entries. Try refreshing the page."
+    },
+    "month": {
+      "label": "Month"
+    },
+    "form": {
+      "amountLabel": "Amount",
+      "descriptionLabel": "Description (optional)",
+      "descriptionPlaceholder": "e.g. July rent",
+      "recurrenceLabel": "Recurrence",
+      "recurrenceNote": "This entry is automatically included in the surplus every month — no need to add it again.",
+      "dueDateLabel": "Due date (optional)",
+      "categoryLabel": "Category",
+      "addSheetTitle": "New entry",
+      "addSheetDescription": "Add income, an expense, or a subscription.",
+      "editSheetTitle": "Edit entry",
+      "editSheetDescription": "Update the amount, category, description, or recurrence.",
+      "update": "Update",
+      "errors": {
+        "amountPositive": "Amount must be greater than 0.",
+        "amountTooHigh": "Amount looks too high.",
+        "descriptionTooLong": "Description is too long.",
+        "noSession": "No session found, please log in again.",
+        "saveFailed": "Could not save, please try again.",
+        "genericInvalid": "Invalid details.",
+        "notFound": "Entry not found."
+      }
+    },
+    "fixedItems": {
+      "expenseTitle": "Fixed expenses",
+      "incomeTitle": "Fixed income",
+      "empty": "No fixed entries yet.",
+      "nextDue": "Next due: {date}",
+      "noDueDate": "No due date set"
+    },
+    "subscriptions": {
+      "summaryTitle": "Subscriptions",
+      "monthlyTotal": "Monthly total",
+      "yearlyTotal": "Yearly total",
+      "viewAll": "View all subscriptions",
+      "add": "Add subscription"
+    },
+    "addEntry": "Add entry"
+  }
+}

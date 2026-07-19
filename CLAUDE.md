@@ -6,7 +6,7 @@ Kişisel kullanım için Türkçe bir PWA: nakit akışı defteri + haber tetikl
 
 ## Kesin kurallar (pazarlıksız)
 
-1. **Dil:** Tüm UI metinleri, hata mesajları ve LLM promptları Türkçe. Kod yorumları İngilizce olabilir.
+1. **Dil:** Uygulama çok dilli — varsayılan Türkçe, İngilizce de desteklenir (next-intl, `profiles.locale` kullanıcı tercihini taşır). Statik UI metinleri (menü, buton, form, hata mesajı, sabit yasal metinler) mesaj kataloğundan (`messages/tr.json`, `messages/en.json`) gelir. LLM promptlarının kendi iç talimatları (kural seti, JSON şema, prompt injection guard) Türkçe sabit kalır, ama üretilen öneri metni doğrudan kullanıcının seçili dilinde yazdırılır (aynı anda iki dilde üretilmez). Kod yorumları İngilizce olabilir.
 2. **Yasal:** Her öneri yüzeyinin EN ÜSTÜNDE, sunucu tarafında statik olarak şu metin basılır (LLM'e bırakılmaz): "Bu öneriler yalnızca bilgilendirme amaçlıdır; yatırım tavsiyesi niteliği taşımaz. SPK lisanslı bir danışmana başvurunuz."
 3. **Auth:** Geçerli oturum olmadan hiçbir finansal veri render edilmez. Supabase Auth (email/şifre + Google OAuth). Tüm kullanıcı tablolarında RLS: `auth.uid() = user_id`.
 4. **Arayüz:** shadcn/ui bileşen kütüphanesiyle hem mobil hem masaüstü için modern, responsive tasarım — masaüstü mobilin küçültülmüş hali değil, ayrı düşünülmüş bir layout (örn. mobilde alt tab bar, masaüstünde sol sidebar nav). Mobil: 375px viewport, dokunma hedefleri ≥ 48px, yatay scroll yok, Lighthouse mobil ≥ 90. Gelir/gider ekleme ana ekrandan ≤ 3 dokunuş.
@@ -72,6 +72,6 @@ Kod yorumlarında ve plan güncellemelerinde: T1 (%95+ çalışır), T2 (küçü
 
 1. Giriş → 1 gelir + 1 abonelik ekle → güncel net fazla; her aksiyon ≤3 dokunuş, toplam <10 sn.
 2. 7 günlük pencerede ≥5 farklı, haber atıflı öneri.
-3. Nitelikli olay sonrası 24 saat içinde her pozisyonda gerekçeli Türkçe sinyal.
+3. Nitelikli olay sonrası 24 saat içinde her pozisyonda gerekçeli sinyal (kullanıcının seçili dilinde).
 4. Lighthouse mobil ≥ 90 (375px).
 5. User B olarak User A satırlarına REST sorgusu → boş sonuç.

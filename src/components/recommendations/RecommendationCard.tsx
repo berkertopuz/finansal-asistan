@@ -1,31 +1,29 @@
+import { useLocale, useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { formatDateTimeTR } from "@/lib/format";
-import {
-  ASSET_CLASS_LABELS,
-  CONFIDENCE_HINTS,
-  CONFIDENCE_LABELS,
-  SIGNAL_LABELS,
-  SIGNAL_TONE,
-  type Recommendation,
-} from "@/lib/recommendations";
+import { formatDateTime } from "@/lib/format";
+import { SIGNAL_TONE, type Recommendation } from "@/lib/recommendations";
+import type { AppLocale } from "@/lib/locale";
 import { cn } from "@/lib/utils";
 
 export function RecommendationCard({ recommendation }: { recommendation: Recommendation }) {
   const r = recommendation;
+  const locale = useLocale() as AppLocale;
+  const tAssetClass = useTranslations("assetClass");
+  const tRec = useTranslations("recommendations");
 
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
         <div className="flex items-center gap-2">
-          <Badge variant="secondary">{ASSET_CLASS_LABELS[r.asset_class]}</Badge>
+          <Badge variant="secondary">{tAssetClass(r.asset_class)}</Badge>
           <span className="text-sm font-semibold text-foreground">{r.symbol}</span>
         </div>
         <span
           className="text-xs text-muted-foreground"
-          title={CONFIDENCE_HINTS[r.confidence]}
+          title={tRec(`confidenceHint.${r.confidence}`)}
         >
-          {CONFIDENCE_LABELS[r.confidence]}
+          {tRec(`confidence.${r.confidence}`)}
         </span>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
@@ -36,12 +34,12 @@ export function RecommendationCard({ recommendation }: { recommendation: Recomme
               SIGNAL_TONE[r.signal],
             )}
           >
-            {SIGNAL_LABELS[r.signal]}
+            {tRec(`signal.${r.signal}`)}
           </span>
         )}
-        <p className="text-sm text-foreground">{r.body_tr}</p>
+        <p className="text-sm text-foreground">{r.body}</p>
         <p className="text-xs text-muted-foreground">
-          Kaynak:{" "}
+          {tRec("source")}{" "}
           {r.cited_url ? (
             <a
               href={r.cited_url}
@@ -55,7 +53,7 @@ export function RecommendationCard({ recommendation }: { recommendation: Recomme
             r.cited_headline
           )}
         </p>
-        <p className="text-xs text-muted-foreground">{formatDateTimeTR(r.created_at)}</p>
+        <p className="text-xs text-muted-foreground">{formatDateTime(r.created_at, locale)}</p>
       </CardContent>
     </Card>
   );

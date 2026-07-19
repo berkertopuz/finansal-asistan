@@ -14,20 +14,15 @@ export type Entry = {
   created_at: string;
 };
 
-export const ENTRY_KINDS: { value: EntryKind; label: string }[] = [
-  { value: "expense", label: "Gider" },
-  { value: "income", label: "Gelir" },
-  { value: "subscription", label: "Abonelik" },
-];
+// Labels come from messages/{locale}.json ("ledger" namespace) — components
+// resolve via useTranslations, keyed by these values.
+export const ENTRY_KINDS: EntryKind[] = ["expense", "income", "subscription"];
+export const ENTRY_RECURRENCES: EntryRecurrence[] = ["none", "weekly", "monthly", "yearly"];
 
-export const ENTRY_RECURRENCES: { value: EntryRecurrence; label: string }[] = [
-  { value: "none", label: "Tek seferlik" },
-  { value: "weekly", label: "Haftalık" },
-  { value: "monthly", label: "Aylık" },
-  { value: "yearly", label: "Yıllık" },
-];
-
-// Preset category chips (docs/phase1-plan.md A.1 — entries.category).
+// Preset category chips (docs/phase1-plan.md A.1 — entries.category). The
+// stored value is always this Turkish token regardless of UI locale (it's a
+// stable DB key, not display text) — components translate it for display
+// via t(`ledger.category.${value}`).
 export const ENTRY_CATEGORIES = [
   "maaş",
   "serbest",
@@ -40,3 +35,17 @@ export const ENTRY_CATEGORIES = [
 ] as const;
 
 export const DEFAULT_CATEGORY = "diğer";
+
+type PresetCategory = (typeof ENTRY_CATEGORIES)[number];
+
+export function isPresetCategory(value: string): value is PresetCategory {
+  return (ENTRY_CATEGORIES as readonly string[]).includes(value);
+}
+
+// entry.category is always one of ENTRY_CATEGORIES in practice (the form
+// only offers those as toggle chips) — this guards against legacy/unknown
+// values so a missing message key never throws.
+export function categoryLabel(t: (key: string) => string, category: string | null): string {
+  const value = category ?? DEFAULT_CATEGORY;
+  return isPresetCategory(value) ? t(`category.${value}`) : value;
+}

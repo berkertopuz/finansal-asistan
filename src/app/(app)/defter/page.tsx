@@ -1,8 +1,11 @@
+import { getLocale, getTranslations } from "next-intl/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { EntryList } from "@/components/ledger/EntryList";
+import { EntryTable } from "@/components/ledger/EntryTable";
 import { QuickAddFAB } from "@/components/ledger/QuickAddFAB";
 import { createClient } from "@/lib/supabase/server";
-import { formatCurrencyTRY } from "@/lib/format";
+import { getEntries } from "@/lib/entries-data";
+import { formatCurrency } from "@/lib/format";
+import type { AppLocale } from "@/lib/locale";
 import { cn } from "@/lib/utils";
 
 type MonthlySurplus = {
@@ -24,35 +27,38 @@ export default async function DefterPage() {
   // No rows yet this month (brand-new user) → view returns nothing, not zeros.
   const { data } = await supabase.from("v_monthly_surplus").select("*").maybeSingle();
   const surplus = (data as MonthlySurplus | null) ?? EMPTY_SURPLUS;
+  const initialData = await getEntries(supabase);
+  const locale = (await getLocale()) as AppLocale;
+  const t = await getTranslations("ledger.summary");
 
   return (
-    <div className="flex flex-1 flex-col gap-6 py-6 md:px-6">
+    <div className="flex flex-1 flex-col gap-6">
       <div className="px-4 md:px-0">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Bu ayın özeti</CardTitle>
+            <CardTitle className="text-base">{t("title")}</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <div>
-              <p className="text-xs text-muted-foreground">Gelir</p>
+              <p className="text-xs text-muted-foreground">{t("income")}</p>
               <p className="text-lg font-semibold text-signal-buy-foreground">
-                {formatCurrencyTRY(surplus.income_total)}
+                {formatCurrency(surplus.income_total, locale)}
               </p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Gider</p>
+              <p className="text-xs text-muted-foreground">{t("expense")}</p>
               <p className="text-lg font-semibold text-foreground">
-                {formatCurrencyTRY(surplus.expense_total)}
+                {formatCurrency(surplus.expense_total, locale)}
               </p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Abonelik</p>
+              <p className="text-xs text-muted-foreground">{t("subscription")}</p>
               <p className="text-lg font-semibold text-foreground">
-                {formatCurrencyTRY(surplus.subscription_total)}
+                {formatCurrency(surplus.subscription_total, locale)}
               </p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Net fazla</p>
+              <p className="text-xs text-muted-foreground">{t("netSurplus")}</p>
               <p
                 className={cn(
                   "text-xl font-semibold",
@@ -61,14 +67,14 @@ export default async function DefterPage() {
                     : "text-signal-caution-foreground",
                 )}
               >
-                {formatCurrencyTRY(surplus.surplus)}
+                {formatCurrency(surplus.surplus, locale)}
               </p>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <EntryList />
+      <EntryTable initialData={initialData} />
       <QuickAddFAB />
     </div>
   );

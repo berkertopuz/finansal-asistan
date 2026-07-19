@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getRecommendations } from "@/lib/recommendations-data";
 
 export async function GET() {
   const supabase = await createClient();
@@ -11,16 +12,6 @@ export async function GET() {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const { data, error } = await supabase
-    .from("recommendations")
-    .select(
-      "id, kind, asset_class, symbol, signal, confidence, body_tr, cited_headline, cited_url, event_id, created_at, expires_at",
-    )
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
+  const data = await getRecommendations(supabase);
   return NextResponse.json(data);
 }

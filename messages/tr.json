@@ -1,0 +1,240 @@
+{
+  "common": {
+    "appName": "Finansal Asistan",
+    "or": "veya",
+    "save": "Kaydet",
+    "saving": "Kaydediliyor…",
+    "cancel": "Vazgeç",
+    "delete": "Sil",
+    "edit": "Düzenle",
+    "add": "Ekle",
+    "close": "Kapat",
+    "logout": "Çıkış yap",
+    "loading": "Yükleniyor…",
+    "confirmDelete": "Silmek istediğine emin misin?",
+    "offlineBanner": "Çevrimdışısın — son bilinen veriler gösteriliyor, yeni kayıt eklenemez."
+  },
+  "nav": {
+    "home": "Ana Sayfa",
+    "ledger": "Defter",
+    "portfolio": "Portföy",
+    "recommendations": "Öneriler",
+    "settings": "Ayarlar"
+  },
+  "disclaimer": {
+    "text": "Bu öneriler yalnızca bilgilendirme amaçlıdır; yatırım tavsiyesi niteliği taşımaz. SPK lisanslı bir danışmana başvurunuz."
+  },
+  "assetClass": {
+    "bist": "BIST",
+    "gold": "Altın",
+    "crypto": "Kripto",
+    "fx": "Döviz"
+  },
+  "auth": {
+    "login": {
+      "title": "Giriş yap",
+      "description": "Finansal Asistan hesabınla devam et.",
+      "submit": "Giriş yap",
+      "submitPending": "Giriş yapılıyor…",
+      "noAccount": "Hesabın yok mu?",
+      "registerLink": "Kayıt ol"
+    },
+    "register": {
+      "title": "Kayıt ol",
+      "description": "Finansal Asistan'ı kullanmak için bir hesap oluştur.",
+      "submit": "Kayıt ol",
+      "submitPending": "Kayıt oluşturuluyor…",
+      "haveAccount": "Zaten hesabın var mı?",
+      "loginLink": "Giriş yap"
+    },
+    "email": "E-posta",
+    "password": "Şifre",
+    "passwordHint": "En az 8 karakter.",
+    "google": "Google ile devam et",
+    "errors": {
+      "invalidEmail": "Geçerli bir e-posta adresi girin.",
+      "passwordTooShort": "Şifre en az 8 karakter olmalı.",
+      "invalidCredentials": "E-posta veya şifre hatalı.",
+      "signupFailed": "Kayıt oluşturulamadı. Bu e-posta zaten kullanılıyor olabilir.",
+      "genericInvalid": "Geçersiz bilgiler."
+    },
+    "signupSuccess": "Hesabını doğrulamak için e-postana gönderilen bağlantıya tıkla."
+  },
+  "settings": {
+    "profileTitle": "Profil",
+    "emailLabel": "E-posta",
+    "displayNameLabel": "Görünen isim",
+    "displayNamePlaceholder": "örn. Berker",
+    "saved": "Kaydedildi.",
+    "errors": {
+      "nameTooLong": "İsim çok uzun.",
+      "noSession": "Oturum bulunamadı, tekrar giriş yap.",
+      "saveFailed": "Kaydedilemedi, tekrar dene.",
+      "genericInvalid": "Geçersiz bilgiler."
+    },
+    "dataFreshness": {
+      "title": "Veri tazeliği",
+      "empty": "Henüz veri yok."
+    }
+  },
+  "stale": {
+    "waiting": "Veri bekleniyor…",
+    "updated": "Veriler {time} güncellendi"
+  },
+  "home": {
+    "surplusTitle": "Bu ayın net fazlası",
+    "viewLedger": "Defteri gör",
+    "latestSignalsTitle": "Son sinyaller",
+    "emptySignals": "Henüz öneri yok.",
+    "emptySignalsLink": "Öneriler",
+    "emptySignalsSuffix": "sekmesinden ilkini oluşturabilirsin."
+  },
+  "recommendations": {
+    "signal": {
+      "al": "Alım değerlendirilebilir",
+      "tut": "Tutmaya devam edilebilir",
+      "sat": "Satış değerlendirilebilir"
+    },
+    "confidence": {
+      "T1": "yüksek güven",
+      "T2": "orta güven",
+      "T3": "düşük güven"
+    },
+    "confidenceHint": {
+      "T1": "Fiyat ve haber akışı net destekliyor.",
+      "T2": "Haber akışı destekliyor ama makro belirsizlik var.",
+      "T3": "Sınırlı veriyle üretildi, temkinli değerlendir."
+    },
+    "source": "Kaynak:",
+    "loadError": "Öneriler yüklenemedi. Sayfayı yenilemeyi dene.",
+    "empty": "Henüz öneri yok. Aşağıdaki Yenile düğmesiyle ilk öneri setini oluşturabilirsin.",
+    "refresh": "Yenile",
+    "refreshing": "Yenileniyor…",
+    "refreshFailed": "Öneri üretilemedi.",
+    "connectionError": "Bağlantı sorunu, tekrar dene.",
+    "seeAll": "Tüm önerileri gör",
+    "staleDataSkip": "Şu an güncel fiyat veya haber verisi yok — öneri ertelendi.",
+    "alreadyAtCap": "Zaten güncel önerilerin var, şu an için yeni bir tanesine gerek yok.",
+    "noNewFound": "Şu an için yeni bir öneri bulunamadı.",
+    "noSession": "Oturum bulunamadı.",
+    "sessionInvalid": "Oturum doğrulanamadı.",
+    "waitMinutes": "Yenilemek için {minutes} dakika daha bekle."
+  },
+  "portfolio": {
+    "quantitySuffix": "adet",
+    "costPrefix": "maliyet",
+    "priceUnavailable": "Veri alınamadı",
+    "bistDelayNote": "BIST fiyatları 15 dk gecikmeli.",
+    "addPosition": "Pozisyon ekle",
+    "addPositionSheetTitle": "Pozisyon ekle",
+    "addPositionSheetDescription": "BIST, altın, kripto veya döviz pozisyonu ekle.",
+    "assetClassLabel": "Varlık sınıfı",
+    "symbolLabel": "Sembol",
+    "symbolPlaceholder": "örn. THYAO, BTC",
+    "quantityLabel": "Adet",
+    "avgCostLabel": "Ortalama maliyet (₺, birim başına)",
+    "loadError": "Pozisyonlar yüklenemedi. Sayfayı yenilemeyi dene.",
+    "empty": "Henüz pozisyon yok. Sağ alttaki + düğmesiyle ilk pozisyonunu ekle.",
+    "errors": {
+      "symbolRequired": "Sembol gerekli.",
+      "symbolTooLong": "Sembol çok uzun.",
+      "quantityPositive": "Adet 0'dan büyük olmalı.",
+      "costNegative": "Maliyet negatif olamaz.",
+      "costTooHigh": "Maliyet çok yüksek görünüyor.",
+      "noSession": "Oturum bulunamadı, tekrar giriş yap.",
+      "sessionInvalid": "Oturum doğrulanamadı, tekrar giriş yap.",
+      "symbolValidationFailed": "Sembol doğrulanamadı.",
+      "symbolValidationRetry": "Sembol doğrulanamadı, tekrar dene.",
+      "saveFailed": "Kaydedilemedi, tekrar dene.",
+      "genericInvalid": "Geçersiz bilgiler."
+    }
+  },
+  "ledger": {
+    "nav": {
+      "all": "Tümü",
+      "income": "Gelirler",
+      "expense": "Giderler",
+      "subscription": "Abonelikler"
+    },
+    "kind": {
+      "income": "Gelir",
+      "expense": "Gider",
+      "subscription": "Abonelik"
+    },
+    "recurrence": {
+      "none": "Tek seferlik",
+      "weekly": "Haftalık",
+      "monthly": "Aylık",
+      "yearly": "Yıllık"
+    },
+    "category": {
+      "maaş": "Maaş",
+      "serbest": "Serbest",
+      "kira": "Kira",
+      "fatura": "Fatura",
+      "abonelik": "Abonelik",
+      "market": "Market",
+      "ulaşım": "Ulaşım",
+      "diğer": "Diğer"
+    },
+    "summary": {
+      "title": "Bu ayın özeti",
+      "income": "Gelir",
+      "expense": "Gider",
+      "subscription": "Abonelik",
+      "netSurplus": "Net fazla"
+    },
+    "table": {
+      "date": "Tarih",
+      "kind": "Tür",
+      "category": "Kategori",
+      "description": "Açıklama",
+      "recurrence": "Tekrar",
+      "amount": "Tutar",
+      "actions": "İşlemler",
+      "empty": "Bu ayda kayıt yok.",
+      "loadError": "Kayıtlar yüklenemedi. Sayfayı yenilemeyi dene."
+    },
+    "month": {
+      "label": "Ay"
+    },
+    "form": {
+      "amountLabel": "Tutar",
+      "descriptionLabel": "Açıklama (opsiyonel)",
+      "descriptionPlaceholder": "örn. Temmuz kirası",
+      "recurrenceLabel": "Sıklık",
+      "recurrenceNote": "Bu kayıt her ay otomatik olarak fazla hesabına dahil edilir, tekrar girmen gerekmez.",
+      "dueDateLabel": "Ödeme tarihi (opsiyonel)",
+      "categoryLabel": "Kategori",
+      "addSheetTitle": "Yeni kayıt",
+      "addSheetDescription": "Gelir, gider ya da abonelik ekle.",
+      "editSheetTitle": "Kaydı düzenle",
+      "editSheetDescription": "Tutar, kategori, açıklama veya sıklığı güncelle.",
+      "update": "Güncelle",
+      "errors": {
+        "amountPositive": "Tutar 0'dan büyük olmalı.",
+        "amountTooHigh": "Tutar çok yüksek görünüyor.",
+        "descriptionTooLong": "Açıklama çok uzun.",
+        "noSession": "Oturum bulunamadı, tekrar giriş yap.",
+        "saveFailed": "Kaydedilemedi, tekrar dene.",
+        "genericInvalid": "Geçersiz bilgiler.",
+        "notFound": "Kayıt bulunamadı."
+      }
+    },
+    "fixedItems": {
+      "expenseTitle": "Sabit giderler",
+      "incomeTitle": "Sabit gelirler",
+      "empty": "Henüz sabit kayıt yok.",
+      "nextDue": "Sıradaki ödeme: {date}",
+      "noDueDate": "Ödeme tarihi belirtilmemiş"
+    },
+    "subscriptions": {
+      "summaryTitle": "Abonelikler",
+      "monthlyTotal": "Aylık toplam",
+      "yearlyTotal": "Yıllık toplam",
+      "viewAll": "Tüm abonelikleri gör",
+      "add": "Abonelik ekle"
+    },
+    "addEntry": "Kayıt ekle"
+  }
+}

@@ -5,6 +5,7 @@ import { assembleLiveSnapshots, dedupeSymbols, fetchRecentNews, type LiveSnapsho
 import { buildBuySuggestionPrompt, type NewsContextItem } from "../_shared/recommendations/prompts.ts";
 import { generateValidatedOneriler } from "../_shared/recommendations/openai-client.ts";
 import { guvenToConfidence } from "../_shared/recommendations/schema.ts";
+import { localeFromProfile } from "../_shared/locale.ts";
 
 const ONERI_SAYISI = 5;
 const MIN_SINIF_SAYISI = 2;
@@ -56,6 +57,13 @@ export default {
         .eq("user_id", userId);
       const ownPositions = (ownPositionsRaw as Position[]) ?? [];
 
+      const { data: profileRow } = await ctx.supabaseAdmin
+        .from("profiles")
+        .select("locale")
+        .eq("id", userId)
+        .maybeSingle();
+      const locale = localeFromProfile((profileRow as { locale: string | null } | null)?.locale);
+
       const wanted = dedupeSymbols([...BASELINE_SYMBOLS, ...ownPositions]);
       const { snapshots, unavailable } = await assembleLiveSnapshots(ctx.supabaseAdmin, wanted);
       const news: NewsContextItem[] = await fetchRecentNews(ctx.supabaseAdmin);
@@ -89,6 +97,7 @@ export default {
         apiKey: Deno.env.get("OPENAI_API_KEY")!,
         userPrompt,
         news,
+        locale,
       });
 
       if (oneriler.length === 0) {
@@ -104,7 +113,8 @@ export default {
         symbol: o.sembol,
         signal: null,
         confidence: guvenToConfidence(o.guven),
-        body_tr: o.gerekce_tr,
+        body: o.gerekce,
+        locale,
         cited_headline: o.atif_baslik,
         cited_url: o.atif_url,
         snapshot_ids: [snapshotIdBySymbol.get(`${o.varlik_sinifi}:${o.sembol}`)].filter(Boolean),

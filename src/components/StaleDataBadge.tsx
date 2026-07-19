@@ -1,7 +1,9 @@
 "use client";
 
 import useSWR from "swr";
-import { formatRelativeTR } from "@/lib/format";
+import { useLocale, useTranslations } from "next-intl";
+import { formatRelative } from "@/lib/format";
+import type { AppLocale } from "@/lib/locale";
 import { cn } from "@/lib/utils";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
@@ -21,9 +23,11 @@ export function StaleDataBadge() {
   const { data } = useSWR<{ latest_fetched_at: string | null }>("/api/market-status", fetcher, {
     refreshInterval: 60_000,
   });
+  const locale = useLocale() as AppLocale;
+  const t = useTranslations("stale");
 
   if (!data?.latest_fetched_at) {
-    return <p className="px-4 text-xs text-muted-foreground">Veri bekleniyor…</p>;
+    return <p className="px-4 text-xs text-muted-foreground">{t("waiting")}</p>;
   }
 
   const stale = isStale(data.latest_fetched_at);
@@ -35,7 +39,7 @@ export function StaleDataBadge() {
         stale ? "text-signal-caution-foreground" : "text-muted-foreground",
       )}
     >
-      Veriler {formatRelativeTR(data.latest_fetched_at)} güncellendi
+      {t("updated", { time: formatRelative(data.latest_fetched_at, locale) })}
     </p>
   );
 }

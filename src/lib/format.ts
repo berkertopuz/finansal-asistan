@@ -1,95 +1,91 @@
-// tr-TR number/date formatting — Intl only, never manual string math (CLAUDE.md rule 4).
-// Turkish locale uses "." as the group separator and "," as the decimal separator,
-// which is exactly what trips up hand-rolled string formatting (₺1.234,56).
+// Locale-aware number/date formatting — Intl only, never manual string math
+// (CLAUDE.md rule 4). Every formatter takes the active AppLocale ("tr"/"en")
+// and maps it to the right Intl tag internally, so tr-TR's "1.234,56" and
+// en-US's "1,234.56" grouping/decimal conventions are never hand-rolled.
 
-const currencyFormatter = new Intl.NumberFormat("tr-TR", {
-  style: "currency",
-  currency: "TRY",
-});
+import { toIntlTag, type AppLocale } from "@/lib/locale";
 
-const signedCurrencyFormatter = new Intl.NumberFormat("tr-TR", {
-  style: "currency",
-  currency: "TRY",
-  signDisplay: "exceptZero",
-});
+const CURRENCY_BY_LOCALE: Record<AppLocale, string> = { tr: "TRY", en: "TRY" };
 
-const numberFormatter = new Intl.NumberFormat("tr-TR");
-
-// Expects a fraction (0.023), not a whole percentage (2.3) — matches the
-// Intl "percent" style convention and formats as "+%2,3" / "%2,3".
-const percentFormatter = new Intl.NumberFormat("tr-TR", {
-  style: "percent",
-  minimumFractionDigits: 1,
-  maximumFractionDigits: 1,
-  signDisplay: "exceptZero",
-});
-
-const dateFormatter = new Intl.DateTimeFormat("tr-TR", {
-  day: "numeric",
-  month: "long",
-  year: "numeric",
-});
-
-const timeFormatter = new Intl.DateTimeFormat("tr-TR", {
-  hour: "2-digit",
-  minute: "2-digit",
-});
-
-const dateTimeFormatter = new Intl.DateTimeFormat("tr-TR", {
-  day: "numeric",
-  month: "short",
-  hour: "2-digit",
-  minute: "2-digit",
-});
-
-export function formatCurrencyTRY(amount: number): string {
-  return currencyFormatter.format(amount);
+export function formatCurrency(amount: number, locale: AppLocale = "tr"): string {
+  return new Intl.NumberFormat(toIntlTag(locale), {
+    style: "currency",
+    currency: CURRENCY_BY_LOCALE[locale],
+  }).format(amount);
 }
 
 // "+₺120,50" / "-₺45,00" — for P/L deltas.
-export function formatSignedCurrencyTRY(amount: number): string {
-  return signedCurrencyFormatter.format(amount);
+export function formatSignedCurrency(amount: number, locale: AppLocale = "tr"): string {
+  return new Intl.NumberFormat(toIntlTag(locale), {
+    style: "currency",
+    currency: CURRENCY_BY_LOCALE[locale],
+    signDisplay: "exceptZero",
+  }).format(amount);
 }
 
-export function formatNumberTR(
+export function formatNumber(
   value: number,
+  locale: AppLocale = "tr",
   options?: Intl.NumberFormatOptions,
 ): string {
-  return options
-    ? new Intl.NumberFormat("tr-TR", options).format(value)
-    : numberFormatter.format(value);
+  return new Intl.NumberFormat(toIntlTag(locale), options).format(value);
 }
 
-// value is a fraction: 0.023 -> "+%2,3"
-export function formatPercentTR(value: number): string {
-  return percentFormatter.format(value);
+// value is a fraction: 0.023 -> "+%2,3" (tr) / "+2.3%" (en)
+export function formatPercent(value: number, locale: AppLocale = "tr"): string {
+  return new Intl.NumberFormat(toIntlTag(locale), {
+    style: "percent",
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+    signDisplay: "exceptZero",
+  }).format(value);
 }
 
-export function formatDateTR(date: Date | string): string {
-  return dateFormatter.format(new Date(date));
+export function formatDate(date: Date | string, locale: AppLocale = "tr"): string {
+  return new Intl.DateTimeFormat(toIntlTag(locale), {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(date));
 }
 
 // "14:32" — for the inline price timestamp requirement (plan F.2).
-export function formatTimeTR(date: Date | string): string {
-  return timeFormatter.format(new Date(date));
+export function formatTime(date: Date | string, locale: AppLocale = "tr"): string {
+  return new Intl.DateTimeFormat(toIntlTag(locale), {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(date));
 }
 
-export function formatDateTimeTR(date: Date | string): string {
-  return dateTimeFormatter.format(new Date(date));
+export function formatDateTime(date: Date | string, locale: AppLocale = "tr"): string {
+  return new Intl.DateTimeFormat(toIntlTag(locale), {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(date));
 }
 
-// "az önce" / "3 dk önce" / "2 sa önce" / "5 g önce" — for StaleDataBadge
-// and any "Veriler N dk önce güncellendi" copy.
-export function formatRelativeTR(from: Date | string, now: Date = new Date()): string {
+const RELATIVE_UNITS_TR = { justNow: "az önce", minutes: "dk önce", hours: "sa önce", days: "g önce" };
+const RELATIVE_UNITS_EN = { justNow: "just now", minutes: "min ago", hours: "h ago", days: "d ago" };
+
+// "az önce" / "3 dk önce" / "2 sa önce" / "5 g önce" (tr) — for
+// StaleDataBadge and any "Veriler N dk önce güncellendi" copy.
+export function formatRelative(
+  from: Date | string,
+  locale: AppLocale = "tr",
+  now: Date = new Date(),
+): string {
+  const units = locale === "en" ? RELATIVE_UNITS_EN : RELATIVE_UNITS_TR;
   const diffMs = now.getTime() - new Date(from).getTime();
   const diffMinutes = Math.max(0, Math.round(diffMs / 60_000));
 
-  if (diffMinutes < 1) return "az önce";
-  if (diffMinutes < 60) return `${diffMinutes} dk önce`;
+  if (diffMinutes < 1) return units.justNow;
+  if (diffMinutes < 60) return `${diffMinutes} ${units.minutes}`;
 
   const diffHours = Math.round(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours} sa önce`;
+  if (diffHours < 24) return `${diffHours} ${units.hours}`;
 
   const diffDays = Math.round(diffHours / 24);
-  return `${diffDays} g önce`;
+  return `${diffDays} ${units.days}`;
 }

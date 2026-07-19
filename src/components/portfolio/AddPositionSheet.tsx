@@ -3,6 +3,7 @@
 import { useState } from "react";
 import dynamic from "next/dynamic";
 import { Plus } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -20,6 +21,7 @@ const AddPositionForm = dynamic(
 
 export function AddPositionSheet() {
   const [open, setOpen] = useState(false);
+  const t = useTranslations("portfolio");
 
   return (
     <>
@@ -27,7 +29,7 @@ export function AddPositionSheet() {
         type="button"
         size="icon-touch"
         onClick={() => setOpen(true)}
-        aria-label="Pozisyon ekle"
+        aria-label={t("addPosition")}
         className="fixed right-4 bottom-24 z-20 size-14 rounded-full shadow-lg md:right-8 md:bottom-8"
       >
         <Plus className="size-6" />
@@ -38,9 +40,9 @@ export function AddPositionSheet() {
           className="sm:inset-x-auto sm:mx-auto sm:max-w-md sm:rounded-t-2xl"
         >
           <SheetHeader>
-            <SheetTitle>Pozisyon ekle</SheetTitle>
+            <SheetTitle>{t("addPositionSheetTitle")}</SheetTitle>
             <SheetDescription className="sr-only">
-              BIST, altın, kripto veya döviz pozisyonu ekle.
+              {t("addPositionSheetDescription")}
             </SheetDescription>
           </SheetHeader>
           <AddPositionForm onSaved={() => setOpen(false)} />

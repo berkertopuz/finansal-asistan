@@ -1,6 +1,7 @@
 import path from "node:path";
 import type { NextConfig } from "next";
 import { withSerwist } from "@serwist/turbopack";
+import createNextIntlPlugin from "next-intl/plugin";
 
 const nextConfig: NextConfig = {
   turbopack: {
@@ -10,7 +11,9 @@ const nextConfig: NextConfig = {
   },
 };
 
+const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
+
 // @serwist/turbopack, not @serwist/next — this project builds with
 // Turbopack (Next 16's default bundler), and @serwist/next's service
 // worker generation is a webpack plugin that never runs under Turbopack.
-export default withSerwist(nextConfig);
+export default withNextIntl(withSerwist(nextConfig));

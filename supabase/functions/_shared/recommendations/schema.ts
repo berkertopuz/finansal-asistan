@@ -8,7 +8,7 @@ export const oneriSchema = z.object({
   varlik_sinifi: z.enum(["bist", "gold", "crypto", "fx"]),
   sembol: z.string(),
   sinyal: z.enum(["al", "tut", "sat"]).nullable(),
-  gerekce_tr: z.string(),
+  gerekce: z.string(),
   atif_baslik: z.string(),
   atif_url: z.string(),
   guven: z.enum(["yuksek", "orta", "dusuk"]),

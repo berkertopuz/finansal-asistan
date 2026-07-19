@@ -4,12 +4,14 @@ import { useRef, useState } from "react";
 import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { mutate } from "swr";
-import { addEntry, type AddEntryState } from "@/lib/actions/entries";
+import { useTranslations } from "next-intl";
+import { addEntry, updateEntry, type AddEntryState } from "@/lib/actions/entries";
 import {
   DEFAULT_CATEGORY,
   ENTRY_CATEGORIES,
   ENTRY_KINDS,
   ENTRY_RECURRENCES,
+  type Entry,
   type EntryKind,
   type EntryRecurrence,
 } from "@/lib/ledger";
@@ -24,13 +26,29 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 // açıklama and sıklık all default sensibly and are skippable, so Kaydet
 // right after typing an amount is tap 2; touching any one optional field
 // makes Kaydet tap 3.
-export function QuickEntryForm({ onSaved }: { onSaved: () => void }) {
-  const [kind, setKind] = useState<EntryKind>("expense");
-  const [category, setCategory] = useState<string>(DEFAULT_CATEGORY);
-  const [recurrence, setRecurrence] = useState<EntryRecurrence>("none");
-  const recurrenceTouched = useRef(false);
+//
+// editingEntry switches the same form into edit mode (pre-filled, calls
+// updateEntry instead of addEntry) — EntryTable's row-edit action opens
+// this in a Sheet exactly like QuickAddFAB does for a new entry.
+export function QuickEntryForm({
+  onSaved,
+  editingEntry,
+  defaultKind = "expense",
+}: {
+  onSaved: () => void;
+  editingEntry?: Entry;
+  defaultKind?: EntryKind;
+}) {
+  const [kind, setKind] = useState<EntryKind>(editingEntry?.kind ?? defaultKind);
+  const [category, setCategory] = useState<string>(editingEntry?.category ?? DEFAULT_CATEGORY);
+  const [recurrence, setRecurrence] = useState<EntryRecurrence>(
+    editingEntry?.recurrence ?? "none",
+  );
+  const recurrenceTouched = useRef(Boolean(editingEntry));
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
+  const t = useTranslations("ledger");
+  const tCommon = useTranslations("common");
 
   const handleKindChange = (nextKind: EntryKind) => {
     setKind(nextKind);
@@ -51,13 +69,17 @@ export function QuickEntryForm({ onSaved }: { onSaved: () => void }) {
   // flags this) for what's really a direct response to the submit.
   const [state, formAction, pending] = useActionState(
     async (_prevState: AddEntryState, formData: FormData) => {
-      const result = await addEntry(_prevState, formData);
+      const result = editingEntry
+        ? await updateEntry(_prevState, formData)
+        : await addEntry(_prevState, formData);
       if (result.success) {
-        formRef.current?.reset();
-        setKind("expense");
-        setCategory(DEFAULT_CATEGORY);
-        setRecurrence("none");
-        recurrenceTouched.current = false;
+        if (!editingEntry) {
+          formRef.current?.reset();
+          setKind(defaultKind);
+          setCategory(DEFAULT_CATEGORY);
+          setRecurrence("none");
+          recurrenceTouched.current = false;
+        }
         mutate("/api/entries");
         router.refresh();
         onSaved();
@@ -69,6 +91,7 @@ export function QuickEntryForm({ onSaved }: { onSaved: () => void }) {
 
   return (
     <form ref={formRef} action={formAction} className="flex flex-col gap-4 px-4 pb-6">
+      {editingEntry && <input type="hidden" name="id" value={editingEntry.id} />}
       <input type="hidden" name="kind" value={kind} />
       <input type="hidden" name="category" value={category} />
       <input type="hidden" name="recurrence" value={recurrence} />
@@ -78,7 +101,7 @@ export function QuickEntryForm({ onSaved }: { onSaved: () => void }) {
         onValueChange={(next) => next[0] && handleKindChange(next[0] as EntryKind)}
         className="w-full flex-nowrap"
       >
-        {ENTRY_KINDS.map(({ value, label }) => (
+        {ENTRY_KINDS.map((value) => (
           <ToggleGroupItem
             key={value}
             value={value}
@@ -88,13 +111,13 @@ export function QuickEntryForm({ onSaved }: { onSaved: () => void }) {
             // beats an unconditional class on specificity, not order.
             className="h-touch flex-1 aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90"
           >
-            {label}
+            {t(`kind.${value}`)}
           </ToggleGroupItem>
         ))}
       </ToggleGroup>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="amount">Tutar</Label>
+        <Label htmlFor="amount">{t("form.amountLabel")}</Label>
         <Input
           id="amount"
           name="amount"
@@ -103,24 +126,26 @@ export function QuickEntryForm({ onSaved }: { onSaved: () => void }) {
           step="0.01"
           min="0"
           placeholder="0,00"
+          defaultValue={editingEntry?.amount}
           autoFocus
           required
         />
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="description">Açıklama (opsiyonel)</Label>
+        <Label htmlFor="description">{t("form.descriptionLabel")}</Label>
         <Input
           id="description"
           name="description"
           type="text"
           maxLength={200}
-          placeholder="örn. Temmuz kirası"
+          placeholder={t("form.descriptionPlaceholder")}
+          defaultValue={editingEntry?.description ?? ""}
         />
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label>Sıklık</Label>
+        <Label>{t("form.recurrenceLabel")}</Label>
         <ToggleGroup
           value={[recurrence]}
           onValueChange={(next) =>
@@ -128,27 +153,36 @@ export function QuickEntryForm({ onSaved }: { onSaved: () => void }) {
           }
           className="w-full flex-wrap gap-2"
         >
-          {ENTRY_RECURRENCES.map(({ value, label }) => (
+          {ENTRY_RECURRENCES.map((value) => (
             <ToggleGroupItem
               key={value}
               value={value}
               variant="outline"
               className="h-touch aria-pressed:border-primary aria-pressed:bg-accent aria-pressed:text-accent-foreground"
             >
-              {label}
+              {t(`recurrence.${value}`)}
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
         {recurrence !== "none" && (
-          <p className="text-xs text-muted-foreground">
-            Bu kayıt her ay otomatik olarak fazla hesabına dahil edilir, tekrar
-            girmen gerekmez.
-          </p>
+          <p className="text-xs text-muted-foreground">{t("form.recurrenceNote")}</p>
         )}
       </div>
 
+      {recurrence !== "none" && (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="next_due_date">{t("form.dueDateLabel")}</Label>
+          <Input
+            id="next_due_date"
+            name="next_due_date"
+            type="date"
+            defaultValue={editingEntry?.next_due_date ?? ""}
+          />
+        </div>
+      )}
+
       <div className="flex flex-col gap-1.5">
-        <Label>Kategori</Label>
+        <Label>{t("form.categoryLabel")}</Label>
         <ToggleGroup
           value={[category]}
           onValueChange={(next) => next[0] && setCategory(next[0])}
@@ -161,7 +195,7 @@ export function QuickEntryForm({ onSaved }: { onSaved: () => void }) {
               variant="outline"
               className="h-touch aria-pressed:border-primary aria-pressed:bg-accent aria-pressed:text-accent-foreground"
             >
-              {cat}
+              {t(`category.${cat}`)}
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
@@ -172,7 +206,7 @@ export function QuickEntryForm({ onSaved }: { onSaved: () => void }) {
       )}
 
       <Button type="submit" size="touch" disabled={pending} className="w-full">
-        {pending ? "Kaydediliyor…" : "Kaydet"}
+        {pending ? tCommon("saving") : editingEntry ? t("form.update") : tCommon("save")}
       </Button>
     </form>
   );

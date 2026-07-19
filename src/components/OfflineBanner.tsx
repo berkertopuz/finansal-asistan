@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { useTranslations } from "next-intl";
 
 // navigator.onLine is external mutable state — useSyncExternalStore, not
 // useEffect+useState, is the correct tool (and the one that's actually
@@ -23,14 +24,23 @@ function getServerSnapshot() {
   return false;
 }
 
+// Always mounted — a grid-rows transition collapses/expands it instead of
+// mounting/unmounting the element, so a mid-session connectivity change
+// animates smoothly instead of jumping the layout (CLS).
 export function OfflineBanner() {
   const offline = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-
-  if (!offline) return null;
+  const t = useTranslations("common");
 
   return (
-    <div className="bg-signal-caution-bg px-4 py-2 text-center text-xs text-signal-caution-foreground">
-      Çevrimdışısın — son bilinen veriler gösteriliyor, yeni kayıt eklenemez.
+    <div
+      className="grid overflow-hidden transition-[grid-template-rows] duration-200 ease-out"
+      style={{ gridTemplateRows: offline ? "1fr" : "0fr" }}
+    >
+      <div className="min-h-0">
+        <div className="bg-signal-caution-bg px-4 py-2 text-center text-xs text-signal-caution-foreground">
+          {t("offlineBanner")}
+        </div>
+      </div>
     </div>
   );
 }

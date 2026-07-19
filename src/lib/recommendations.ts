@@ -5,7 +5,8 @@ export type Recommendation = {
   symbol: string;
   signal: "al" | "tut" | "sat" | null;
   confidence: "T1" | "T2" | "T3";
-  body_tr: string;
+  body: string;
+  locale: "tr" | "en";
   cited_headline: string;
   cited_url: string | null;
   event_id: string | null;
@@ -13,35 +14,17 @@ export type Recommendation = {
   expires_at: string | null;
 };
 
-// Softened language (docs/phase1-plan.md F.2) — never a blunt "SAT" button.
-export const SIGNAL_LABELS: Record<NonNullable<Recommendation["signal"]>, string> = {
-  al: "Alım değerlendirilebilir",
-  tut: "Tutmaya devam edilebilir",
-  sat: "Satış değerlendirilebilir",
-};
+// Label text lives in messages/{locale}.json ("assetClass", "recommendations"
+// namespaces) — components resolve it via useTranslations, keyed by these
+// values, so both Turkish and English labels come from one source of truth.
+export const SIGNAL_VALUES = ["al", "tut", "sat"] as const;
+export const CONFIDENCE_VALUES = ["T1", "T2", "T3"] as const;
+export const ASSET_CLASS_VALUES = ["bist", "gold", "crypto", "fx"] as const;
 
-// Shared by RecommendationCard and PositionCard's SignalBadge.
+// Shared by RecommendationCard and PositionCard's SignalBadge — a Tailwind
+// class combo, not translatable text, so it stays a plain value map.
 export const SIGNAL_TONE: Record<NonNullable<Recommendation["signal"]>, string> = {
   al: "text-signal-buy-foreground bg-signal-buy-bg",
   tut: "text-signal-hold-foreground bg-signal-hold-bg",
   sat: "text-signal-caution-foreground bg-signal-caution-bg",
-};
-
-export const CONFIDENCE_LABELS: Record<Recommendation["confidence"], string> = {
-  T1: "yüksek güven",
-  T2: "orta güven",
-  T3: "düşük güven",
-};
-
-export const CONFIDENCE_HINTS: Record<Recommendation["confidence"], string> = {
-  T1: "Fiyat ve haber akışı net destekliyor.",
-  T2: "Haber akışı destekliyor ama makro belirsizlik var.",
-  T3: "Sınırlı veriyle üretildi, temkinli değerlendir.",
-};
-
-export const ASSET_CLASS_LABELS: Record<Recommendation["asset_class"], string> = {
-  bist: "BIST",
-  gold: "Altın",
-  crypto: "Kripto",
-  fx: "Döviz",
 };

@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { getLocale, getTranslations } from "next-intl/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
-import { formatCurrencyTRY } from "@/lib/format";
+import { formatCurrency } from "@/lib/format";
+import type { AppLocale } from "@/lib/locale";
 import { cn } from "@/lib/utils";
 
 type MonthlySurplus = {
@@ -24,12 +26,14 @@ export async function SurplusCard() {
   const supabase = await createClient();
   const { data } = await supabase.from("v_monthly_surplus").select("*").maybeSingle();
   const surplus = (data as MonthlySurplus | null) ?? EMPTY_SURPLUS;
+  const locale = (await getLocale()) as AppLocale;
+  const t = await getTranslations("home");
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-sm font-normal text-muted-foreground">
-          Bu ayın net fazlası
+          {t("surplusTitle")}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -39,13 +43,13 @@ export async function SurplusCard() {
             surplus.surplus >= 0 ? "text-signal-buy-foreground" : "text-signal-caution-foreground",
           )}
         >
-          {formatCurrencyTRY(surplus.surplus)}
+          {formatCurrency(surplus.surplus, locale)}
         </p>
         <Link
           href="/defter"
           className="mt-2 inline-block text-xs text-muted-foreground underline underline-offset-2"
         >
-          Defteri gör
+          {t("viewLedger")}
         </Link>
       </CardContent>
     </Card>

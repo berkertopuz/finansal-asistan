@@ -2,13 +2,14 @@ import OpenAI from "npm:openai@^6";
 import { zodResponseFormat } from "npm:openai@^6/helpers/zod";
 import { llmResponseSchema, type Oneri } from "./schema.ts";
 import { partitionByCitation } from "./validate.ts";
-import { SYSTEM_PROMPT, type NewsContextItem } from "./prompts.ts";
+import { buildSystemPrompt, type NewsContextItem } from "./prompts.ts";
+import type { PromptLocale } from "../locale.ts";
 
-async function callOnce(client: OpenAI, userPrompt: string): Promise<Oneri[]> {
+async function callOnce(client: OpenAI, systemPrompt: string, userPrompt: string): Promise<Oneri[]> {
   const completion = await client.chat.completions.parse({
     model: "gpt-4o",
     messages: [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
     ],
     // Strict JSON-schema mode guarantees the *shape* (rule 5); citation
@@ -36,15 +37,17 @@ export async function generateValidatedOneriler(params: {
   apiKey: string;
   userPrompt: string;
   news: NewsContextItem[];
+  locale: PromptLocale;
 }): Promise<Oneri[]> {
   const client = new OpenAI({ apiKey: params.apiKey });
+  const systemPrompt = buildSystemPrompt(params.locale);
 
-  const first = await callOnce(client, params.userPrompt);
+  const first = await callOnce(client, systemPrompt, params.userPrompt);
   const { valid, invalid } = partitionByCitation(first, params.news);
 
   if (invalid.length === 0) return dedupe(valid);
 
-  const retry = await callOnce(client, params.userPrompt);
+  const retry = await callOnce(client, systemPrompt, params.userPrompt);
   const { valid: retryValid } = partitionByCitation(retry, params.news);
 
   return dedupe([...valid, ...retryValid]);

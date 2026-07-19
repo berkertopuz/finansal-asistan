@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { mutate } from "swr";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { RECOMMENDATIONS_KEY } from "./RecommendationList";
 
@@ -13,6 +14,7 @@ export function RefreshButton() {
   const [pending, setPending] = useState(false);
   const [lines, setLines] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const t = useTranslations("recommendations");
 
   async function handleRefresh() {
     setPending(true);
@@ -24,7 +26,7 @@ export function RefreshButton() {
 
       if (!res.ok || !res.body) {
         const body = await res.json().catch(() => null);
-        setError(body?.error ?? "Öneri üretilemedi.");
+        setError(body?.error ?? t("refreshFailed"));
         setPending(false);
         return;
       }
@@ -52,7 +54,7 @@ export function RefreshButton() {
         }
       }
     } catch {
-      setError("Bağlantı sorunu, tekrar dene.");
+      setError(t("connectionError"));
     } finally {
       setPending(false);
     }
@@ -61,7 +63,7 @@ export function RefreshButton() {
   return (
     <div className="flex flex-col gap-3 px-4 pb-6">
       <Button type="button" size="touch" onClick={handleRefresh} disabled={pending} className="w-full">
-        {pending ? "Yenileniyor…" : "Yenile"}
+        {pending ? t("refreshing") : t("refresh")}
       </Button>
       {lines.length > 0 && (
         <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-muted/40 p-3 text-sm text-foreground">

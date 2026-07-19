@@ -2,16 +2,20 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { LogOut } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/nav-items";
 import { IconMark } from "@/lib/app-icon";
 import { Button } from "@/components/ui/button";
 import { OfflineBanner } from "@/components/OfflineBanner";
+import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 import { signOut } from "@/lib/actions/auth";
 import { cn } from "@/lib/utils";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const t = useTranslations("nav");
+  const tCommon = useTranslations("common");
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
@@ -22,10 +26,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="size-8 shrink-0 overflow-hidden rounded-lg">
             <IconMark padding={5} barGap={3} />
           </div>
-          <span className="text-sm font-semibold">Finansal Asistan</span>
+          <span className="text-sm font-semibold">{tCommon("appName")}</span>
         </div>
         <nav className="flex flex-1 flex-col gap-1 px-3">
-          {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+          {NAV_ITEMS.map(({ href, labelKey, icon: Icon }) => {
             const active = isActive(href);
             return (
               <Link
@@ -39,12 +43,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 )}
               >
                 <Icon className="size-4" />
-                {label}
+                {t(labelKey)}
               </Link>
             );
           })}
         </nav>
         <div className="border-t border-sidebar-border p-3">
+          <LocaleSwitcher className="mb-2 w-full justify-center" />
           <form action={signOut}>
             <Button
               type="submit"
@@ -52,7 +57,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               className="w-full justify-start gap-3 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
             >
               <LogOut className="size-4" />
-              Çıkış yap
+              {tCommon("logout")}
             </Button>
           </form>
         </div>
@@ -65,19 +70,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <IconMark padding={3} barGap={2} />
             </div>
             <span className="text-sm font-semibold text-foreground">
-              Finansal Asistan
+              {tCommon("appName")}
             </span>
           </div>
-          <form action={signOut}>
-            <Button
-              type="submit"
-              variant="ghost"
-              size="icon-touch"
-              aria-label="Çıkış yap"
-            >
-              <LogOut className="size-5" />
-            </Button>
-          </form>
+          <div className="flex items-center gap-1">
+            <LocaleSwitcher />
+            <form action={signOut}>
+              <Button
+                type="submit"
+                variant="ghost"
+                size="icon-touch"
+                aria-label={tCommon("logout")}
+              >
+                <LogOut className="size-5" />
+              </Button>
+            </form>
+          </div>
         </header>
 
         <OfflineBanner />
@@ -85,7 +93,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <main className="flex flex-1 flex-col pb-20 md:pb-0">{children}</main>
 
         <nav className="safe-area-bottom fixed inset-x-0 bottom-0 z-10 flex border-t border-border bg-background md:hidden">
-          {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+          {NAV_ITEMS.map(({ href, labelKey, icon: Icon }) => {
             const active = isActive(href);
             return (
               <Link
@@ -97,7 +105,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 )}
               >
                 <Icon className="size-5" />
-                {label}
+                {t(labelKey)}
               </Link>
             );
           })}

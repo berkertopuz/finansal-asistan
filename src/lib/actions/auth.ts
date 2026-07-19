@@ -1,14 +1,11 @@
 "use server";
 
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-
-const credentialsSchema = z.object({
-  email: z.string().trim().email({ message: "Geçerli bir e-posta adresi girin." }),
-  password: z.string().min(8, { message: "Şifre en az 8 karakter olmalı." }),
-});
+import { LOCALE_COOKIE, fromIntlTag } from "@/lib/locale";
 
 export type AuthFormState = { error?: string; success?: string } | undefined;
 
@@ -23,20 +20,45 @@ export async function signInWithPassword(
   _prevState: AuthFormState,
   formData: FormData,
 ): Promise<AuthFormState> {
+  const t = await getTranslations("auth.errors");
+  const credentialsSchema = z.object({
+    email: z.string().trim().email({ message: t("invalidEmail") }),
+    password: z.string().min(8, { message: t("passwordTooShort") }),
+  });
+
   const parsed = credentialsSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
   });
 
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Geçersiz bilgiler." };
+    return { error: parsed.error.issues[0]?.message ?? t("genericInvalid") };
   }
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
 
   if (error) {
-    return { error: "E-posta veya şifre hatalı." };
+    return { error: t("invalidCredentials") };
+  }
+
+  // Restore the user's persisted language preference on this browser —
+  // otherwise a fresh browser/device would fall back to the default locale
+  // until they manually switch again.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("locale")
+      .eq("id", user.id)
+      .maybeSingle();
+    const cookieStore = await cookies();
+    cookieStore.set(LOCALE_COOKIE, fromIntlTag(profile?.locale), {
+      path: "/",
+      maxAge: 60 * 60 * 24 * 365,
+    });
   }
 
   redirect("/");
@@ -46,13 +68,19 @@ export async function signUpWithPassword(
   _prevState: AuthFormState,
   formData: FormData,
 ): Promise<AuthFormState> {
+  const t = await getTranslations("auth");
+  const credentialsSchema = z.object({
+    email: z.string().trim().email({ message: t("errors.invalidEmail") }),
+    password: z.string().min(8, { message: t("errors.passwordTooShort") }),
+  });
+
   const parsed = credentialsSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
   });
 
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Geçersiz bilgiler." };
+    return { error: parsed.error.issues[0]?.message ?? t("errors.genericInvalid") };
   }
 
   const supabase = await createClient();
@@ -63,12 +91,10 @@ export async function signUpWithPassword(
   });
 
   if (error) {
-    return { error: "Kayıt oluşturulamadı. Bu e-posta zaten kullanılıyor olabilir." };
+    return { error: t("errors.signupFailed") };
   }
 
-  return {
-    success: "Hesabını doğrulamak için e-postana gönderilen bağlantıya tıkla.",
-  };
+  return { success: t("signupSuccess") };
 }
 
 export async function signInWithGoogle() {

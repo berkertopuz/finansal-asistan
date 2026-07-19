@@ -5,6 +5,7 @@ import { assembleLiveSnapshots, dedupeSymbols, fetchRecentNews, type LiveSnapsho
 import { buildBuySuggestionPrompt, type NewsContextItem } from "../_shared/recommendations/prompts.ts";
 import { generateValidatedOneriler } from "../_shared/recommendations/openai-client.ts";
 import { guvenToConfidence } from "../_shared/recommendations/schema.ts";
+import { localeFromProfile } from "../_shared/locale.ts";
 
 const ONERI_SAYISI = 5;
 const MIN_SINIF_SAYISI = 2;
@@ -50,13 +51,14 @@ export default {
         return Response.json({ generated: 0, skipped: "stale_data_gate", unavailable });
       }
 
-      const { data: profiles } = await ctx.supabaseAdmin.from("profiles").select("id");
+      const { data: profiles } = await ctx.supabaseAdmin.from("profiles").select("id, locale");
       const snapshotIdBySymbol = new Map(snapshots.map((s) => [`${s.assetClass}:${s.symbol}`, s.id]));
 
       let generated = 0;
       const errors: string[] = [];
-      for (const profile of (profiles as { id: string }[]) ?? []) {
+      for (const profile of (profiles as { id: string; locale: string | null }[]) ?? []) {
         const userId = profile.id;
+        const locale = localeFromProfile(profile.locale);
 
         const { count: liveCount } = await ctx.supabaseAdmin
           .from("recommendations")
@@ -89,6 +91,7 @@ export default {
           apiKey: Deno.env.get("OPENAI_API_KEY")!,
           userPrompt,
           news,
+          locale,
         });
         if (oneriler.length === 0) continue;
 
@@ -100,7 +103,8 @@ export default {
           symbol: o.sembol,
           signal: null,
           confidence: guvenToConfidence(o.guven),
-          body_tr: o.gerekce_tr,
+          body: o.gerekce,
+          locale,
           cited_headline: o.atif_baslik,
           cited_url: o.atif_url,
           snapshot_ids: [snapshotIdBySymbol.get(`${o.varlik_sinifi}:${o.sembol}`)].filter(Boolean),

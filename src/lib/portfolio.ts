@@ -15,17 +15,14 @@ export type PositionWithPrice = {
   signal: {
     signal: "al" | "tut" | "sat";
     confidence: "T1" | "T2" | "T3";
-    body_tr: string;
+    body: string;
     created_at: string;
   } | null;
 };
 
-export const ASSET_CLASSES: { value: AssetClass; label: string }[] = [
-  { value: "bist", label: "BIST" },
-  { value: "gold", label: "Altın" },
-  { value: "crypto", label: "Kripto" },
-  { value: "fx", label: "Döviz" },
-];
+// Labels come from messages/{locale}.json ("assetClass" namespace) —
+// components resolve via useTranslations, keyed by these values.
+export const ASSET_CLASSES: AssetClass[] = ["bist", "gold", "crypto", "fx"];
 
 // Must match GOLD_SYMBOL / SUPPORTED_FX_SYMBOL in
 // supabase/functions/validate-symbol/index.ts — only one symbol is

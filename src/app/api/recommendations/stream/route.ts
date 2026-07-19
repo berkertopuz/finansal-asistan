@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { createClient } from "@/lib/supabase/server";
 
 // TODO: restore to 60 * 60 * 1000 before real use — 0 while testing so
@@ -7,21 +8,24 @@ const RATE_LIMIT_MS = 0;
 type RefreshResult = {
   generated?: number;
   skipped?: "stale_data_gate" | "already_at_cap" | "no_valid_oneriler";
-  oneriler?: { gerekce_tr: string }[];
+  oneriler?: { gerekce: string }[];
   error?: string;
 };
 
-function buildRevealLines(result: RefreshResult): string[] {
+function buildRevealLines(
+  result: RefreshResult,
+  t: Awaited<ReturnType<typeof getTranslations>>,
+): string[] {
   if (result.skipped === "stale_data_gate") {
-    return ["Şu an güncel fiyat veya haber verisi yok — öneri ertelendi."];
+    return [t("staleDataSkip")];
   }
   if (result.skipped === "already_at_cap") {
-    return ["Zaten güncel önerilerin var, şu an için yeni bir tanesine gerek yok."];
+    return [t("alreadyAtCap")];
   }
   if (!result.oneriler || result.oneriler.length === 0) {
-    return ["Şu an için yeni bir öneri bulunamadı."];
+    return [t("noNewFound")];
   }
-  return result.oneriler.map((o) => o.gerekce_tr);
+  return result.oneriler.map((o) => o.gerekce);
 }
 
 // The ≤3-tap flow's counterpart on /oneriler: user taps "Yenile", we stream
@@ -30,13 +34,14 @@ function buildRevealLines(result: RefreshResult): string[] {
 // *successful* generation claims the slot; a stale-data skip doesn't
 // punish the user with an hour-long lockout for a gap that isn't theirs.
 export async function POST() {
+  const t = await getTranslations("recommendations");
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return Response.json({ error: "Oturum bulunamadı." }, { status: 401 });
+    return Response.json({ error: t("noSession") }, { status: 401 });
   }
 
   const { data: profile } = await supabase
@@ -51,10 +56,7 @@ export async function POST() {
   const elapsed = Date.now() - lastRefresh;
   if (elapsed < RATE_LIMIT_MS) {
     const waitMinutes = Math.ceil((RATE_LIMIT_MS - elapsed) / 60_000);
-    return Response.json(
-      { error: `Yenilemek için ${waitMinutes} dakika daha bekle.` },
-      { status: 429 },
-    );
+    return Response.json({ error: t("waitMinutes", { minutes: waitMinutes }) }, { status: 429 });
   }
 
   const {
@@ -62,7 +64,7 @@ export async function POST() {
   } = await supabase.auth.getSession();
   const accessToken = session?.access_token;
   if (!accessToken) {
-    return Response.json({ error: "Oturum doğrulanamadı." }, { status: 401 });
+    return Response.json({ error: t("sessionInvalid") }, { status: 401 });
   }
 
   const edgeRes = await fetch(
@@ -75,7 +77,7 @@ export async function POST() {
   const result: RefreshResult = await edgeRes.json();
 
   if (!edgeRes.ok) {
-    return Response.json({ error: result.error ?? "Öneri üretilemedi." }, { status: edgeRes.status });
+    return Response.json({ error: result.error ?? t("refreshFailed") }, { status: edgeRes.status });
   }
 
   if ((result.generated ?? 0) > 0 || result.skipped === "already_at_cap") {
@@ -85,7 +87,7 @@ export async function POST() {
       .eq("id", user.id);
   }
 
-  const lines = buildRevealLines(result);
+  const lines = buildRevealLines(result, t);
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {

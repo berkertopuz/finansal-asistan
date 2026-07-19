@@ -1,23 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-
-const addPositionSchema = z.object({
-  asset_class: z.enum(["bist", "gold", "crypto", "fx"]),
-  symbol: z
-    .string()
-    .trim()
-    .min(1, { message: "Sembol gerekli." })
-    .max(20, { message: "Sembol çok uzun." })
-    .transform((s) => s.toUpperCase()),
-  quantity: z.coerce.number().positive({ message: "Adet 0'dan büyük olmalı." }),
-  avg_cost_try: z.coerce
-    .number()
-    .nonnegative({ message: "Maliyet negatif olamaz." })
-    .max(10_000_000, { message: "Maliyet çok yüksek görünüyor." }),
-});
 
 export type AddPositionState = { error?: string; success?: boolean };
 
@@ -25,6 +11,22 @@ export async function addPosition(
   _prevState: AddPositionState,
   formData: FormData,
 ): Promise<AddPositionState> {
+  const t = await getTranslations("portfolio.errors");
+  const addPositionSchema = z.object({
+    asset_class: z.enum(["bist", "gold", "crypto", "fx"]),
+    symbol: z
+      .string()
+      .trim()
+      .min(1, { message: t("symbolRequired") })
+      .max(20, { message: t("symbolTooLong") })
+      .transform((s) => s.toUpperCase()),
+    quantity: z.coerce.number().positive({ message: t("quantityPositive") }),
+    avg_cost_try: z.coerce
+      .number()
+      .nonnegative({ message: t("costNegative") })
+      .max(10_000_000, { message: t("costTooHigh") }),
+  });
+
   const parsed = addPositionSchema.safeParse({
     asset_class: formData.get("asset_class"),
     symbol: formData.get("symbol"),
@@ -33,7 +35,7 @@ export async function addPosition(
   });
 
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Geçersiz bilgiler." };
+    return { error: parsed.error.issues[0]?.message ?? t("genericInvalid") };
   }
 
   const supabase = await createClient();
@@ -42,7 +44,7 @@ export async function addPosition(
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return { error: "Oturum bulunamadı, tekrar giriş yap." };
+    return { error: t("noSession") };
   }
 
   const { asset_class, symbol, quantity, avg_cost_try } = parsed.data;
@@ -55,7 +57,7 @@ export async function addPosition(
   } = await supabase.auth.getSession();
   const accessToken = session?.access_token;
   if (!accessToken) {
-    return { error: "Oturum doğrulanamadı, tekrar giriş yap." };
+    return { error: t("sessionInvalid") };
   }
 
   let validatedSymbol = symbol;
@@ -71,11 +73,11 @@ export async function addPosition(
     const validation: { valid: boolean; symbol?: string; error?: string } =
       await validateRes.json();
     if (!validateRes.ok || !validation.valid) {
-      return { error: validation.error ?? "Sembol doğrulanamadı." };
+      return { error: validation.error ?? t("symbolValidationFailed") };
     }
     validatedSymbol = validation.symbol ?? symbol;
   } catch {
-    return { error: "Sembol doğrulanamadı, tekrar dene." };
+    return { error: t("symbolValidationRetry") };
   }
 
   // UNIQUE(user_id, asset_class, symbol) — re-adding a held symbol merges
@@ -100,7 +102,7 @@ export async function addPosition(
       .update({ quantity: mergedQuantity, avg_cost_try: mergedAvgCost })
       .eq("id", existing.id);
 
-    if (error) return { error: "Kaydedilemedi, tekrar dene." };
+    if (error) return { error: t("saveFailed") };
   } else {
     const { error } = await supabase.from("portfolio_positions").insert({
       user_id: user.id,
@@ -110,7 +112,7 @@ export async function addPosition(
       avg_cost_try,
     });
 
-    if (error) return { error: "Kaydedilemedi, tekrar dene." };
+    if (error) return { error: t("saveFailed") };
   }
 
   revalidatePath("/portfoy");

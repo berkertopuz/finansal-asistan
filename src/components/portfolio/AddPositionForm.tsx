@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { mutate } from "swr";
+import { useTranslations } from "next-intl";
 import { addPosition, type AddPositionState } from "@/lib/actions/positions";
 import { ASSET_CLASSES, FIXED_SYMBOLS, type AssetClass } from "@/lib/portfolio";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,9 @@ export function AddPositionForm({ onSaved }: { onSaved: () => void }) {
   const [assetClass, setAssetClass] = useState<AssetClass>("bist");
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
+  const t = useTranslations("portfolio");
+  const tAssetClass = useTranslations("assetClass");
+  const tCommon = useTranslations("common");
 
   const [state, formAction, pending] = useActionState(
     async (_prevState: AddPositionState, formData: FormData) => {
@@ -36,19 +40,19 @@ export function AddPositionForm({ onSaved }: { onSaved: () => void }) {
       <input type="hidden" name="asset_class" value={assetClass} />
 
       <div className="flex flex-col gap-1.5">
-        <Label>Varlık sınıfı</Label>
+        <Label>{t("assetClassLabel")}</Label>
         <ToggleGroup
           value={[assetClass]}
           onValueChange={(next) => next[0] && setAssetClass(next[0] as AssetClass)}
           className="w-full flex-nowrap"
         >
-          {ASSET_CLASSES.map(({ value, label }) => (
+          {ASSET_CLASSES.map((value) => (
             <ToggleGroupItem
               key={value}
               value={value}
               className="h-touch flex-1 aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90"
             >
-              {label}
+              {tAssetClass(value)}
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
@@ -58,12 +62,12 @@ export function AddPositionForm({ onSaved }: { onSaved: () => void }) {
         <input type="hidden" name="symbol" value={FIXED_SYMBOLS[assetClass]} />
       ) : (
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="symbol">Sembol</Label>
+          <Label htmlFor="symbol">{t("symbolLabel")}</Label>
           <Input
             id="symbol"
             name="symbol"
             type="text"
-            placeholder="örn. THYAO, BTC"
+            placeholder={t("symbolPlaceholder")}
             autoFocus
             required
           />
@@ -71,7 +75,7 @@ export function AddPositionForm({ onSaved }: { onSaved: () => void }) {
       )}
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="quantity">Adet</Label>
+        <Label htmlFor="quantity">{t("quantityLabel")}</Label>
         <Input
           id="quantity"
           name="quantity"
@@ -85,7 +89,7 @@ export function AddPositionForm({ onSaved }: { onSaved: () => void }) {
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="avg_cost_try">Ortalama maliyet (₺, birim başına)</Label>
+        <Label htmlFor="avg_cost_try">{t("avgCostLabel")}</Label>
         <Input
           id="avg_cost_try"
           name="avg_cost_try"
@@ -103,7 +107,7 @@ export function AddPositionForm({ onSaved }: { onSaved: () => void }) {
       )}
 
       <Button type="submit" size="touch" disabled={pending} className="w-full">
-        {pending ? "Kaydediliyor…" : "Kaydet"}
+        {pending ? tCommon("saving") : tCommon("save")}
       </Button>
     </form>
   );

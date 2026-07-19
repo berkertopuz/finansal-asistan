@@ -4,6 +4,7 @@ import { assembleLiveSnapshots, dedupeSymbols, fetchRecentNews, type LiveSnapsho
 import { buildPositionSignalPrompt, type NewsContextItem } from "../_shared/recommendations/prompts.ts";
 import { generateValidatedOneriler } from "../_shared/recommendations/openai-client.ts";
 import { guvenToConfidence } from "../_shared/recommendations/schema.ts";
+import { localeFromProfile } from "../_shared/locale.ts";
 
 type Position = {
   user_id: string;
@@ -68,8 +69,20 @@ async function processEvent(ctx: { supabaseAdmin: AdminClient }, event: MarketEv
     byUser.set(p.user_id, [...(byUser.get(p.user_id) ?? []), p]);
   }
 
+  const { data: profilesRaw } = await ctx.supabaseAdmin
+    .from("profiles")
+    .select("id, locale")
+    .in("id", [...byUser.keys()]);
+  const localeByUser = new Map(
+    ((profilesRaw as { id: string; locale: string | null }[]) ?? []).map((p) => [
+      p.id,
+      localeFromProfile(p.locale),
+    ]),
+  );
+
   let generated = 0;
   for (const [userId, positions] of byUser) {
+    const locale = localeByUser.get(userId) ?? "tr";
     const positionsWithPrices = positions
       .map((p) => {
         const snapshot = snapshotBySymbol.get(`${p.asset_class}:${p.symbol}`);
@@ -104,6 +117,7 @@ async function processEvent(ctx: { supabaseAdmin: AdminClient }, event: MarketEv
       apiKey: Deno.env.get("OPENAI_API_KEY")!,
       userPrompt,
       news,
+      locale,
     });
     if (oneriler.length === 0) continue;
 
@@ -116,7 +130,8 @@ async function processEvent(ctx: { supabaseAdmin: AdminClient }, event: MarketEv
         symbol: o.sembol,
         signal: o.sinyal,
         confidence: guvenToConfidence(o.guven),
-        body_tr: o.gerekce_tr,
+        body: o.gerekce,
+        locale,
         cited_headline: o.atif_baslik,
         cited_url: o.atif_url,
         snapshot_ids: [snapshotBySymbol.get(`${o.varlik_sinifi}:${o.sembol}`)?.id].filter(Boolean),
