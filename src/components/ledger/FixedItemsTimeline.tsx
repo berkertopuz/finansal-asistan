@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { AppLocale } from "@/lib/locale";
 import { categoryLabel, type Entry, type EntryKind } from "@/lib/ledger";
+import { nextOccurrenceOnOrAfter } from "@/lib/recurrence";
 
 const ENTRIES_KEY = "/api/entries";
 const fetcher = (url: string) =>
@@ -16,10 +17,10 @@ const fetcher = (url: string) =>
     return res.json();
   });
 
-// Sorted by day-of-month (extracted from next_due_date when set, otherwise
-// pushed to the end) — a lightweight "when does this recur" list, not a
-// full calendar widget (the ask was "isteğe göre bir zaman çizelgesi
-// gösterebiliriz" — a nice-to-have, not a heavyweight scheduling UI).
+// next_due_date is stored as an anchor (any past/future date establishing
+// which day this recurs on), not the literal next payment — the actual
+// upcoming occurrence is computed via nextOccurrenceOnOrAfter and sorted
+// soonest-first. Entries without an anchor sort last.
 export function FixedItemsTimeline({
   kind,
   initialData,
@@ -33,12 +34,19 @@ export function FixedItemsTimeline({
 
   const title = kind === "income" ? t("fixedItems.incomeTitle") : t("fixedItems.expenseTitle");
 
+  const now = new Date();
   const fixedItems = (data ?? [])
     .filter((e) => e.kind === kind && e.recurrence !== "none")
+    .map((entry) => ({
+      entry,
+      nextOccurrence: entry.next_due_date
+        ? nextOccurrenceOnOrAfter(entry.next_due_date, entry.recurrence, now)
+        : null,
+    }))
     .sort((a, b) => {
-      const dayA = a.next_due_date ? new Date(a.next_due_date).getDate() : 32;
-      const dayB = b.next_due_date ? new Date(b.next_due_date).getDate() : 32;
-      return dayA - dayB;
+      if (!a.nextOccurrence) return 1;
+      if (!b.nextOccurrence) return -1;
+      return a.nextOccurrence.getTime() - b.nextOccurrence.getTime();
     });
 
   return (
@@ -52,15 +60,15 @@ export function FixedItemsTimeline({
         ) : fixedItems.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t("fixedItems.empty")}</p>
         ) : (
-          fixedItems.map((entry) => (
+          fixedItems.map(({ entry, nextOccurrence }) => (
             <div key={entry.id} className="flex items-center justify-between gap-2 text-sm">
               <div className="flex min-w-0 flex-col">
                 <span className="truncate text-foreground">
                   {entry.description || categoryLabel(t, entry.category)}
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  {entry.next_due_date
-                    ? t("fixedItems.nextDue", { date: formatDate(entry.next_due_date, locale) })
+                  {nextOccurrence
+                    ? t("fixedItems.nextDue", { date: formatDate(nextOccurrence, locale) })
                     : t("fixedItems.noDueDate")}
                 </span>
               </div>

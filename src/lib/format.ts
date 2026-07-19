@@ -14,6 +14,17 @@ export function formatCurrency(amount: number, locale: AppLocale = "tr"): string
   }).format(amount);
 }
 
+// "₺650B" (tr) / "₺650K" (en) — for chart axis ticks where full currency
+// formatting ("₺650.000,00") would crowd the label.
+export function formatCurrencyCompact(amount: number, locale: AppLocale = "tr"): string {
+  return new Intl.NumberFormat(toIntlTag(locale), {
+    style: "currency",
+    currency: CURRENCY_BY_LOCALE[locale],
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(amount);
+}
+
 // "+₺120,50" / "-₺45,00" — for P/L deltas.
 export function formatSignedCurrency(amount: number, locale: AppLocale = "tr"): string {
   return new Intl.NumberFormat(toIntlTag(locale), {
@@ -41,12 +52,30 @@ export function formatPercent(value: number, locale: AppLocale = "tr"): string {
   }).format(value);
 }
 
+// value is a fraction: 0.4641 -> "%46,4" (tr) / "46.4%" (en) — no sign, for
+// an absolute rate (not a delta) like the cash-flow timeline's assumed
+// annual interest rate.
+export function formatPercentAbs(value: number, locale: AppLocale = "tr"): string {
+  return new Intl.NumberFormat(toIntlTag(locale), {
+    style: "percent",
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
 export function formatDate(date: Date | string, locale: AppLocale = "tr"): string {
   return new Intl.DateTimeFormat(toIntlTag(locale), {
     day: "numeric",
     month: "long",
     year: "numeric",
   }).format(new Date(date));
+}
+
+// "18 Tem" (tr) / "Jul 18" (en) — compact enough for chart axis ticks.
+export function formatShortDate(date: Date | string, locale: AppLocale = "tr"): string {
+  return new Intl.DateTimeFormat(toIntlTag(locale), { day: "numeric", month: "short" }).format(
+    new Date(date),
+  );
 }
 
 // "14:32" — for the inline price timestamp requirement (plan F.2).

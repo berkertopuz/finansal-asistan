@@ -236,5 +236,28 @@
       "add": "Abonelik ekle"
     },
     "addEntry": "Kayıt ekle"
+  },
+  "cashflow": {
+    "title": "Nakit Akışı",
+    "range": {
+      "7": "7 gün",
+      "30": "30 gün",
+      "90": "90 gün"
+    },
+    "chartAriaLabel": "Önümüzdeki günler için projeksiyon edilen nakit bakiyesi grafiği",
+    "evdsContext": "TCMB EVDS ortalaması (1 ay vadeli TL mevduat, {asOf} itibarıyla): {rate}",
+    "evdsUnavailable": "TCMB EVDS'e şu an ulaşılamıyor.",
+    "rateLabel": "Hesaplamada kullanılan oran (yıllık)",
+    "useEvdsRate": "TCMB oranını kullan",
+    "insightTitle": "Yaklaşan ödemeler",
+    "insightEmpty": "Seçili dönemde yaklaşan sabit ödeme yok.",
+    "floatGainSentence": "Bu ödemeyi {date} tarihine kadar bekletirsen, varsayılan {rate} yıllık oranla ~{gain} ek getiri potansiyeli var.",
+    "disclaimer": "Tahmini getiridir; gerçek getiri kullandığınız ürüne ve bankaya göre değişir. Yatırım tavsiyesi değildir.",
+    "errors": {
+      "rateOutOfRange": "Oran 0 ile 200 arasında olmalı.",
+      "noSession": "Oturum bulunamadı, tekrar giriş yap.",
+      "saveFailed": "Kaydedilemedi, tekrar dene.",
+      "genericInvalid": "Geçersiz bilgiler."
+    }
   }
 }
