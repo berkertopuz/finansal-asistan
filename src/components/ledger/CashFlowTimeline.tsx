@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { updateAssumedRate, type UpdateAssumedRateState } from "@/lib/actions/profile";
 import {
+  EMERGENCY_FUND_MONTHS,
+  estimateMonthlyExpenseBurn,
   periodFloatGain,
   projectBalance,
   projectOptimizedBalance,
@@ -34,7 +36,7 @@ const fetcher = (url: string) =>
     return res.json();
   });
 
-const RANGE_OPTIONS = [7, 30, 90] as const;
+const RANGE_OPTIONS = [7, 30, 90, 180, 365] as const;
 type Range = (typeof RANGE_OPTIONS)[number];
 
 const DAY_MS = 86_400_000;
@@ -178,24 +180,21 @@ export function CashFlowTimeline({
 
   // Term-deposit ("vadeli") scenario — a distinct, simpler alternative to
   // the daily-account line above: no bank offers a vadeli shorter than
-  // ~30 days, so this only makes sense for the 30/90-day ranges. Only the
-  // portion of the balance that's never touched during the window is safe
-  // to lock away without an early withdrawal (which would forfeit interest
-  // on a real term deposit).
+  // ~30 days, so this only makes sense for the 30/90(+)-day ranges. The
+  // portion of the balance that's never touched during the window is the
+  // ceiling on what's safe to lock away at all (an early withdrawal forfeits
+  // interest on a real term deposit) — but locking away 100% of that isn't
+  // sound money management either: a few months of ordinary expenses should
+  // stay liquid as a buffer for whatever the recurring schedule doesn't
+  // predict. Only the amount above that buffer is what actually gets
+  // suggested for the term deposit.
   const minActualBalance = safeToLockAmount(points);
-  const showTermDeposit = days >= 30 && termDepositRate !== null && minActualBalance > 0;
-  // Both figures use the SAME principal (minActualBalance) and SAME duration
-  // (days) — only the rate differs. Comparing this to endGain above would be
-  // misleading: endGain is daily-compounded on the whole, growing balance
-  // (including income that arrives mid-window and interest-on-interest),
-  // while a term deposit can only ever hold what's available on day one.
-  // Putting both numbers on equal footing here is what makes "vadeli pays a
-  // higher rate" actually show up as "vadeli earns more" in the number.
-  const dailyEquivalentGain = showTermDeposit
-    ? termDepositGain(minActualBalance, days, assumedRate)
-    : 0;
+  const monthlyBurn = useMemo(() => estimateMonthlyExpenseBurn(entries), [entries]);
+  const emergencyBuffer = monthlyBurn * EMERGENCY_FUND_MONTHS;
+  const lockableAmount = Math.max(0, minActualBalance - emergencyBuffer);
+  const showTermDeposit = days >= 30 && termDepositRate !== null && lockableAmount > 0;
   const termGain = showTermDeposit
-    ? termDepositGain(minActualBalance, days, termDepositRate!.rate)
+    ? termDepositGain(lockableAmount, days, termDepositRate!.rate)
     : 0;
 
   const [rateState, rateAction, ratePending] = useActionState<UpdateAssumedRateState, FormData>(
@@ -400,9 +399,9 @@ export function CashFlowTimeline({
             <p className="mt-1 text-foreground/70">
               {t("termDeposit.sentence", {
                 minBalance: formatCurrency(minActualBalance, locale),
+                buffer: formatCurrency(emergencyBuffer, locale),
+                lockable: formatCurrency(lockableAmount, locale),
                 days,
-                dailyRate: formatPercentAbs(assumedRate / 100, locale),
-                dailyGain: formatCurrency(dailyEquivalentGain, locale),
                 rate: formatPercentAbs(termDepositRate!.rate / 100, locale),
                 asOf: formatDate(parseEvdsDate(termDepositRate!.asOf), locale),
                 gain: formatCurrency(termGain, locale),

@@ -44,7 +44,15 @@ async function fetchLatestSeriesValue(
   valueKey: string,
 ): Promise<ReferenceRate | null> {
   const apiKey = process.env.EVDS_API_KEY;
-  if (!apiKey) return null;
+  if (!apiKey) {
+    // Distinct from a failed request — this fires every time if the env var
+    // is simply missing in this deployment (e.g. set in .env.local but never
+    // added to Vercel's Production environment), which otherwise looks
+    // identical to a network failure from the outside (both just render as
+    // "no live rate").
+    console.error(`EVDS_API_KEY is not set — skipping fetch for ${seriesCode}`);
+    return null;
+  }
 
   const now = new Date();
   const twoWeeksAgo = new Date(now.getTime() - 14 * 86_400_000);

@@ -180,3 +180,24 @@ export function termDepositGain(amount: number, termDays: number, annualRatePerc
 export function safeToLockAmount(points: CashFlowPoint[]): number {
   return Math.min(...points.map((p) => p.balance));
 }
+
+// A standard personal-finance heuristic: keep a few months of ordinary
+// expenses liquid before locking any of it away, as a buffer against an
+// expense the recurring schedule doesn't predict (the projection only knows
+// about entries already in the ledger — an emergency isn't one of them).
+// 3 months is the low end of the commonly cited 3-6 month range.
+export const EMERGENCY_FUND_MONTHS = 3;
+
+// Recurring outflows (expenses + subscriptions) normalized to a monthly
+// figure regardless of their own recurrence — this is a steady-state "burn
+// rate", not a projection over any particular window, so it's independent
+// of the days/range the user has selected.
+export function estimateMonthlyExpenseBurn(entries: Entry[]): number {
+  const DAYS_PER_MONTH = 365 / 12;
+  return entries.reduce((sum, e) => {
+    if (e.kind === "income" || e.recurrence === "none") return sum;
+    if (e.recurrence === "weekly") return sum + e.amount * (DAYS_PER_MONTH / 7);
+    if (e.recurrence === "yearly") return sum + e.amount / 12;
+    return sum + e.amount; // monthly
+  }, 0);
+}

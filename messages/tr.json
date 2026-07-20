@@ -242,7 +242,9 @@
     "range": {
       "7": "7 gün",
       "30": "30 gün",
-      "90": "90 gün"
+      "90": "90 gün",
+      "180": "6 ay",
+      "365": "1 yıl"
     },
     "chartAriaLabel": "Önümüzdeki günler için projeksiyon edilen nakit bakiyesi grafiği",
     "legendActual": "Gerçek bakiye",
@@ -257,8 +259,8 @@
     "disclaimer": "Tahmini net getiridir (%17,5 stopaj düşülmüştür); günlük faiz işleyen, istediğin an erişebildiğin likit bir hesap varsayılır — vadeli mevduat gibi kilitli değildir. Gerçek getiri kullandığınız ürüne ve bankaya göre değişir. Yatırım tavsiyesi değildir.",
     "termDeposit": {
       "title": "Vadeli mevduat alternatifi",
-      "sentence": "Bu {days} günlük dönemde bakiyen hiç {minBalance} altına inmiyor. Aynı tutarı günlük faiz hesabında tutsaydın ({dailyRate}) stopaj sonrası ~{dailyGain} kazanırdın; vadeli mevduata kilitleseydin (TCMB'nin ~1 aylık vadeli TL mevduat ortalaması {rate}, {asOf} itibarıyla) ise ~{gain} kazanırdın — vadeli oranı daha yüksek olduğu için fark buradan geliyor.",
-      "caveat": "Bu oran ~1 aylık vadeye dayanır; vade uzadıkça (ör. 90 gün) bankaların sunduğu gerçek oran farklı olabilir. Ayrıca vade dolmadan paraya ihtiyaç duyup çekersen genellikle biriken faizi kaybedersin — üstteki günlük faiz çizgisinin aksine burada para vade bitene kadar erişilemez kabul edilir."
+      "sentence": "Bu {days} günlük dönemde bakiyen hiç {minBalance} altına inmiyor. Ama beklenmedik bir gidere karşı düzenli giderlerinin ~3 aylığı kadarını ({buffer}) likit tutman öneriliyor; kalan {lockable} tutarını vadeli mevduata kilitleseydin (TCMB'nin ~1 aylık vadeli TL mevduat ortalaması {rate}, {asOf} itibarıyla — günlük hesap oranından daha yüksek), vade sonunda stopaj sonrası ~{gain} kazanırdın.",
+      "caveat": "Bu oran ~1 aylık vadeye dayanır; vade uzadıkça bankaların sunduğu gerçek oran farklı olabilir. Ayrıca vade dolmadan paraya ihtiyaç duyup çekersen genellikle biriken faizi kaybedersin — üstteki günlük faiz çizgisinin aksine burada para vade bitene kadar erişilemez kabul edilir. Likit tutulması önerilen tutar, düzenli gider ve aboneliklerinin ortalama 3 aylığı baz alınarak hesaplanır; kişisel durumuna göre daha fazla likit tutmak isteyebilirsin."
     },
     "errors": {
       "rateOutOfRange": "Oran 0 ile 200 arasında olmalı.",
