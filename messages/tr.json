@@ -259,8 +259,12 @@
     "disclaimer": "Tahmini net getiridir (%17,5 stopaj düşülmüştür); günlük faiz işleyen, istediğin an erişebildiğin likit bir hesap varsayılır — vadeli mevduat gibi kilitli değildir. Gerçek getiri kullandığınız ürüne ve bankaya göre değişir. Yatırım tavsiyesi değildir.",
     "termDeposit": {
       "title": "Vadeli mevduat alternatifi",
-      "sentence": "Bu {days} günlük dönemde bakiyen hiç {minBalance} altına inmiyor. Ama beklenmedik bir gidere karşı düzenli giderlerinin ~3 aylığı kadarını ({buffer}) likit tutman öneriliyor; kalan {lockable} tutarını vadeli mevduata kilitleseydin (TCMB'nin ~1 aylık vadeli TL mevduat ortalaması {rate}, {asOf} itibarıyla — günlük hesap oranından daha yüksek), vade sonunda stopaj sonrası ~{gain} kazanırdın.",
-      "caveat": "Bu oran ~1 aylık vadeye dayanır; vade uzadıkça bankaların sunduğu gerçek oran farklı olabilir. Ayrıca vade dolmadan paraya ihtiyaç duyup çekersen genellikle biriken faizi kaybedersin — üstteki günlük faiz çizgisinin aksine burada para vade bitene kadar erişilemez kabul edilir. Likit tutulması önerilen tutar, düzenli gider ve aboneliklerinin ortalama 3 aylığı baz alınarak hesaplanır; kişisel durumuna göre daha fazla likit tutmak isteyebilirsin."
+      "balanceSentence": "{days} günlük dönemde bakiyen <b>{minBalance}</b> altına düşmüyor.",
+      "planSentence": "Yaklaşık 3 aylık giderin olan <b>{buffer}</b>'ı günlük ve erişilebilir hesapta tutup kalan <b>{lockable}</b>'ı 1 aylık vadeli mevduata yatırsaydın, toplamda yaklaşık <g>{combinedGain}</g> net faiz kazanabilirdin.",
+      "allDailySentence": "Tüm parayı günlük hesapta tutman durumunda ise tahmini kazanç <g>{allDailyGain}</g> olurdu.",
+      "extraGainSentence": "Bu sayede fazladan <g>{extraGain}</g> kazanabilirsin.",
+      "noExtraGainSentence": "Bu örnekte iki yaklaşım birbirine yakın bir sonuç veriyor.",
+      "caveat": "Kaynak: TCMB'nin ~1 aylık vadeli TL mevduat ortalaması <b>{rate}</b> ({asOf} itibarıyla). Uzun dönemlerde vade ~30 günde bir yenilenip bugünkü oranla hesaplanır; gerçek oran her yenilemede değişebilir. Vade dolmadan çekersen o dönemin faizini kaybedersin."
     },
     "errors": {
       "rateOutOfRange": "Oran 0 ile 200 arasında olmalı.",

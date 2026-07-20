@@ -259,8 +259,12 @@
     "disclaimer": "Net estimate (17.5% withholding tax already deducted); assumes a liquid, anytime-accessible daily-interest account — not locked like a term deposit. Actual returns vary by bank and product. Not investment advice.",
     "termDeposit": {
       "title": "Term deposit alternative",
-      "sentence": "Over this {days}-day window your balance never drops below {minBalance}. But it's worth keeping about 3 months of ordinary expenses ({buffer}) liquid as a buffer for anything unexpected; locking the remaining {lockable} into a term deposit (TCMB's ~1-month TL time-deposit average, {rate} as of {asOf} — higher than the daily-account rate) would net ~{gain} after tax at maturity.",
-      "caveat": "This rate is based on a ~1-month term; the real rate banks offer may differ for longer terms. Withdrawing before maturity usually forfeits the accrued interest — unlike the daily-interest line above, this scenario assumes the money is locked away until the term ends. The suggested liquid buffer is based on ~3 months of your average recurring expenses and subscriptions; you may prefer to keep more liquid depending on your situation."
+      "balanceSentence": "Over {days} days, your balance never drops below <b>{minBalance}</b>.",
+      "planSentence": "Keeping about 3 months of expenses (<b>{buffer}</b>) in your liquid daily account and locking the remaining <b>{lockable}</b> into a 1-month term deposit would net you roughly <g>{combinedGain}</g> in total interest.",
+      "allDailySentence": "Keeping all of it in the daily account instead would net an estimated <g>{allDailyGain}</g>.",
+      "extraGainSentence": "That means you could earn <g>{extraGain}</g> more.",
+      "noExtraGainSentence": "In this case, both approaches land close to the same result.",
+      "caveat": "Source: TCMB's ~1-month TL time-deposit average, <b>{rate}</b> (as of {asOf}). Over longer windows the term deposit is assumed to renew every ~30 days at today's rate; the real rate may differ at each renewal. Withdrawing before maturity usually forfeits that term's interest."
     },
     "errors": {
       "rateOutOfRange": "Rate must be between 0 and 200.",

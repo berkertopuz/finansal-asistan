@@ -154,6 +154,16 @@
 html {
   /* Lets safe-area-inset-* resolve on iOS PWAs instead of reporting 0. */
   height: 100%;
+  /* Removes the gray tap-flash on buttons/links — the single biggest tell
+     that a PWA is "just a website" rather than an installed app. Doesn't
+     touch pinch-zoom (kept for a11y, see the viewport export) — only
+     disables double-tap-to-zoom's built-in tap delay. */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  /* Stops the whole-page pull-to-refresh / rubber-band bounce so an
+     overscroll at the top or bottom of a route doesn't read as "browser
+     chrome" — inner scroll containers (e.g. wide tables) are unaffected. */
+  overscroll-behavior-y: none;
 }
 
 body {

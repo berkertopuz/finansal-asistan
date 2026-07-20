@@ -16,7 +16,7 @@ import {
   projectBalance,
   projectOptimizedBalance,
   safeToLockAmount,
-  termDepositGain,
+  termDepositGainWithRollover,
 } from "@/lib/cashflow";
 import {
   formatCurrency,
@@ -194,8 +194,42 @@ export function CashFlowTimeline({
   const lockableAmount = Math.max(0, minActualBalance - emergencyBuffer);
   const showTermDeposit = days >= 30 && termDepositRate !== null && lockableAmount > 0;
   const termGain = showTermDeposit
-    ? termDepositGain(lockableAmount, days, termDepositRate!.rate)
+    ? termDepositGainWithRollover(lockableAmount, days, termDepositRate!.rate)
     : 0;
+
+  // The vadeli scenario only ever moves `lockableAmount` out of the liquid
+  // account — the rest keeps following the exact same day-by-day balance
+  // (still earning the daily rate, still shrinking when an expense actually
+  // lands). Shifting every point down by a constant reuses projectBalance's
+  // real event timeline as-is, so a low-balance stretch correctly earns less
+  // interest for as long as it lasts, same as the all-liquid line above.
+  // This is what makes termGain + remainderGain a fair total to set against
+  // endGain (100% liquid) — same money, same events, just split differently.
+  const remainderPoints = useMemo(
+    () => points.map((p) => ({ date: p.date, balance: p.balance - lockableAmount })),
+    [points, lockableAmount],
+  );
+  const optimizedRemainderPoints = useMemo(
+    () => projectOptimizedBalance(remainderPoints, assumedRate),
+    [remainderPoints, assumedRate],
+  );
+  const remainderGain = showTermDeposit
+    ? optimizedRemainderPoints[optimizedRemainderPoints.length - 1].balance -
+      remainderPoints[remainderPoints.length - 1].balance
+    : 0;
+  const combinedGain = termGain + remainderGain;
+  const extraGain = combinedGain - endGain;
+
+  // Shared rich-text renderers for the term-deposit copy: green stays
+  // reserved for actual earnings (matches the app's existing gain color
+  // elsewhere), bold is plain visual emphasis for the other figures
+  // (balances, rates) so the paragraph isn't a wall of uniform text.
+  const greenChunk = (chunks: React.ReactNode) => (
+    <span className="font-medium text-signal-buy-foreground">{chunks}</span>
+  );
+  const boldChunk = (chunks: React.ReactNode) => (
+    <span className="font-semibold text-foreground">{chunks}</span>
+  );
 
   const [rateState, rateAction, ratePending] = useActionState<UpdateAssumedRateState, FormData>(
     updateAssumedRate,
@@ -397,17 +431,40 @@ export function CashFlowTimeline({
           <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
             <p className="font-medium text-foreground">{t("termDeposit.title")}</p>
             <p className="mt-1 text-foreground/70">
-              {t("termDeposit.sentence", {
-                minBalance: formatCurrency(minActualBalance, locale),
-                buffer: formatCurrency(emergencyBuffer, locale),
-                lockable: formatCurrency(lockableAmount, locale),
+              {t.rich("termDeposit.balanceSentence", {
                 days,
-                rate: formatPercentAbs(termDepositRate!.rate / 100, locale),
-                asOf: formatDate(parseEvdsDate(termDepositRate!.asOf), locale),
-                gain: formatCurrency(termGain, locale),
+                minBalance: formatCurrency(minActualBalance, locale),
+                b: boldChunk,
               })}
             </p>
-            <p className="mt-1 text-xs text-foreground/60">{t("termDeposit.caveat")}</p>
+            <p className="mt-1 text-foreground/70">
+              {t.rich("termDeposit.planSentence", {
+                buffer: formatCurrency(emergencyBuffer, locale),
+                lockable: formatCurrency(lockableAmount, locale),
+                combinedGain: formatCurrency(combinedGain, locale),
+                b: boldChunk,
+                g: greenChunk,
+              })}
+            </p>
+            <p className="mt-1 text-foreground/70">
+              {t.rich("termDeposit.allDailySentence", {
+                allDailyGain: formatCurrency(endGain, locale),
+                g: greenChunk,
+              })}{" "}
+              {extraGain > 0
+                ? t.rich("termDeposit.extraGainSentence", {
+                    extraGain: formatCurrency(extraGain, locale),
+                    g: greenChunk,
+                  })
+                : t("termDeposit.noExtraGainSentence")}
+            </p>
+            <p className="mt-1 text-xs text-foreground/60">
+              {t.rich("termDeposit.caveat", {
+                rate: formatPercentAbs(termDepositRate!.rate / 100, locale),
+                asOf: formatDate(parseEvdsDate(termDepositRate!.asOf), locale),
+                b: boldChunk,
+              })}
+            </p>
           </div>
         )}
 

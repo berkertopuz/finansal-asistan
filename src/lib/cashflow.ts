@@ -162,13 +162,40 @@ export function periodFloatGain(
   return netSimpleInterest(amount, periodLengthDays(recurrence, occurrence), annualRatePercent);
 }
 
-// The "vadeye yatırsaydın" scenario: a single lump sum locked for the whole
-// term, paid out once at maturity — unlike the daily-account line above,
-// which compounds continuously and is withdrawable any time. Simple (not
-// compounded) interest is the correct model here: that's how a real vadeli
-// mevduat actually pays.
+// The "vadeye yatırsaydın" scenario: a lump sum locked for the whole term,
+// paid out once at maturity — unlike the daily-account line above, which
+// compounds continuously and is withdrawable any time. Simple (not
+// compounded) interest is the correct model for a single term: that's how a
+// real vadeli mevduat actually pays.
 export function termDepositGain(amount: number, termDays: number, annualRatePercent: number): number {
   return netSimpleInterest(amount, termDays, annualRatePercent);
+}
+
+// The EVDS series this rate comes from is specifically the ~1-month time
+// deposit average — nobody actually locks money into a single vadeli for
+// 180 or 365 days at that rate. In practice you'd let it mature and renew
+// ("rollover") into a new term at whatever the rate is then. We don't know
+// future rates, so the best available assumption is holding today's rate
+// constant across renewals — but *reinvesting* the net interest each cycle
+// (rather than one flat simple-interest calc for the whole window) is what
+// makes a long horizon behave like a real, renewed vadeli instead of
+// understating it against the daily line's continuous compounding.
+const DEFAULT_TERM_LENGTH_DAYS = 30;
+
+export function termDepositGainWithRollover(
+  amount: number,
+  totalDays: number,
+  annualRatePercent: number,
+  termLengthDays: number = DEFAULT_TERM_LENGTH_DAYS,
+): number {
+  let principal = amount;
+  let remaining = totalDays;
+  while (remaining > 0) {
+    const cycleDays = Math.min(termLengthDays, remaining);
+    principal += netSimpleInterest(principal, cycleDays, annualRatePercent);
+    remaining -= cycleDays;
+  }
+  return principal - amount;
 }
 
 // The largest amount that's never needed during the projection window — the
