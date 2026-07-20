@@ -257,7 +257,7 @@
     "disclaimer": "Tahmini net getiridir (%17,5 stopaj düşülmüştür); günlük faiz işleyen, istediğin an erişebildiğin likit bir hesap varsayılır — vadeli mevduat gibi kilitli değildir. Gerçek getiri kullandığınız ürüne ve bankaya göre değişir. Yatırım tavsiyesi değildir.",
     "termDeposit": {
       "title": "Vadeli mevduat alternatifi",
-      "sentence": "Bu {days} günlük dönemde bakiyen hiç {minBalance} altına inmiyor — bu tutarı vadeli mevduata kilitleseydin (TCMB'nin ~1 aylık vadeli TL mevduat ortalaması {rate}, {asOf} itibarıyla), vade sonunda stopaj sonrası ~{gain} kazanırdın.",
+      "sentence": "Bu {days} günlük dönemde bakiyen hiç {minBalance} altına inmiyor. Aynı tutarı günlük faiz hesabında tutsaydın ({dailyRate}) stopaj sonrası ~{dailyGain} kazanırdın; vadeli mevduata kilitleseydin (TCMB'nin ~1 aylık vadeli TL mevduat ortalaması {rate}, {asOf} itibarıyla) ise ~{gain} kazanırdın — vadeli oranı daha yüksek olduğu için fark buradan geliyor.",
       "caveat": "Bu oran ~1 aylık vadeye dayanır; vade uzadıkça (ör. 90 gün) bankaların sunduğu gerçek oran farklı olabilir. Ayrıca vade dolmadan paraya ihtiyaç duyup çekersen genellikle biriken faizi kaybedersin — üstteki günlük faiz çizgisinin aksine burada para vade bitene kadar erişilemez kabul edilir."
     },
     "errors": {

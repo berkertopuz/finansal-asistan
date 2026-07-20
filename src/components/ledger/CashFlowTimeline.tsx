@@ -184,6 +184,16 @@ export function CashFlowTimeline({
   // on a real term deposit).
   const minActualBalance = safeToLockAmount(points);
   const showTermDeposit = days >= 30 && termDepositRate !== null && minActualBalance > 0;
+  // Both figures use the SAME principal (minActualBalance) and SAME duration
+  // (days) — only the rate differs. Comparing this to endGain above would be
+  // misleading: endGain is daily-compounded on the whole, growing balance
+  // (including income that arrives mid-window and interest-on-interest),
+  // while a term deposit can only ever hold what's available on day one.
+  // Putting both numbers on equal footing here is what makes "vadeli pays a
+  // higher rate" actually show up as "vadeli earns more" in the number.
+  const dailyEquivalentGain = showTermDeposit
+    ? termDepositGain(minActualBalance, days, assumedRate)
+    : 0;
   const termGain = showTermDeposit
     ? termDepositGain(minActualBalance, days, termDepositRate!.rate)
     : 0;
@@ -391,6 +401,8 @@ export function CashFlowTimeline({
               {t("termDeposit.sentence", {
                 minBalance: formatCurrency(minActualBalance, locale),
                 days,
+                dailyRate: formatPercentAbs(assumedRate / 100, locale),
+                dailyGain: formatCurrency(dailyEquivalentGain, locale),
                 rate: formatPercentAbs(termDepositRate!.rate / 100, locale),
                 asOf: formatDate(parseEvdsDate(termDepositRate!.asOf), locale),
                 gain: formatCurrency(termGain, locale),

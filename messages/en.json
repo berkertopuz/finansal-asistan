@@ -257,7 +257,7 @@
     "disclaimer": "Net estimate (17.5% withholding tax already deducted); assumes a liquid, anytime-accessible daily-interest account — not locked like a term deposit. Actual returns vary by bank and product. Not investment advice.",
     "termDeposit": {
       "title": "Term deposit alternative",
-      "sentence": "Over this {days}-day window your balance never drops below {minBalance} — locking that amount into a term deposit (TCMB's ~1-month TL time-deposit average, {rate} as of {asOf}) would net you ~{gain} after tax at maturity.",
+      "sentence": "Over this {days}-day window your balance never drops below {minBalance}. Keeping that amount in a daily-interest account ({dailyRate}) would net ~{dailyGain} after tax; locking it into a term deposit instead (TCMB's ~1-month TL time-deposit average, {rate} as of {asOf}) would net ~{gain} — the gap is because the term-deposit rate is higher.",
       "caveat": "This rate is based on a ~1-month term; the real rate banks offer may differ for longer terms (e.g. 90 days). Withdrawing before maturity usually forfeits the accrued interest — unlike the daily-interest line above, this scenario assumes the money is locked away until the term ends."
     },
     "errors": {

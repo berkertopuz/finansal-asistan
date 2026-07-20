@@ -57,18 +57,29 @@ async function fetchLatestSeriesValue(
       headers: { key: apiKey },
       next: { revalidate: 21_600 }, // 6h — these series move at most daily
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      // Swallowed to the caller as null (no fabricated fallback), but logged
+      // so a production-only failure (e.g. EVDS throttling concurrent
+      // requests from the same key) is visible in the server's logs instead
+      // of silently just hiding the feature.
+      console.error(`EVDS fetch failed for ${seriesCode}: ${res.status} ${res.statusText}`);
+      return null;
+    }
 
     const data: { items?: EvdsItem[] } = await res.json();
     const items = (data.items ?? []).filter((item) => item[valueKey] != null);
-    if (items.length === 0) return null;
+    if (items.length === 0) {
+      console.error(`EVDS fetch for ${seriesCode} returned no usable items`);
+      return null;
+    }
 
     const latest = items[items.length - 1];
     const rate = Number(latest[valueKey]);
     if (!Number.isFinite(rate)) return null;
 
     return { rate, asOf: latest.Tarih };
-  } catch {
+  } catch (err) {
+    console.error(`EVDS fetch threw for ${seriesCode}:`, err);
     return null;
   }
 }

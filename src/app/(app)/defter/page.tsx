@@ -41,11 +41,15 @@ export default async function DefterPage() {
   const locale = (await getLocale()) as AppLocale;
   const t = await getTranslations("ledger.summary");
 
-  const [{ data: profile }, evdsRate, termDepositRate] = await Promise.all([
+  // The two EVDS calls are sequential, not Promise.all'd — TCMB's API has
+  // been observed to silently drop one of two concurrent requests from the
+  // same key in production (worked fine locally, one-at-a-time). Not worth
+  // the risk for a personal app checked at most a few times a day.
+  const [{ data: profile }, evdsRate] = await Promise.all([
     supabase.from("profiles").select("assumed_annual_rate").eq("id", user!.id).maybeSingle(),
     fetchReferenceRate(),
-    fetchTermDepositRate(),
   ]);
+  const termDepositRate = await fetchTermDepositRate();
 
   let assumedRate = Number(
     (profile as { assumed_annual_rate: number } | null)?.assumed_annual_rate ??
