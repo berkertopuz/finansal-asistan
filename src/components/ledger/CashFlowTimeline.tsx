@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { updateAssumedRate, type UpdateAssumedRateState } from "@/lib/actions/profile";
-import { projectBalance, floatGain } from "@/lib/cashflow";
+import { projectBalance, projectOptimizedBalance } from "@/lib/cashflow";
 import {
   formatCurrency,
   formatCurrencyCompact,
@@ -16,7 +16,7 @@ import {
   formatPercentAbs,
   formatShortDate,
 } from "@/lib/format";
-import { categoryLabel, type Entry } from "@/lib/ledger";
+import type { Entry } from "@/lib/ledger";
 import type { AppLocale } from "@/lib/locale";
 import { cn } from "@/lib/utils";
 
@@ -62,13 +62,17 @@ export function CashFlowTimeline({
 
   const [days, setDays] = useState<Range>(30);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  const svgRef = useRef<SVGSVGElement>(null);
+  const hitRectRef = useRef<SVGRectElement>(null);
   const rateInputRef = useRef<HTMLInputElement>(null);
 
   const { points, events } = useMemo(() => projectBalance(entries, days), [entries, days]);
+  const optimizedPoints = useMemo(
+    () => projectOptimizedBalance(points, assumedRate),
+    [points, assumedRate],
+  );
   const today = points[0].date;
 
-  const balances = points.map((p) => p.balance);
+  const balances = [...points, ...optimizedPoints].map((p) => p.balance);
   const minBalance = Math.min(...balances);
   const maxBalance = Math.max(...balances);
   const range = maxBalance - minBalance || Math.max(Math.abs(maxBalance), 1);
@@ -89,6 +93,9 @@ export function CashFlowTimeline({
     .map((p, i) => `${i === 0 ? "M" : "L"}${xForIndex(i)},${yForBalance(p.balance)}`)
     .join(" ");
   const areaPath = `${linePath} L${xForIndex(points.length - 1)},${baselineY} L${xForIndex(0)},${baselineY} Z`;
+  const optimizedLinePath = optimizedPoints
+    .map((p, i) => `${i === 0 ? "M" : "L"}${xForIndex(i)},${yForBalance(p.balance)}`)
+    .join(" ");
 
   const gridCount = 4;
   const gridValues = Array.from(
@@ -97,19 +104,25 @@ export function CashFlowTimeline({
   );
   const xLabelIndices = [0, Math.round(days / 2), days];
 
+  // Measures against the invisible hit <rect> itself (the plot area, i.e.
+  // excluding the axis-label padding) — measuring against the whole <svg>
+  // here was the bug: it made the fraction-to-day-index math run PAD_LEFT
+  // pixels off, so hovering a marker showed a different day's tooltip.
   function handlePointerMove(e: React.PointerEvent<SVGRectElement>) {
-    const svg = svgRef.current;
-    if (!svg) return;
-    const rect = svg.getBoundingClientRect();
+    const hitRect = hitRectRef.current;
+    if (!hitRect) return;
+    const rect = hitRect.getBoundingClientRect();
     const fraction = (e.clientX - rect.left) / rect.width;
     setHoverIndex(Math.min(days, Math.max(0, Math.round(fraction * days))));
   }
 
   const hoverPoint = hoverIndex !== null ? points[hoverIndex] : null;
+  const hoverOptimizedPoint = hoverIndex !== null ? optimizedPoints[hoverIndex] : null;
   const hoverEvents =
     hoverIndex !== null ? events.filter((ev) => dayIndexOf(ev.occurrence) === hoverIndex) : [];
 
-  const upcomingPayments = events.filter((ev) => ev.entry.kind !== "income");
+  const endGain =
+    optimizedPoints[optimizedPoints.length - 1].balance - points[points.length - 1].balance;
 
   const [rateState, rateAction, ratePending] = useActionState<UpdateAssumedRateState, FormData>(
     updateAssumedRate,
@@ -133,7 +146,7 @@ export function CashFlowTimeline({
         </select>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <span className="size-2.5 rounded-full bg-signal-buy-foreground" aria-hidden />
             {tLedger("kind.income")}
@@ -142,11 +155,18 @@ export function CashFlowTimeline({
             <span className="size-2.5 rounded-full bg-signal-caution-foreground" aria-hidden />
             {tLedger("kind.expense")}
           </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-0.5 w-4 rounded-full bg-primary" aria-hidden />
+            {t("legendActual")}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-0.5 w-4 rounded-full bg-primary opacity-40" aria-hidden />
+            {t("legendOptimized")}
+          </span>
         </div>
 
         <div className="relative">
           <svg
-            ref={svgRef}
             viewBox={`0 0 ${CHART_W} ${CHART_H}`}
             className="w-full"
             role="img"
@@ -177,6 +197,16 @@ export function CashFlowTimeline({
             ))}
 
             <path d={areaPath} className="fill-primary" opacity={0.1} />
+            <path
+              d={optimizedLinePath}
+              className="stroke-primary"
+              strokeWidth={2}
+              fill="none"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              strokeDasharray="4,3"
+              opacity={0.5}
+            />
             <path
               d={linePath}
               className="stroke-primary"
@@ -231,6 +261,7 @@ export function CashFlowTimeline({
             ))}
 
             <rect
+              ref={hitRectRef}
               x={PAD_LEFT}
               y={PAD_TOP}
               width={plotW}
@@ -242,15 +273,18 @@ export function CashFlowTimeline({
             />
           </svg>
 
-          {hoverPoint && hoverIndex !== null && (
+          {hoverPoint && hoverOptimizedPoint && hoverIndex !== null && (
             <div
               className="pointer-events-none absolute top-0 -translate-x-1/2 rounded-md border border-border bg-popover px-2 py-1.5 text-xs whitespace-nowrap shadow-md"
               style={{ left: `${(xForIndex(hoverIndex) / CHART_W) * 100}%` }}
             >
-              <div className="font-medium text-foreground">
-                {formatCurrency(hoverPoint.balance, locale)}
-              </div>
               <div className="text-muted-foreground">{formatDate(hoverPoint.date, locale)}</div>
+              <div className="font-medium text-foreground">
+                {t("legendActual")}: {formatCurrency(hoverPoint.balance, locale)}
+              </div>
+              <div className="font-medium text-foreground opacity-70">
+                {t("legendOptimized")}: {formatCurrency(hoverOptimizedPoint.balance, locale)}
+              </div>
               {hoverEvents.map((ev, i) => (
                 <div
                   key={i}
@@ -267,6 +301,15 @@ export function CashFlowTimeline({
             </div>
           )}
         </div>
+
+        {endGain > 0 && (
+          <p className="text-sm text-muted-foreground">
+            {t("summarySentence", {
+              days,
+              gain: formatCurrency(endGain, locale),
+            })}
+          </p>
+        )}
 
         <div className="flex flex-col gap-2 border-t border-border pt-3 text-xs">
           <p className="text-muted-foreground">
@@ -322,38 +365,7 @@ export function CashFlowTimeline({
             <p className="text-signal-caution-foreground">{rateState.error}</p>
           )}
           {rateState?.success && <p className="text-signal-buy-foreground">{tSettings("saved")}</p>}
-        </div>
-
-        <div className="flex flex-col gap-2 border-t border-border pt-3">
-          <h3 className="text-sm font-medium text-foreground">{t("insightTitle")}</h3>
-          {upcomingPayments.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t("insightEmpty")}</p>
-          ) : (
-            upcomingPayments.map((ev, i) => {
-              const daysUntil = dayIndexOf(ev.occurrence);
-              const gain = floatGain(ev.entry.amount, daysUntil, assumedRate);
-              return (
-                <div key={i} className="flex flex-col gap-0.5 text-sm">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="min-w-0 truncate text-foreground">
-                      {ev.entry.description || categoryLabel(tLedger, ev.entry.category)}
-                    </span>
-                    <span className="shrink-0 font-medium text-foreground">
-                      {formatCurrency(ev.entry.amount, locale)}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {t("floatGainSentence", {
-                      date: formatDate(ev.occurrence, locale),
-                      rate: formatPercentAbs(assumedRate / 100, locale),
-                      gain: formatCurrency(gain, locale),
-                    })}
-                  </p>
-                </div>
-              );
-            })
-          )}
-          <p className="text-xs text-muted-foreground">{t("disclaimer")}</p>
+          <p className="text-muted-foreground">{t("disclaimer")}</p>
         </div>
       </CardContent>
     </Card>

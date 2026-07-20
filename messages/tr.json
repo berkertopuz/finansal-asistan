@@ -245,13 +245,13 @@
       "90": "90 gün"
     },
     "chartAriaLabel": "Önümüzdeki günler için projeksiyon edilen nakit bakiyesi grafiği",
+    "legendActual": "Gerçek bakiye",
+    "legendOptimized": "Faizde değerlendirilirse",
+    "summarySentence": "Önümüzdeki {days} günde bu parayı faizde değerlendirseydin, dönem sonunda bakiyen ~{gain} daha fazla olurdu.",
     "evdsContext": "TCMB EVDS ortalaması (1 ay vadeli TL mevduat, {asOf} itibarıyla): {rate}",
     "evdsUnavailable": "TCMB EVDS'e şu an ulaşılamıyor.",
     "rateLabel": "Hesaplamada kullanılan oran (yıllık)",
     "useEvdsRate": "TCMB oranını kullan",
-    "insightTitle": "Yaklaşan ödemeler",
-    "insightEmpty": "Seçili dönemde yaklaşan sabit ödeme yok.",
-    "floatGainSentence": "Bu ödemeyi {date} tarihine kadar bekletirsen, varsayılan {rate} yıllık oranla ~{gain} ek getiri potansiyeli var.",
     "disclaimer": "Tahmini getiridir; gerçek getiri kullandığınız ürüne ve bankaya göre değişir. Yatırım tavsiyesi değildir.",
     "errors": {
       "rateOutOfRange": "Oran 0 ile 200 arasında olmalı.",

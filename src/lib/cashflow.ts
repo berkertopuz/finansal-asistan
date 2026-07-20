@@ -87,9 +87,29 @@ export function projectBalance(
   return { points, events };
 }
 
-// Simple-interest estimate for holding `amount` for `daysUntil` more days
-// instead of paying it out immediately — deliberately not compounded, this
-// is a back-of-envelope estimate the UI labels as such, not a precise yield.
-export function floatGain(amount: number, daysUntil: number, annualRatePercent: number): number {
-  return amount * (annualRatePercent / 100) * (daysUntil / 365);
+// A second trajectory over the same `points`: what the balance would look
+// like if idle cash always earned interest instead of sitting in a 0%
+// checking account, applying the same income/expense events on the same
+// days. Daily-compounded on the *optimized* balance (which already includes
+// previously accrued interest), not on the naive one — a payment still
+// withdraws the same principal either way, but the gap between the two
+// lines grows over time, which is the whole point: it's a direct visual
+// answer to "where could this money end up" instead of a per-payment
+// "days since today" estimate (that broke down for anything more than one
+// cycle out — a bill 3 months away isn't money that's been idle since
+// today; it's next month's income, paid on schedule, same as every month).
+export function projectOptimizedBalance(
+  points: CashFlowPoint[],
+  annualRatePercent: number,
+): CashFlowPoint[] {
+  const dailyRate = annualRatePercent / 100 / 365;
+  const optimized: CashFlowPoint[] = [{ date: points[0].date, balance: points[0].balance }];
+
+  for (let i = 1; i < points.length; i++) {
+    const eventDelta = points[i].balance - points[i - 1].balance;
+    const previous = optimized[i - 1].balance;
+    optimized.push({ date: points[i].date, balance: previous + previous * dailyRate + eventDelta });
+  }
+
+  return optimized;
 }
