@@ -5,7 +5,7 @@ import { CashFlowTimeline } from "@/components/ledger/CashFlowTimeline";
 import { QuickAddFAB } from "@/components/ledger/QuickAddFAB";
 import { createClient } from "@/lib/supabase/server";
 import { getEntries } from "@/lib/entries-data";
-import { fetchReferenceRate } from "@/lib/providers/evds";
+import { fetchReferenceRate, fetchTermDepositRate } from "@/lib/providers/evds";
 import { formatCurrency } from "@/lib/format";
 import type { AppLocale } from "@/lib/locale";
 import { cn } from "@/lib/utils";
@@ -41,9 +41,10 @@ export default async function DefterPage() {
   const locale = (await getLocale()) as AppLocale;
   const t = await getTranslations("ledger.summary");
 
-  const [{ data: profile }, evdsRate] = await Promise.all([
+  const [{ data: profile }, evdsRate, termDepositRate] = await Promise.all([
     supabase.from("profiles").select("assumed_annual_rate").eq("id", user!.id).maybeSingle(),
     fetchReferenceRate(),
+    fetchTermDepositRate(),
   ]);
 
   let assumedRate = Number(
@@ -61,7 +62,12 @@ export default async function DefterPage() {
   return (
     <div className="flex flex-1 flex-col gap-6">
       <div className="px-4 md:px-0">
-        <CashFlowTimeline initialData={initialData} assumedRate={assumedRate} evdsRate={evdsRate} />
+        <CashFlowTimeline
+          initialData={initialData}
+          assumedRate={assumedRate}
+          evdsRate={evdsRate}
+          termDepositRate={termDepositRate}
+        />
       </div>
 
       <div className="px-4 md:px-0">
@@ -69,26 +75,26 @@ export default async function DefterPage() {
           <CardHeader>
             <CardTitle className="text-base">{t("title")}</CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <div>
+          <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-lg bg-muted/40 p-3">
               <p className="text-xs text-muted-foreground">{t("income")}</p>
               <p className="text-lg font-semibold text-signal-buy-foreground">
                 {formatCurrency(surplus.income_total, locale)}
               </p>
             </div>
-            <div>
+            <div className="rounded-lg bg-muted/40 p-3">
               <p className="text-xs text-muted-foreground">{t("expense")}</p>
               <p className="text-lg font-semibold text-foreground">
                 {formatCurrency(surplus.expense_total, locale)}
               </p>
             </div>
-            <div>
+            <div className="rounded-lg bg-muted/40 p-3">
               <p className="text-xs text-muted-foreground">{t("subscription")}</p>
               <p className="text-lg font-semibold text-foreground">
                 {formatCurrency(surplus.subscription_total, locale)}
               </p>
             </div>
-            <div>
+            <div className="rounded-lg bg-muted/40 p-3">
               <p className="text-xs text-muted-foreground">{t("netSurplus")}</p>
               <p
                 className={cn(

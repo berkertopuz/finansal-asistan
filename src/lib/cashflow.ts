@@ -142,6 +142,11 @@ export function periodLengthDays(recurrence: EntryRecurrence, occurrence: Date):
   return occurrence.getDate();
 }
 
+function netSimpleInterest(amount: number, days: number, annualRatePercent: number): number {
+  const gross = amount * (annualRatePercent / 100) * (days / 365);
+  return gross * (1 - WITHHOLDING_TAX_RATE);
+}
+
 // Simple-interest estimate, net of withholding tax, for holding `amount`
 // for one recurrence cycle (see periodLengthDays) instead of paying it out
 // as soon as it's available — deliberately not compounded, this is a
@@ -154,6 +159,24 @@ export function periodFloatGain(
   occurrence: Date,
   annualRatePercent: number,
 ): number {
-  const gross = amount * (annualRatePercent / 100) * (periodLengthDays(recurrence, occurrence) / 365);
-  return gross * (1 - WITHHOLDING_TAX_RATE);
+  return netSimpleInterest(amount, periodLengthDays(recurrence, occurrence), annualRatePercent);
+}
+
+// The "vadeye yatırsaydın" scenario: a single lump sum locked for the whole
+// term, paid out once at maturity — unlike the daily-account line above,
+// which compounds continuously and is withdrawable any time. Simple (not
+// compounded) interest is the correct model here: that's how a real vadeli
+// mevduat actually pays.
+export function termDepositGain(amount: number, termDays: number, annualRatePercent: number): number {
+  return netSimpleInterest(amount, termDays, annualRatePercent);
+}
+
+// The largest amount that's never needed during the projection window — the
+// portion of the balance that could safely be locked away in a term deposit
+// without risking an early withdrawal (which would forfeit the accrued
+// interest on a real vadeli mevduat). Anything above this floor is "idle"
+// for the whole window; anything below it is needed to cover expenses along
+// the way and has to stay liquid.
+export function safeToLockAmount(points: CashFlowPoint[]): number {
+  return Math.min(...points.map((p) => p.balance));
 }

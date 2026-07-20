@@ -22,6 +22,13 @@ const EVDS_BASE_URL = "https://evds3.tcmb.gov.tr/igmevdsms-dis";
 const SERIES_CODE = "TP.BISTTLREF.ORAN";
 const VALUE_KEY = "TP_BISTTLREF_ORAN"; // dots -> underscores in the response
 
+// The up-to-1-month TIME DEPOSIT series — rejected earlier for the liquid
+// daily-interest model (it requires locking the money up, so it read too
+// high for that), but it's exactly the right number for a genuine "vadeli
+// mevduat" (term deposit) scenario, which is a locked product by definition.
+const TERM_DEPOSIT_SERIES_CODE = "TP.TRY.MT01";
+const TERM_DEPOSIT_VALUE_KEY = "TP_TRY_MT01";
+
 type EvdsItem = { Tarih: string } & Record<string, string | number>;
 
 function formatEvdsDate(date: Date): string {
@@ -32,37 +39,53 @@ function formatEvdsDate(date: Date): string {
 
 export type ReferenceRate = { rate: number; asOf: string };
 
-// Requests the last ~2 weeks so weekends/holidays (this series only
-// publishes on business days) still leave something to return. Returns
-// null on any failure — callers fall back to the user's stored
-// assumed_annual_rate, never a fabricated number.
-export async function fetchReferenceRate(): Promise<ReferenceRate | null> {
+async function fetchLatestSeriesValue(
+  seriesCode: string,
+  valueKey: string,
+): Promise<ReferenceRate | null> {
   const apiKey = process.env.EVDS_API_KEY;
   if (!apiKey) return null;
 
   const now = new Date();
   const twoWeeksAgo = new Date(now.getTime() - 14 * 86_400_000);
   const url =
-    `${EVDS_BASE_URL}/series=${SERIES_CODE}` +
+    `${EVDS_BASE_URL}/series=${seriesCode}` +
     `&startDate=${formatEvdsDate(twoWeeksAgo)}&endDate=${formatEvdsDate(now)}&type=json`;
 
   try {
     const res = await fetch(url, {
       headers: { key: apiKey },
-      next: { revalidate: 21_600 }, // 6h — this series moves daily (business days)
+      next: { revalidate: 21_600 }, // 6h — these series move at most daily
     });
     if (!res.ok) return null;
 
     const data: { items?: EvdsItem[] } = await res.json();
-    const items = (data.items ?? []).filter((item) => item[VALUE_KEY] != null);
+    const items = (data.items ?? []).filter((item) => item[valueKey] != null);
     if (items.length === 0) return null;
 
     const latest = items[items.length - 1];
-    const rate = Number(latest[VALUE_KEY]);
+    const rate = Number(latest[valueKey]);
     if (!Number.isFinite(rate)) return null;
 
     return { rate, asOf: latest.Tarih };
   } catch {
     return null;
   }
+}
+
+// Requests the last ~2 weeks so weekends/holidays (this series only
+// publishes on business days) still leave something to return. Returns
+// null on any failure — callers fall back to the user's stored
+// assumed_annual_rate, never a fabricated number.
+export async function fetchReferenceRate(): Promise<ReferenceRate | null> {
+  return fetchLatestSeriesValue(SERIES_CODE, VALUE_KEY);
+}
+
+// For the "vadeye yatırsaydın" (term deposit) scenario — a separate, higher
+// rate than the liquid daily-account line above, since a real vadeli
+// mevduat pays more precisely because the money is locked for the term.
+// Returns null the same way (no fabricated fallback); callers should simply
+// hide the term-deposit panel rather than guess a number.
+export async function fetchTermDepositRate(): Promise<ReferenceRate | null> {
+  return fetchLatestSeriesValue(TERM_DEPOSIT_SERIES_CODE, TERM_DEPOSIT_VALUE_KEY);
 }

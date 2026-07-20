@@ -53,6 +53,16 @@ function monthOf(dateStr: string): string {
   return dateStr.slice(0, 7); // "YYYY-MM-DD" -> "YYYY-MM"
 }
 
+// income = calm green, expense = warm amber, subscription = neutral —
+// reuses the app's existing signal tokens (already used for buy/sell tone
+// elsewhere) instead of a flat gray badge for every kind, so the column is
+// scannable at a glance.
+function kindBadgeClassName(kind: EntryKind): string {
+  if (kind === "income") return "bg-signal-buy-bg text-signal-buy-foreground";
+  if (kind === "expense") return "bg-signal-caution-bg text-signal-caution-foreground";
+  return "bg-signal-hold-bg text-signal-hold-foreground";
+}
+
 export function EntryTable({
   kind,
   initialData,
@@ -140,7 +150,11 @@ export function EntryTable({
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    // pb-24 clears QuickAddFAB (fixed bottom-24 size-14 ≈ 152px of vertical
+    // space above the viewport bottom on mobile) so the last row's actions
+    // aren't hidden behind it when scrolled all the way down; md:pb-4 is a
+    // smaller nod to the same FAB sitting bottom-8 on desktop.
+    <div className="flex flex-col gap-3 pb-24 md:pb-4">
       {monthFilter && (
         <div className="flex items-center justify-between px-4 md:px-0">
           <MonthSelect value={month} onChange={setMonth} />
@@ -185,7 +199,7 @@ export function EntryTable({
                     <TableCell>{formatDate(entry.occurred_at, locale)}</TableCell>
                     {showKindColumn && (
                       <TableCell>
-                        <Badge variant={entry.kind === "income" ? "default" : "secondary"}>
+                        <Badge variant="secondary" className={kindBadgeClassName(entry.kind)}>
                           {t(`kind.${entry.kind}`)}
                         </Badge>
                       </TableCell>
@@ -213,8 +227,9 @@ export function EntryTable({
                         <Button
                           type="button"
                           variant="ghost"
-                          size="icon-sm"
+                          size="icon"
                           aria-label={tCommon("edit")}
+                          className="text-foreground/70 hover:text-foreground"
                           onClick={() => setEditingEntry(entry)}
                         >
                           <Pencil className="size-4" />
@@ -222,9 +237,9 @@ export function EntryTable({
                         <Button
                           type="button"
                           variant="ghost"
-                          size="icon-sm"
+                          size="icon"
                           aria-label={tCommon("delete")}
-                          className="text-muted-foreground hover:text-destructive"
+                          className="text-foreground/70 hover:text-destructive"
                           onClick={() => setDeletingEntry(entry)}
                         >
                           <Trash2 className="size-4" />
@@ -250,7 +265,7 @@ export function EntryTable({
                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <div className="flex min-w-0 items-center gap-1.5">
                     {showKindColumn && (
-                      <Badge variant={entry.kind === "income" ? "default" : "secondary"}>
+                      <Badge variant="secondary" className={kindBadgeClassName(entry.kind)}>
                         {t(`kind.${entry.kind}`)}
                       </Badge>
                     )}
@@ -283,6 +298,7 @@ export function EntryTable({
                     variant="ghost"
                     size="icon-touch"
                     aria-label={tCommon("edit")}
+                    className="text-foreground/70 hover:text-foreground"
                     onClick={() => setEditingEntry(entry)}
                   >
                     <Pencil className="size-4" />
@@ -292,7 +308,7 @@ export function EntryTable({
                     variant="ghost"
                     size="icon-touch"
                     aria-label={tCommon("delete")}
-                    className="text-muted-foreground hover:text-destructive"
+                    className="text-foreground/70 hover:text-destructive"
                     onClick={() => setDeletingEntry(entry)}
                   >
                     <Trash2 className="size-4" />
