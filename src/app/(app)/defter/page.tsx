@@ -5,7 +5,7 @@ import { CashFlowTimeline } from "@/components/ledger/CashFlowTimeline";
 import { QuickAddFAB } from "@/components/ledger/QuickAddFAB";
 import { createClient } from "@/lib/supabase/server";
 import { getEntries } from "@/lib/entries-data";
-import { fetchAvgDepositRate } from "@/lib/providers/evds";
+import { fetchReferenceRate } from "@/lib/providers/evds";
 import { formatCurrency } from "@/lib/format";
 import type { AppLocale } from "@/lib/locale";
 import { cn } from "@/lib/utils";
@@ -43,7 +43,7 @@ export default async function DefterPage() {
 
   const [{ data: profile }, evdsRate] = await Promise.all([
     supabase.from("profiles").select("assumed_annual_rate").eq("id", user!.id).maybeSingle(),
-    fetchAvgDepositRate(),
+    fetchReferenceRate(),
   ]);
 
   let assumedRate = Number(
@@ -54,7 +54,7 @@ export default async function DefterPage() {
   // First real render after the migration: swap the placeholder for a live
   // rate so the stored figure starts real instead of a guess.
   if (assumedRate === UNSEEDED_DEFAULT_RATE && evdsRate) {
-    assumedRate = evdsRate.rate;
+    assumedRate = Number(evdsRate.rate.toFixed(2));
     await supabase.from("profiles").update({ assumed_annual_rate: assumedRate }).eq("id", user!.id);
   }
 

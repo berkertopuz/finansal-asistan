@@ -3,6 +3,13 @@ import { nextOccurrenceOnOrAfter } from "@/lib/recurrence";
 
 const DAY_MS = 86_400_000;
 
+// Turkey withholds tax on TL deposit interest at the source ("stopaj") —
+// 17.5% for the kind of daily/short-term interest account this feature is
+// modeling. Every interest estimate below is net of this, so the numbers
+// shown are what actually lands in the account, not the bank's quoted
+// gross rate.
+export const WITHHOLDING_TAX_RATE = 0.175;
+
 function isSameDay(a: Date, b: Date): boolean {
   return (
     a.getFullYear() === b.getFullYear() &&
@@ -102,7 +109,7 @@ export function projectOptimizedBalance(
   points: CashFlowPoint[],
   annualRatePercent: number,
 ): CashFlowPoint[] {
-  const dailyRate = annualRatePercent / 100 / 365;
+  const dailyRate = (annualRatePercent / 100 / 365) * (1 - WITHHOLDING_TAX_RATE);
   const optimized: CashFlowPoint[] = [{ date: points[0].date, balance: points[0].balance }];
 
   for (let i = 1; i < points.length; i++) {
@@ -112,4 +119,41 @@ export function projectOptimizedBalance(
   }
 
   return optimized;
+}
+
+// How many days "this cycle" actually ran for a given occurrence — the
+// window the user could realistically have held the payment amount in
+// interest before it was due. The assumption (confirmed against a real
+// daily-interest-account quote): the money becomes available at the start
+// of the period — payday, effectively — and sits there until the due date
+// within that same period. So a bill due on the 7th has a 7-day window
+// (since the 1st), not "the ~31 days in the whole month" (that was the bug:
+// it overstated a 1-week-scale gain by ~4-5x). Bounded to one cycle no
+// matter how far the occurrence itself is from today — a bill 3 months out
+// isn't 3 months of held cash, it's next month's bill, same window as
+// every other month.
+export function periodLengthDays(recurrence: EntryRecurrence, occurrence: Date): number {
+  if (recurrence === "weekly") return 7;
+  if (recurrence === "yearly") {
+    const startOfYear = new Date(occurrence.getFullYear(), 0, 1);
+    return Math.round((occurrence.getTime() - startOfYear.getTime()) / DAY_MS) + 1;
+  }
+  // monthly: days since the 1st of the occurrence's own month.
+  return occurrence.getDate();
+}
+
+// Simple-interest estimate, net of withholding tax, for holding `amount`
+// for one recurrence cycle (see periodLengthDays) instead of paying it out
+// as soon as it's available — deliberately not compounded, this is a
+// back-of-envelope estimate the UI labels as such, not a precise yield.
+// Checked against a real "günlük faiz" account quote: ₺40,000 held 7 days
+// at 30%/yr nets ~₺189 after 17.5% stopaj, which this formula reproduces.
+export function periodFloatGain(
+  amount: number,
+  recurrence: EntryRecurrence,
+  occurrence: Date,
+  annualRatePercent: number,
+): number {
+  const gross = amount * (annualRatePercent / 100) * (periodLengthDays(recurrence, occurrence) / 365);
+  return gross * (1 - WITHHOLDING_TAX_RATE);
 }

@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { updateAssumedRate, type UpdateAssumedRateState } from "@/lib/actions/profile";
-import { projectBalance, projectOptimizedBalance } from "@/lib/cashflow";
+import { periodFloatGain, projectBalance, projectOptimizedBalance } from "@/lib/cashflow";
 import {
   formatCurrency,
   formatCurrencyCompact,
@@ -285,19 +285,29 @@ export function CashFlowTimeline({
               <div className="font-medium text-foreground opacity-70">
                 {t("legendOptimized")}: {formatCurrency(hoverOptimizedPoint.balance, locale)}
               </div>
-              {hoverEvents.map((ev, i) => (
-                <div
-                  key={i}
-                  className={
-                    ev.entry.kind === "income"
-                      ? "text-signal-buy-foreground"
-                      : "text-signal-caution-foreground"
-                  }
-                >
-                  {ev.entry.kind === "income" ? "+" : "−"}
-                  {formatCurrency(ev.entry.amount, locale)}
-                </div>
-              ))}
+              {hoverEvents.map((ev, i) => {
+                const isIncome = ev.entry.kind === "income";
+                const gain = isIncome
+                  ? null
+                  : periodFloatGain(ev.entry.amount, ev.entry.recurrence, ev.occurrence, assumedRate);
+                return (
+                  <div key={i} className="flex flex-col">
+                    <span
+                      className={
+                        isIncome ? "text-signal-buy-foreground" : "text-signal-caution-foreground"
+                      }
+                    >
+                      {isIncome ? "+" : "−"}
+                      {formatCurrency(ev.entry.amount, locale)}
+                    </span>
+                    {gain !== null && gain > 0 && (
+                      <span className="text-muted-foreground">
+                        {t("eventGainSentence", { gain: formatCurrency(gain, locale) })}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -353,7 +363,12 @@ export function CashFlowTimeline({
                   variant="ghost"
                   aria-label={t("useEvdsRate")}
                   onClick={() => {
-                    if (rateInputRef.current) rateInputRef.current.value = String(evdsRate.rate);
+                    // toFixed(2), not String() — the input has step="0.01",
+                    // so a raw EVDS value like 39.9123 fails the browser's
+                    // native number validation and silently blocks
+                    // submission (no error shown, the "submit" event never
+                    // even fires) instead of saving.
+                    if (rateInputRef.current) rateInputRef.current.value = evdsRate.rate.toFixed(2);
                   }}
                 >
                   <RotateCcw className="size-4" />
