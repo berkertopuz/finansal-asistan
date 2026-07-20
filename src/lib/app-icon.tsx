@@ -2,7 +2,23 @@
 // chart on a brand-teal rounded square. Kept as JSX (not a raster asset)
 // since no image tooling is available in this environment — rendered via
 // ImageResponse in icon.tsx / icon1.tsx / icon2.tsx / apple-icon.tsx.
-export function IconMark({ padding, barGap }: { padding: number; barGap: number }) {
+//
+// `maskable` switches to the variant Android (and the eventual TWA/Play
+// Store wrapper) needs: a full-bleed square background instead of our own
+// rounded corners (the OS applies its own mask shape — circle, squircle,
+// etc. — over the *entire* icon, so self-rounding just fights it and can
+// leave transparent slivers at the corners) with the bars kept inside the
+// centered "safe zone" a mask is guaranteed not to crop, rather than sized
+// for our own borderRadius like the regular icons are.
+export function IconMark({
+  padding,
+  barGap,
+  maskable = false,
+}: {
+  padding: number;
+  barGap: number;
+  maskable?: boolean;
+}) {
   return (
     <div
       style={{
@@ -13,7 +29,7 @@ export function IconMark({ padding, barGap }: { padding: number; barGap: number 
         justifyContent: "center",
         gap: barGap,
         background: "#0f766e",
-        borderRadius: "22%",
+        borderRadius: maskable ? 0 : "22%",
         padding,
         boxSizing: "border-box",
       }}

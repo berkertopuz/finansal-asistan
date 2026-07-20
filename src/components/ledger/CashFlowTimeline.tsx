@@ -243,6 +243,7 @@ export function CashFlowTimeline({
         <select
           value={days}
           onChange={(e) => setDays(Number(e.target.value) as Range)}
+          aria-label={t("rangeLabel")}
           className="min-h-touch rounded-md border border-input bg-background px-2 py-1 text-sm"
         >
           {RANGE_OPTIONS.map((d) => (

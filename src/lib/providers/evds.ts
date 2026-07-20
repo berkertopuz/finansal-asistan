@@ -39,9 +39,19 @@ function formatEvdsDate(date: Date): string {
 
 export type ReferenceRate = { rate: number; asOf: string };
 
+// One retry on any failure — cheap insurance against a transient blip
+// (including the theorized-but-never-confirmed case of EVDS dropping one of
+// two concurrent requests from the same key), without paying for it on the
+// happy path the way fully serializing every call did. The two callers below
+// run in parallel again (see src/app/(app)/defter/page.tsx) now that the
+// production "vadeli not showing" bug turned out to be a missing
+// EVDS_API_KEY env var, not concurrency — Lighthouse measured the earlier
+// serialized version costing ~780ms of extra document request latency on a
+// cold cache.
 async function fetchLatestSeriesValue(
   seriesCode: string,
   valueKey: string,
+  attempt = 1,
 ): Promise<ReferenceRate | null> {
   const apiKey = process.env.EVDS_API_KEY;
   if (!apiKey) {
@@ -49,7 +59,7 @@ async function fetchLatestSeriesValue(
     // is simply missing in this deployment (e.g. set in .env.local but never
     // added to Vercel's Production environment), which otherwise looks
     // identical to a network failure from the outside (both just render as
-    // "no live rate").
+    // "no live rate"). Retrying wouldn't help, so this path skips it.
     console.error(`EVDS_API_KEY is not set — skipping fetch for ${seriesCode}`);
     return null;
   }
@@ -66,11 +76,8 @@ async function fetchLatestSeriesValue(
       next: { revalidate: 21_600 }, // 6h — these series move at most daily
     });
     if (!res.ok) {
-      // Swallowed to the caller as null (no fabricated fallback), but logged
-      // so a production-only failure (e.g. EVDS throttling concurrent
-      // requests from the same key) is visible in the server's logs instead
-      // of silently just hiding the feature.
       console.error(`EVDS fetch failed for ${seriesCode}: ${res.status} ${res.statusText}`);
+      if (attempt < 2) return fetchLatestSeriesValue(seriesCode, valueKey, attempt + 1);
       return null;
     }
 
@@ -78,6 +85,7 @@ async function fetchLatestSeriesValue(
     const items = (data.items ?? []).filter((item) => item[valueKey] != null);
     if (items.length === 0) {
       console.error(`EVDS fetch for ${seriesCode} returned no usable items`);
+      if (attempt < 2) return fetchLatestSeriesValue(seriesCode, valueKey, attempt + 1);
       return null;
     }
 
@@ -88,6 +96,7 @@ async function fetchLatestSeriesValue(
     return { rate, asOf: latest.Tarih };
   } catch (err) {
     console.error(`EVDS fetch threw for ${seriesCode}:`, err);
+    if (attempt < 2) return fetchLatestSeriesValue(seriesCode, valueKey, attempt + 1);
     return null;
   }
 }

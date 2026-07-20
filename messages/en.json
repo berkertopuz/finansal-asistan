@@ -239,6 +239,7 @@
   },
   "cashflow": {
     "title": "Cash Flow",
+    "rangeLabel": "Time range",
     "range": {
       "7": "7 days",
       "30": "30 days",
