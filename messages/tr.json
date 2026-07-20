@@ -193,7 +193,9 @@
       "amount": "Tutar",
       "actions": "İşlemler",
       "empty": "Bu ayda kayıt yok.",
-      "loadError": "Kayıtlar yüklenemedi. Sayfayı yenilemeyi dene."
+      "loadError": "Kayıtlar yüklenemedi. Sayfayı yenilemeyi dene.",
+      "today": "Bugün",
+      "yesterday": "Dün"
     },
     "month": {
       "label": "Ay"

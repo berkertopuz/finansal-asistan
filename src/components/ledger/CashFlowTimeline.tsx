@@ -237,7 +237,7 @@ export function CashFlowTimeline({
   );
 
   return (
-    <Card>
+    <Card className="glass-card ring-0">
       <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
         <CardTitle className="text-base">{t("title")}</CardTitle>
         <select
@@ -429,7 +429,7 @@ export function CashFlowTimeline({
         )}
 
         {showTermDeposit && termGain > 0 && (
-          <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+          <div className="glass-card rounded-2xl p-3 text-sm">
             <p className="font-medium text-foreground">{t("termDeposit.title")}</p>
             <p className="mt-1 text-foreground/70">
               {t.rich("termDeposit.balanceSentence", {

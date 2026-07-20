@@ -31,7 +31,7 @@ export function QuickAddFAB({ defaultKind }: { defaultKind?: EntryKind } = {}) {
         size="icon-touch"
         onClick={() => setOpen(true)}
         aria-label={t("addEntry")}
-        className="fixed right-4 bottom-24 z-20 size-14 rounded-full shadow-lg md:right-8 md:bottom-8"
+        className="fixed right-4 bottom-24 z-20 size-14 rounded-2xl shadow-lg md:right-8 md:bottom-8"
       >
         <Plus className="size-6" />
       </Button>

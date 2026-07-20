@@ -3,38 +3,41 @@
 @import "shadcn/tailwind.css";
 
 :root {
-  --background: #f8fafc;
+  /* Light theme — designed as the light-mode sibling of the dark palette
+     below (same mint/emerald brand family, cool sage-tinted neutrals),
+     not just a generic default. */
+  --background: #f6faf8;
   --foreground: #0f172a;
   --card: #ffffff;
   --card-foreground: #0f172a;
   --popover: #ffffff;
   --popover-foreground: #0f172a;
-  --border: #e2e8f0;
-  --input: #e2e8f0;
-  --muted: #f1f5f9;
+  --border: #dce5e0;
+  --input: #dce5e0;
+  --muted: #eef3f0;
   --muted-foreground: #64748b;
-  --secondary: #f1f5f9;
+  --secondary: #eef3f0;
   --secondary-foreground: #0f172a;
 
-  /* Brand teal — doubles as shadcn's --primary/--ring so generated
+  /* Brand emerald — doubles as shadcn's --primary/--ring so generated
      components (Button, focus rings, …) pick it up automatically. */
-  --brand: #0f766e;
+  --brand: #0e9f6e;
   --brand-foreground: #ffffff;
   --primary: var(--brand);
   --primary-foreground: var(--brand-foreground);
   --ring: var(--brand);
-  --accent: #f0fdfa;
-  --accent-foreground: #0f766e;
+  --accent: #ecfdf6;
+  --accent-foreground: #0e9f6e;
   --destructive: oklch(0.577 0.245 27.325);
 
   /* Desktop sidebar nav chrome (see components/AppShell). */
-  --sidebar: #f8fafc;
+  --sidebar: #f6faf8;
   --sidebar-foreground: #0f172a;
   --sidebar-primary: var(--brand);
   --sidebar-primary-foreground: var(--brand-foreground);
-  --sidebar-accent: #f0fdfa;
-  --sidebar-accent-foreground: #0f766e;
-  --sidebar-border: #e2e8f0;
+  --sidebar-accent: #ecfdf6;
+  --sidebar-accent-foreground: #0e9f6e;
+  --sidebar-border: #dce5e0;
   --sidebar-ring: var(--brand);
 
   --chart-1: oklch(0.87 0 0);
@@ -58,34 +61,39 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0b1120;
-    --foreground: #e2e8f0;
-    --card: #111827;
-    --card-foreground: #e2e8f0;
-    --popover: #111827;
-    --popover-foreground: #e2e8f0;
-    --border: #1f2937;
-    --input: #1f2937;
-    --muted: #1e293b;
-    --muted-foreground: #94a3b8;
-    --secondary: #1e293b;
-    --secondary-foreground: #e2e8f0;
+    /* Dark theme — adopted from a Google Stitch mockup design for this
+       page (deep navy surfaces, mint-green primary). Expense/caution
+       stays amber, not the mockup's coral/red — CLAUDE.md's signal
+       palette deliberately avoids alarm-red elsewhere in the app, and
+       this keeps that consistent. */
+    --background: #0b1326;
+    --foreground: #dae2fd;
+    --card: #171f33;
+    --card-foreground: #dae2fd;
+    --popover: #171f33;
+    --popover-foreground: #dae2fd;
+    --border: #2d3449;
+    --input: #2d3449;
+    --muted: #222a3d;
+    --muted-foreground: #bbcabf;
+    --secondary: #222a3d;
+    --secondary-foreground: #dae2fd;
 
-    --brand: #2dd4bf;
-    --brand-foreground: #06251f;
-    --accent: #0f2b27;
-    --accent-foreground: #5eead4;
+    --brand: #4edea3;
+    --brand-foreground: #003824;
+    --accent: #12301f;
+    --accent-foreground: #6ffbbe;
     --destructive: oklch(0.704 0.191 22.216);
 
-    --sidebar: #0b1120;
-    --sidebar-foreground: #e2e8f0;
-    --sidebar-accent: #0f2b27;
-    --sidebar-accent-foreground: #5eead4;
-    --sidebar-border: #1f2937;
+    --sidebar: #0b1326;
+    --sidebar-foreground: #dae2fd;
+    --sidebar-accent: #12301f;
+    --sidebar-accent-foreground: #6ffbbe;
+    --sidebar-border: #2d3449;
 
-    --signal-buy-bg: #052e21;
-    --signal-buy-foreground: #34d399;
-    --signal-hold-bg: #1e293b;
+    --signal-buy-bg: #0f2b1e;
+    --signal-buy-foreground: #4edea3;
+    --signal-hold-bg: #222a3d;
     --signal-hold-foreground: #cbd5e1;
     --signal-caution-bg: #2a1a05;
     --signal-caution-foreground: #fbbf24;
@@ -138,9 +146,9 @@
 
   --spacing-touch: var(--touch-target);
 
-  --font-sans: var(--font-geist-sans);
-  --font-mono: ui-monospace, monospace;
-  --font-heading: var(--font-geist-sans);
+  --font-sans: var(--font-hanken-grotesk);
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+  --font-heading: var(--font-hanken-grotesk);
 
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
@@ -179,6 +187,13 @@ body {
 
 .safe-area-top {
   padding-top: env(safe-area-inset-top);
+}
+
+/* Translucent, blurred card surface (Defter redesign) — Tailwind's opacity
+   modifier works on any theme color automatically, so bg-card/40 needs no
+   separate rgba/color-mix token, and it's theme-aware in both modes. */
+.glass-card {
+  @apply border border-border/60 bg-card/40 backdrop-blur-xl;
 }
 
 @layer base {

@@ -78,34 +78,42 @@ export default async function DefterPage() {
       </div>
 
       <div className="px-4 md:px-0">
-        <Card>
+        <Card className="glass-card ring-0">
           <CardHeader>
             <CardTitle className="text-base">{t("title")}</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-lg bg-muted/40 p-3">
-              <p className="text-xs text-muted-foreground">{t("income")}</p>
-              <p className="text-lg font-semibold text-signal-buy-foreground">
+            <div className="glass-card rounded-2xl p-4">
+              <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
+                {t("income")}
+              </p>
+              <p className="mt-1 text-xl font-bold text-signal-buy-foreground">
                 {formatCurrency(surplus.income_total, locale)}
               </p>
             </div>
-            <div className="rounded-lg bg-muted/40 p-3">
-              <p className="text-xs text-muted-foreground">{t("expense")}</p>
-              <p className="text-lg font-semibold text-foreground">
+            <div className="glass-card rounded-2xl p-4">
+              <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
+                {t("expense")}
+              </p>
+              <p className="mt-1 text-xl font-bold text-foreground">
                 {formatCurrency(surplus.expense_total, locale)}
               </p>
             </div>
-            <div className="rounded-lg bg-muted/40 p-3">
-              <p className="text-xs text-muted-foreground">{t("subscription")}</p>
-              <p className="text-lg font-semibold text-foreground">
+            <div className="glass-card rounded-2xl p-4">
+              <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
+                {t("subscription")}
+              </p>
+              <p className="mt-1 text-xl font-bold text-foreground">
                 {formatCurrency(surplus.subscription_total, locale)}
               </p>
             </div>
-            <div className="rounded-lg bg-muted/40 p-3">
-              <p className="text-xs text-muted-foreground">{t("netSurplus")}</p>
+            <div className="glass-card rounded-2xl p-4">
+              <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
+                {t("netSurplus")}
+              </p>
               <p
                 className={cn(
-                  "text-xl font-semibold",
+                  "mt-1 text-xl font-bold",
                   surplus.surplus >= 0
                     ? "text-signal-buy-foreground"
                     : "text-signal-caution-foreground",

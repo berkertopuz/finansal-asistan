@@ -2,6 +2,7 @@
 
 import { useLocale, useTranslations } from "next-intl";
 import { toIntlTag, type AppLocale } from "@/lib/locale";
+import { cn } from "@/lib/utils";
 
 // "YYYY-MM" — sorts and compares as a plain string, no Date math needed.
 export function currentMonthKey(): string {
@@ -31,19 +32,26 @@ export function MonthSelect({
   const options = monthOptions(locale);
 
   return (
-    <label className="flex items-center gap-2 text-sm">
-      <span className="text-muted-foreground">{t("label")}</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="min-h-touch rounded-md border border-input bg-background px-2 py-1 text-sm"
-      >
-        {options.map((opt) => (
-          <option key={opt.key} value={opt.key}>
+    <div aria-label={t("label")} className="flex gap-2 overflow-x-auto py-1">
+      {options.map((opt) => {
+        const active = opt.key === value;
+        return (
+          <button
+            key={opt.key}
+            type="button"
+            onClick={() => onChange(opt.key)}
+            aria-pressed={active}
+            className={cn(
+              "min-h-touch shrink-0 rounded-full px-4 font-mono text-xs font-medium tracking-wide whitespace-nowrap uppercase transition-colors",
+              active
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground hover:text-foreground",
+            )}
+          >
             {opt.label}
-          </option>
-        ))}
-      </select>
-    </label>
+          </button>
+        );
+      })}
+    </div>
   );
 }

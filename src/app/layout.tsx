@@ -1,16 +1,24 @@
 import type { Metadata, Viewport } from "next";
-import { Geist } from "next/font/google";
+import { Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import "./globals.css";
 
 // latin-ext, not just latin — ğ/ş/ı/İ (Turkish Latin Extended-A) render in
 // a fallback system font without it, and every screen in this app is
-// Turkish. No Geist_Mono: nothing in the app uses a monospace font, so
-// loading it was a dead network request.
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Turkish. Verified both families declare latin-ext support (Google Fonts
+// METADATA.pb) before switching from Geist to match the Defter redesign.
+const hankenGrotesk = Hanken_Grotesk({
+  variable: "--font-hanken-grotesk",
   subsets: ["latin", "latin-ext"],
+});
+
+// Used for mono-styled labels (month pills, category tags) in the Defter
+// redesign — small, deliberate use, not a general body font.
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
+  subsets: ["latin", "latin-ext"],
+  weight: ["500"],
 });
 
 export const metadata: Metadata = {
@@ -29,8 +37,8 @@ export const viewport: Viewport = {
   // Lets content flow into the safe-area insets so .safe-area-* padding works.
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f8fafc" },
-    { media: "(prefers-color-scheme: dark)", color: "#0b1120" },
+    { media: "(prefers-color-scheme: light)", color: "#f6faf8" },
+    { media: "(prefers-color-scheme: dark)", color: "#0b1326" },
   ],
 };
 
@@ -43,7 +51,10 @@ export default async function RootLayout({
   const messages = await getMessages();
 
   return (
-    <html lang={locale} className={`${geistSans.variable} h-full antialiased`}>
+    <html
+      lang={locale}
+      className={`${hankenGrotesk.variable} ${jetbrainsMono.variable} h-full antialiased`}
+    >
       <body className="min-h-full flex flex-col">
         <NextIntlClientProvider locale={locale} messages={messages}>
           {children}

@@ -37,6 +37,7 @@ import { deleteEntry } from "@/lib/actions/entries";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { AppLocale } from "@/lib/locale";
 import { categoryLabel, type Entry, type EntryKind } from "@/lib/ledger";
+import { categoryIcon } from "@/lib/category-icons";
 import { cn } from "@/lib/utils";
 
 const ENTRIES_KEY = "/api/entries";
@@ -52,6 +53,25 @@ type SortDir = "asc" | "desc";
 function monthOf(dateStr: string): string {
   return dateStr.slice(0, 7); // "YYYY-MM-DD" -> "YYYY-MM"
 }
+
+function isSameDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+// "Bugün"/"Dün" for the mobile list's day headers, falling back to a full
+// date for anything older — only meaningful in the default chronological
+// view (see groupByDay below), so this only ever gets called there.
+function dayGroupLabel(dateStr: string, t: (key: string) => string, locale: AppLocale): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today.getTime() - 86_400_000);
+  if (isSameDay(date, today)) return t("table.today");
+  if (isSameDay(date, yesterday)) return t("table.yesterday");
+  return formatDate(dateStr, locale);
+}
+
+type MobileRow = { type: "header"; label: string } | { type: "entry"; entry: Entry };
 
 // income = calm green, expense = warm amber, subscription = neutral —
 // reuses the app's existing signal tokens (already used for buy/sell tone
@@ -111,6 +131,26 @@ export function EntryTable({
     });
     return rows;
   }, [filtered, sortField, sortDir]);
+
+  // Day headers only make sense in date order — sorting by amount/category
+  // would scatter the same day's entries apart, so those sorts fall back to
+  // the plain flat list (mobileRows just has no "header" entries then).
+  const mobileRows = useMemo<MobileRow[]>(() => {
+    if (sortField !== "occurred_at") {
+      return sorted.map((entry) => ({ type: "entry", entry }));
+    }
+    const rows: MobileRow[] = [];
+    let lastLabel: string | null = null;
+    for (const entry of sorted) {
+      const label = dayGroupLabel(entry.occurred_at, t, locale);
+      if (label !== lastLabel) {
+        rows.push({ type: "header", label });
+        lastLabel = label;
+      }
+      rows.push({ type: "entry", entry });
+    }
+    return rows;
+  }, [sorted, sortField, t, locale]);
 
   function toggleSort(field: SortField) {
     if (field === sortField) {
@@ -255,67 +295,88 @@ export function EntryTable({
           {/* Mobile: a stacked row list, not the same table shrunk down —
               a <table> with 7 columns forces horizontal scroll on a 375px
               viewport, which CLAUDE.md rule 4 forbids. Row actions use
-              icon-touch (≥48px) since these are touch targets here. */}
+              icon-touch (≥48px) since these are touch targets here. Day
+              headers ("Bugün"/"Dün") come from mobileRows, which only
+              inserts them when the list is in chronological order. */}
           <div className="flex flex-col gap-2 px-4 md:hidden">
-            {sorted.map((entry) => (
-              <div
-                key={entry.id}
-                className="flex items-center gap-2 rounded-lg border border-border p-2"
-              >
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <div className="flex min-w-0 items-center gap-1.5">
-                    {showKindColumn && (
-                      <Badge variant="secondary" className={kindBadgeClassName(entry.kind)}>
-                        {t(`kind.${entry.kind}`)}
-                      </Badge>
+            {mobileRows.map((row, i) => {
+              if (row.type === "header") {
+                return (
+                  <p
+                    key={`h-${i}`}
+                    className="px-2 pt-2 text-xs font-medium tracking-widest text-muted-foreground uppercase first:pt-0"
+                  >
+                    {row.label}
+                  </p>
+                );
+              }
+              const entry = row.entry;
+              const { Icon, colorClassName } = categoryIcon(entry.category);
+              return (
+                <div key={entry.id} className="glass-card flex items-center gap-3 rounded-2xl p-4">
+                  <div
+                    className={cn(
+                      "flex size-12 shrink-0 items-center justify-center rounded-xl",
+                      colorClassName,
                     )}
-                    <span className="truncate text-sm text-foreground">
-                      {categoryLabel(t, entry.category)}
-                    </span>
-                    {entry.recurrence !== "none" && (
-                      <Badge variant="outline" className="shrink-0">
-                        {t(`recurrence.${entry.recurrence}`)}
-                      </Badge>
-                    )}
+                  >
+                    <Icon className="size-5" />
                   </div>
-                  <span className="text-xs text-muted-foreground">
-                    {formatDate(entry.occurred_at, locale)}
-                    {entry.description ? ` · ${entry.description}` : ""}
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <span className="truncate text-sm font-semibold text-foreground">
+                        {categoryLabel(t, entry.category)}
+                      </span>
+                      {showKindColumn && (
+                        <Badge variant="secondary" className={kindBadgeClassName(entry.kind)}>
+                          {t(`kind.${entry.kind}`)}
+                        </Badge>
+                      )}
+                      {entry.recurrence !== "none" && (
+                        <Badge variant="outline" className="shrink-0">
+                          {t(`recurrence.${entry.recurrence}`)}
+                        </Badge>
+                      )}
+                    </div>
+                    <span className="truncate text-xs text-muted-foreground">
+                      {formatDate(entry.occurred_at, locale)}
+                      {entry.description ? ` · ${entry.description}` : ""}
+                    </span>
+                  </div>
+                  <span
+                    className={cn(
+                      "shrink-0 text-sm font-semibold",
+                      entry.kind === "income" ? "text-signal-buy-foreground" : "text-foreground",
+                    )}
+                  >
+                    {entry.kind === "income" ? "+" : "−"}
+                    {formatCurrency(entry.amount, locale)}
                   </span>
+                  <div className="flex shrink-0">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-touch"
+                      aria-label={tCommon("edit")}
+                      className="text-foreground/70 hover:text-foreground"
+                      onClick={() => setEditingEntry(entry)}
+                    >
+                      <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-touch"
+                      aria-label={tCommon("delete")}
+                      className="text-foreground/70 hover:text-destructive"
+                      onClick={() => setDeletingEntry(entry)}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
                 </div>
-                <span
-                  className={cn(
-                    "shrink-0 text-sm font-semibold",
-                    entry.kind === "income" ? "text-signal-buy-foreground" : "text-foreground",
-                  )}
-                >
-                  {entry.kind === "income" ? "+" : "−"}
-                  {formatCurrency(entry.amount, locale)}
-                </span>
-                <div className="flex shrink-0">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-touch"
-                    aria-label={tCommon("edit")}
-                    className="text-foreground/70 hover:text-foreground"
-                    onClick={() => setEditingEntry(entry)}
-                  >
-                    <Pencil className="size-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-touch"
-                    aria-label={tCommon("delete")}
-                    className="text-foreground/70 hover:text-destructive"
-                    onClick={() => setDeletingEntry(entry)}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}

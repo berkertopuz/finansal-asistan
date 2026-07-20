@@ -104,7 +104,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   active ? "text-primary" : "text-muted-foreground",
                 )}
               >
-                <Icon className="size-5" />
+                <span
+                  className={cn(
+                    "flex items-center justify-center rounded-xl px-3 py-0.5",
+                    active && "bg-primary/10",
+                  )}
+                >
+                  <Icon className="size-5" />
+                </span>
                 {t(labelKey)}
               </Link>
             );

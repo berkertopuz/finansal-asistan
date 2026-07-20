@@ -28,7 +28,7 @@ export function IconMark({
         alignItems: "flex-end",
         justifyContent: "center",
         gap: barGap,
-        background: "#0f766e",
+        background: "#0e9f6e",
         borderRadius: maskable ? 0 : "22%",
         padding,
         boxSizing: "border-box",

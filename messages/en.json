@@ -193,7 +193,9 @@
       "amount": "Amount",
       "actions": "Actions",
       "empty": "No entries this month.",
-      "loadError": "Could not load entries. Try refreshing the page."
+      "loadError": "Could not load entries. Try refreshing the page.",
+      "today": "Today",
+      "yesterday": "Yesterday"
     },
     "month": {
       "label": "Month"
