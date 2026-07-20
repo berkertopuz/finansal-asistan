@@ -69,25 +69,21 @@ export default async function DefterPage() {
   return (
     <div className="flex flex-1 flex-col gap-6">
       <div className="px-4 md:px-0">
-        <CashFlowTimeline
-          initialData={initialData}
-          assumedRate={assumedRate}
-          evdsRate={evdsRate}
-          termDepositRate={termDepositRate}
-        />
-      </div>
-
-      <div className="px-4 md:px-0">
         <Card className="glass-card ring-0">
           <CardHeader>
             <CardTitle className="text-base">{t("title")}</CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {/* 4 columns only from lg: up — at md: (where the desktop sidebar
+              already ate 256px) sm:grid-cols-4 left each card too narrow for
+              a bold ₺xxx.xxx,xx figure, wrapping/overflowing badly around
+              ~773px viewports. truncate on the value is a defensive
+              fallback so a future narrow case clips instead of overflowing. */}
+          <CardContent className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <div className="glass-card rounded-2xl p-4">
               <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
                 {t("income")}
               </p>
-              <p className="mt-1 text-xl font-bold text-signal-buy-foreground">
+              <p className="mt-1 truncate text-xl font-bold text-signal-buy-foreground">
                 {formatCurrency(surplus.income_total, locale)}
               </p>
             </div>
@@ -95,7 +91,7 @@ export default async function DefterPage() {
               <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
                 {t("expense")}
               </p>
-              <p className="mt-1 text-xl font-bold text-foreground">
+              <p className="mt-1 truncate text-xl font-bold text-foreground">
                 {formatCurrency(surplus.expense_total, locale)}
               </p>
             </div>
@@ -103,7 +99,7 @@ export default async function DefterPage() {
               <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
                 {t("subscription")}
               </p>
-              <p className="mt-1 text-xl font-bold text-foreground">
+              <p className="mt-1 truncate text-xl font-bold text-foreground">
                 {formatCurrency(surplus.subscription_total, locale)}
               </p>
             </div>
@@ -113,7 +109,7 @@ export default async function DefterPage() {
               </p>
               <p
                 className={cn(
-                  "mt-1 text-xl font-bold",
+                  "mt-1 truncate text-xl font-bold",
                   surplus.surplus >= 0
                     ? "text-signal-buy-foreground"
                     : "text-signal-caution-foreground",
@@ -126,7 +122,16 @@ export default async function DefterPage() {
         </Card>
       </div>
 
-      <EntryTable initialData={initialData} />
+      <div className="px-4 md:px-0">
+        <CashFlowTimeline
+          initialData={initialData}
+          assumedRate={assumedRate}
+          evdsRate={evdsRate}
+          termDepositRate={termDepositRate}
+        />
+      </div>
+
+      <EntryTable initialData={initialData} allowAllMonths defaultSortField="created_at" />
       <QuickAddFAB />
     </div>
   );

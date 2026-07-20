@@ -198,15 +198,17 @@
       "yesterday": "Dün"
     },
     "month": {
-      "label": "Ay"
+      "label": "Ay",
+      "all": "Tümü"
     },
     "form": {
       "amountLabel": "Tutar",
+      "dateLabel": "Tarih",
       "descriptionLabel": "Açıklama (opsiyonel)",
       "descriptionPlaceholder": "örn. Temmuz kirası",
       "recurrenceLabel": "Sıklık",
       "recurrenceNote": "Bu kayıt her ay otomatik olarak fazla hesabına dahil edilir, tekrar girmen gerekmez.",
-      "dueDateLabel": "Ödeme tarihi (opsiyonel)",
+      "dueDateLabel": "Ödeme tarihi",
       "categoryLabel": "Kategori",
       "addSheetTitle": "Yeni kayıt",
       "addSheetDescription": "Gelir, gider ya da abonelik ekle.",
@@ -216,6 +218,7 @@
       "errors": {
         "amountPositive": "Tutar 0'dan büyük olmalı.",
         "amountTooHigh": "Tutar çok yüksek görünüyor.",
+        "dateRequired": "Bir tarih seçmelisin.",
         "descriptionTooLong": "Açıklama çok uzun.",
         "noSession": "Oturum bulunamadı, tekrar giriş yap.",
         "saveFailed": "Kaydedilemedi, tekrar dene.",

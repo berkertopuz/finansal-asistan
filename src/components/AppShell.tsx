@@ -8,7 +8,6 @@ import { NAV_ITEMS } from "@/lib/nav-items";
 import { IconMark } from "@/lib/app-icon";
 import { Button } from "@/components/ui/button";
 import { OfflineBanner } from "@/components/OfflineBanner";
-import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 import { signOut } from "@/lib/actions/auth";
 import { cn } from "@/lib/utils";
 
@@ -26,7 +25,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="size-8 shrink-0 overflow-hidden rounded-lg">
             <IconMark padding={5} barGap={3} />
           </div>
-          <span className="text-sm font-semibold">{tCommon("appName")}</span>
+          <span className="text-sm leading-none font-semibold">{tCommon("appName")}</span>
         </div>
         <nav className="flex flex-1 flex-col gap-1 px-3">
           {NAV_ITEMS.map(({ href, labelKey, icon: Icon }) => {
@@ -49,7 +48,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
         <div className="border-t border-sidebar-border p-3">
-          <LocaleSwitcher className="mb-2 w-full justify-center" />
           <form action={signOut}>
             <Button
               type="submit"
@@ -69,23 +67,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="size-6 shrink-0 overflow-hidden rounded-md">
               <IconMark padding={3} barGap={2} />
             </div>
-            <span className="text-sm font-semibold text-foreground">
+            {/* leading-none — Hanken Grotesk's default line-height leaves
+                enough extra space above/below the glyphs that the text read
+                as vertically off-center next to the icon beside it, even
+                inside an items-center row. */}
+            <span className="text-sm leading-none font-semibold text-foreground">
               {tCommon("appName")}
             </span>
           </div>
-          <div className="flex items-center gap-1">
-            <LocaleSwitcher />
-            <form action={signOut}>
-              <Button
-                type="submit"
-                variant="ghost"
-                size="icon-touch"
-                aria-label={tCommon("logout")}
-              >
-                <LogOut className="size-5" />
-              </Button>
-            </form>
-          </div>
+          <form action={signOut}>
+            <Button
+              type="submit"
+              variant="ghost"
+              size="icon-touch"
+              aria-label={tCommon("logout")}
+            >
+              <LogOut className="size-5" />
+            </Button>
+          </form>
         </header>
 
         <OfflineBanner />

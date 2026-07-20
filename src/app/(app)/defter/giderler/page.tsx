@@ -50,7 +50,7 @@ export default async function GiderlerPage() {
         </Card>
       </div>
 
-      <EntryTable kind="expense" initialData={initialData} showKindColumn={false} />
+      <EntryTable kind="expense" initialData={initialData} showKindColumn={false} showMonthSummary />
       <QuickAddFAB defaultKind="expense" />
     </div>
   );

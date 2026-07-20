@@ -198,15 +198,17 @@
       "yesterday": "Yesterday"
     },
     "month": {
-      "label": "Month"
+      "label": "Month",
+      "all": "All"
     },
     "form": {
       "amountLabel": "Amount",
+      "dateLabel": "Date",
       "descriptionLabel": "Description (optional)",
       "descriptionPlaceholder": "e.g. July rent",
       "recurrenceLabel": "Recurrence",
       "recurrenceNote": "This entry is automatically included in the surplus every month — no need to add it again.",
-      "dueDateLabel": "Due date (optional)",
+      "dueDateLabel": "Payment date",
       "categoryLabel": "Category",
       "addSheetTitle": "New entry",
       "addSheetDescription": "Add income, an expense, or a subscription.",
@@ -216,6 +218,7 @@
       "errors": {
         "amountPositive": "Amount must be greater than 0.",
         "amountTooHigh": "Amount looks too high.",
+        "dateRequired": "You must pick a date.",
         "descriptionTooLong": "Description is too long.",
         "noSession": "No session found, please log in again.",
         "saveFailed": "Could not save, please try again.",

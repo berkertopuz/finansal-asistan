@@ -36,7 +36,7 @@ import { MonthSelect, currentMonthKey } from "@/components/ledger/MonthSelect";
 import { deleteEntry } from "@/lib/actions/entries";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { AppLocale } from "@/lib/locale";
-import { categoryLabel, type Entry, type EntryKind } from "@/lib/ledger";
+import { categoryLabel, entryDisplayDate, type Entry, type EntryKind } from "@/lib/ledger";
 import { categoryIcon } from "@/lib/category-icons";
 import { cn } from "@/lib/utils";
 
@@ -47,7 +47,10 @@ const fetcher = (url: string) =>
     return res.json();
   });
 
-type SortField = "occurred_at" | "amount" | "category";
+// "created_at" isn't a clickable column header — it's only ever the
+// Tümü tab's initial default (most-recently-added-first, like an activity
+// feed), before the user picks one of the three real sortable columns.
+type SortField = "occurred_at" | "amount" | "category" | "created_at";
 type SortDir = "asc" | "desc";
 
 function monthOf(dateStr: string): string {
@@ -88,6 +91,9 @@ export function EntryTable({
   initialData,
   showKindColumn = true,
   monthFilter = true,
+  allowAllMonths = false,
+  defaultSortField = "occurred_at",
+  showMonthSummary = false,
 }: {
   kind?: EntryKind | EntryKind[];
   initialData?: Entry[];
@@ -96,6 +102,17 @@ export function EntryTable({
   // transactions — Abonelikler sets this false to list every subscription
   // regardless of when it was first added.
   monthFilter?: boolean;
+  // Tümü: a general activity feed, not scoped to one month by default —
+  // the user can still narrow to a specific month, but starts on "all".
+  // Gelirler/Giderler don't pass this, so they keep defaulting to the
+  // current month.
+  allowAllMonths?: boolean;
+  defaultSortField?: SortField;
+  // The month's totals (income/expense/subscription/net), computed from
+  // *all* kinds regardless of this table's own kind filter — so Giderler
+  // still shows the full month picture, not just its own expense total.
+  // Only rendered while a specific month is selected.
+  showMonthSummary?: boolean;
 }) {
   const { data, error, isLoading } = useSWR<Entry[]>(ENTRIES_KEY, fetcher, {
     fallbackData: initialData,
@@ -105,20 +122,34 @@ export function EntryTable({
   const t = useTranslations("ledger");
   const tCommon = useTranslations("common");
 
-  const [month, setMonth] = useState(currentMonthKey());
-  const [sortField, setSortField] = useState<SortField>("occurred_at");
+  const [month, setMonth] = useState(allowAllMonths ? "all" : currentMonthKey());
+  const [sortField, setSortField] = useState<SortField>(defaultSortField);
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [editingEntry, setEditingEntry] = useState<Entry | null>(null);
   const [deletingEntry, setDeletingEntry] = useState<Entry | null>(null);
 
   const kinds = kind ? (Array.isArray(kind) ? kind : [kind]) : null;
 
+  // entryDisplayDate, not raw occurred_at — a recurring entry's due date can
+  // roll into a different month than when it was added, and filtering on
+  // one date while *displaying* another (the previous version of this) is
+  // exactly what made "July selected" show August-dated rows.
+  const monthMatches = (e: Entry) => month === "all" || monthOf(entryDisplayDate(e)) === month;
+
   const filtered = useMemo(() => {
     if (!data) return [];
-    return data.filter(
-      (e) => (kinds ? kinds.includes(e.kind) : true) && (!monthFilter || monthOf(e.occurred_at) === month),
-    );
+    return data.filter((e) => (kinds ? kinds.includes(e.kind) : true) && (!monthFilter || monthMatches(e)));
   }, [data, kinds, month, monthFilter]);
+
+  const monthSummary = useMemo(() => {
+    if (!data || !showMonthSummary || month === "all") return null;
+    const totals = { income: 0, expense: 0, subscription: 0 };
+    for (const e of data) {
+      if (!monthMatches(e)) continue;
+      totals[e.kind] += e.amount;
+    }
+    return { ...totals, net: totals.income - totals.expense - totals.subscription };
+  }, [data, showMonthSummary, month]);
 
   const sorted = useMemo(() => {
     const rows = [...filtered];
@@ -126,7 +157,8 @@ export function EntryTable({
       let cmp = 0;
       if (sortField === "amount") cmp = a.amount - b.amount;
       else if (sortField === "category") cmp = (a.category ?? "").localeCompare(b.category ?? "");
-      else cmp = a.occurred_at.localeCompare(b.occurred_at);
+      else if (sortField === "created_at") cmp = a.created_at.localeCompare(b.created_at);
+      else cmp = entryDisplayDate(a).localeCompare(entryDisplayDate(b));
       return sortDir === "asc" ? cmp : -cmp;
     });
     return rows;
@@ -142,7 +174,7 @@ export function EntryTable({
     const rows: MobileRow[] = [];
     let lastLabel: string | null = null;
     for (const entry of sorted) {
-      const label = dayGroupLabel(entry.occurred_at, t, locale);
+      const label = dayGroupLabel(entryDisplayDate(entry), t, locale);
       if (label !== lastLabel) {
         rows.push({ type: "header", label });
         lastLabel = label;
@@ -197,7 +229,49 @@ export function EntryTable({
     <div className="flex flex-col gap-3 pb-24 md:pb-4">
       {monthFilter && (
         <div className="flex items-center justify-between px-4 md:px-0">
-          <MonthSelect value={month} onChange={setMonth} />
+          <MonthSelect value={month} onChange={setMonth} allowAll={allowAllMonths} />
+        </div>
+      )}
+
+      {monthSummary && (
+        <div className="grid grid-cols-2 gap-3 px-4 sm:grid-cols-4 md:px-0">
+          <div className="glass-card rounded-2xl p-3">
+            <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
+              {t("summary.income")}
+            </p>
+            <p className="mt-1 truncate text-lg font-bold text-signal-buy-foreground">
+              {formatCurrency(monthSummary.income, locale)}
+            </p>
+          </div>
+          <div className="glass-card rounded-2xl p-3">
+            <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
+              {t("summary.expense")}
+            </p>
+            <p className="mt-1 truncate text-lg font-bold text-foreground">
+              {formatCurrency(monthSummary.expense, locale)}
+            </p>
+          </div>
+          <div className="glass-card rounded-2xl p-3">
+            <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
+              {t("summary.subscription")}
+            </p>
+            <p className="mt-1 truncate text-lg font-bold text-foreground">
+              {formatCurrency(monthSummary.subscription, locale)}
+            </p>
+          </div>
+          <div className="glass-card rounded-2xl p-3">
+            <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
+              {t("summary.netSurplus")}
+            </p>
+            <p
+              className={cn(
+                "mt-1 truncate text-lg font-bold",
+                monthSummary.net >= 0 ? "text-signal-buy-foreground" : "text-signal-caution-foreground",
+              )}
+            >
+              {formatCurrency(monthSummary.net, locale)}
+            </p>
+          </div>
         </div>
       )}
 
@@ -236,7 +310,7 @@ export function EntryTable({
               <TableBody>
                 {sorted.map((entry) => (
                   <TableRow key={entry.id}>
-                    <TableCell>{formatDate(entry.occurred_at, locale)}</TableCell>
+                    <TableCell>{formatDate(entryDisplayDate(entry), locale)}</TableCell>
                     {showKindColumn && (
                       <TableCell>
                         <Badge variant="secondary" className={kindBadgeClassName(entry.kind)}>
@@ -322,25 +396,20 @@ export function EntryTable({
                   >
                     <Icon className="size-5" />
                   </div>
-                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <div className="flex min-w-0 items-center gap-1.5">
-                      <span className="truncate text-sm font-semibold text-foreground">
-                        {categoryLabel(t, entry.category)}
-                      </span>
-                      {showKindColumn && (
-                        <Badge variant="secondary" className={kindBadgeClassName(entry.kind)}>
-                          {t(`kind.${entry.kind}`)}
-                        </Badge>
-                      )}
-                      {entry.recurrence !== "none" && (
-                        <Badge variant="outline" className="shrink-0">
-                          {t(`recurrence.${entry.recurrence}`)}
-                        </Badge>
-                      )}
-                    </div>
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5 overflow-hidden">
+                    {/* One truncating line, not a row of fixed-width badges
+                        crammed next to it — those don't shrink and were
+                        spilling past this column onto the amount/buttons on
+                        narrow screens. Kind (income/expense/subscription) is
+                        already conveyed by the icon color and the amount's
+                        sign, so it's dropped here rather than squeezed in. */}
+                    <span className="truncate text-sm font-semibold text-foreground">
+                      {categoryLabel(t, entry.category)}
+                    </span>
                     <span className="truncate text-xs text-muted-foreground">
-                      {formatDate(entry.occurred_at, locale)}
+                      {formatDate(entryDisplayDate(entry), locale)}
                       {entry.description ? ` · ${entry.description}` : ""}
+                      {entry.recurrence !== "none" ? ` · ${t(`recurrence.${entry.recurrence}`)}` : ""}
                     </span>
                   </div>
                   <span

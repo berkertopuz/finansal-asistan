@@ -73,7 +73,12 @@ export function CashFlowTimeline({
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const hitRectRef = useRef<SVGRectElement>(null);
-  const rateInputRef = useRef<HTMLInputElement>(null);
+  // Controlled, not defaultValue+ref — assumedRate is a server prop that
+  // legitimately changes after saving (revalidatePath re-renders this whole
+  // tree with the new value), and Base UI warns loudly if an uncontrolled
+  // field's defaultValue prop changes post-mount. A real value/onChange
+  // pair sidesteps that entirely.
+  const [rateValue, setRateValue] = useState(() => assumedRate.toFixed(2));
   const [chartSize, setChartSize] = useState<{ width: number; height: number } | null>(null);
 
   useEffect(() => {
@@ -428,45 +433,60 @@ export function CashFlowTimeline({
           </p>
         )}
 
+        {/* Collapsed by default (matches the rate-info <details> below) —
+            this used to render 5 stacked paragraphs unconditionally, which
+            on its own was most of the "too much text" on this card. The
+            summary line alone answers "is this worth a look", full
+            breakdown is one tap away. */}
         {showTermDeposit && termGain > 0 && (
-          <div className="glass-card rounded-2xl p-3 text-sm">
-            <p className="font-medium text-foreground">{t("termDeposit.title")}</p>
-            <p className="mt-1 text-foreground/70">
-              {t.rich("termDeposit.balanceSentence", {
-                days,
-                minBalance: formatCurrency(minActualBalance, locale),
-                b: boldChunk,
-              })}
-            </p>
-            <p className="mt-1 text-foreground/70">
-              {t.rich("termDeposit.planSentence", {
-                buffer: formatCurrency(emergencyBuffer, locale),
-                lockable: formatCurrency(lockableAmount, locale),
-                combinedGain: formatCurrency(combinedGain, locale),
-                b: boldChunk,
-                g: greenChunk,
-              })}
-            </p>
-            <p className="mt-1 text-foreground/70">
-              {t.rich("termDeposit.allDailySentence", {
-                allDailyGain: formatCurrency(endGain, locale),
-                g: greenChunk,
-              })}{" "}
-              {extraGain > 0
-                ? t.rich("termDeposit.extraGainSentence", {
-                    extraGain: formatCurrency(extraGain, locale),
-                    g: greenChunk,
-                  })
-                : t("termDeposit.noExtraGainSentence")}
-            </p>
-            <p className="mt-1 text-xs text-foreground/60">
-              {t.rich("termDeposit.caveat", {
-                rate: formatPercentAbs(termDepositRate!.rate / 100, locale),
-                asOf: formatDate(parseEvdsDate(termDepositRate!.asOf), locale),
-                b: boldChunk,
-              })}
-            </p>
-          </div>
+          <details className="glass-card group rounded-2xl">
+            <summary className="flex min-h-touch cursor-pointer list-none items-center justify-between gap-2 p-3 text-sm marker:content-none [&::-webkit-details-marker]:hidden">
+              <span className="font-medium text-foreground">{t("termDeposit.title")}</span>
+              <span className="flex shrink-0 items-center gap-1">
+                <span className="font-medium text-signal-buy-foreground">
+                  +{formatCurrency(combinedGain, locale)}
+                </span>
+                <ChevronDown className="size-4 text-foreground/70 transition-transform group-open:rotate-180" />
+              </span>
+            </summary>
+            <div className="flex flex-col gap-2 px-3 pb-3 text-sm">
+              <p className="text-foreground/70">
+                {t.rich("termDeposit.balanceSentence", {
+                  days,
+                  minBalance: formatCurrency(minActualBalance, locale),
+                  b: boldChunk,
+                })}
+              </p>
+              <p className="text-foreground/70">
+                {t.rich("termDeposit.planSentence", {
+                  buffer: formatCurrency(emergencyBuffer, locale),
+                  lockable: formatCurrency(lockableAmount, locale),
+                  combinedGain: formatCurrency(combinedGain, locale),
+                  b: boldChunk,
+                  g: greenChunk,
+                })}
+              </p>
+              <p className="text-foreground/70">
+                {t.rich("termDeposit.allDailySentence", {
+                  allDailyGain: formatCurrency(endGain, locale),
+                  g: greenChunk,
+                })}{" "}
+                {extraGain > 0
+                  ? t.rich("termDeposit.extraGainSentence", {
+                      extraGain: formatCurrency(extraGain, locale),
+                      g: greenChunk,
+                    })
+                  : t("termDeposit.noExtraGainSentence")}
+              </p>
+              <p className="text-xs text-foreground/60">
+                {t.rich("termDeposit.caveat", {
+                  rate: formatPercentAbs(termDepositRate!.rate / 100, locale),
+                  asOf: formatDate(parseEvdsDate(termDepositRate!.asOf), locale),
+                  b: boldChunk,
+                })}
+              </p>
+            </div>
+          </details>
         )}
 
         <details className="group border-t border-border pt-2 text-xs">
@@ -490,14 +510,14 @@ export function CashFlowTimeline({
               </label>
               <div className="flex items-center gap-2">
                 <Input
-                  ref={rateInputRef}
                   id="assumed_annual_rate"
                   name="assumed_annual_rate"
                   type="number"
                   step="0.01"
                   min="0"
                   max="200"
-                  defaultValue={assumedRate}
+                  value={rateValue}
+                  onChange={(e) => setRateValue(e.target.value)}
                   className="w-24 border-foreground/15 bg-muted/50"
                 />
                 <span className="text-foreground/70">%</span>
@@ -522,7 +542,7 @@ export function CashFlowTimeline({
                       // native number validation and silently blocks
                       // submission (no error shown, the "submit" event never
                       // even fires) instead of saving.
-                      if (rateInputRef.current) rateInputRef.current.value = evdsRate.rate.toFixed(2);
+                      setRateValue(evdsRate.rate.toFixed(2));
                     }}
                   >
                     <RotateCcw className="size-4" />

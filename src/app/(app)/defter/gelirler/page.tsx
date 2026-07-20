@@ -14,7 +14,7 @@ export default async function GelirlerPage() {
         <FixedItemsTimeline kind="income" initialData={initialData} />
       </div>
 
-      <EntryTable kind="income" initialData={initialData} showKindColumn={false} />
+      <EntryTable kind="income" initialData={initialData} showKindColumn={false} showMonthSummary />
       <QuickAddFAB defaultKind="income" />
     </div>
   );

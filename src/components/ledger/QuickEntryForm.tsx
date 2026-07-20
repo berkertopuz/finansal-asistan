@@ -20,6 +20,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
+// Local date, not toISOString().slice(0,10) — that reads UTC parts, which
+// drifts a day off around midnight depending on the user's timezone.
+function todayDateInputValue(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 // The ≤3-tap flow (docs/phase1-plan.md B): FAB is tap 1 (opens this sheet
 // with "Gider" preselected and the amount field auto-focused — typing on
 // the numeric keyboard doesn't count against the budget). Category,
@@ -132,6 +139,24 @@ export function QuickEntryForm({
         />
       </div>
 
+      {/* Only for one-off entries — a recurring entry's single meaningful
+          date is the due date below (next_due_date), which anchors every
+          future occurrence. Showing both here was confusing: which one is
+          "the" date? occurred_at for a recurring row just means "added to
+          the ledger on this day" and isn't user-facing at all now. */}
+      {recurrence === "none" && (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="occurred_at">{t("form.dateLabel")}</Label>
+          <Input
+            id="occurred_at"
+            name="occurred_at"
+            type="date"
+            defaultValue={editingEntry?.occurred_at ?? todayDateInputValue()}
+            required
+          />
+        </div>
+      )}
+
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="description">{t("form.descriptionLabel")}</Label>
         <Input
@@ -177,6 +202,7 @@ export function QuickEntryForm({
             name="next_due_date"
             type="date"
             defaultValue={editingEntry?.next_due_date ?? ""}
+            required
           />
         </div>
       )}
