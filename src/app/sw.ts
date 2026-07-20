@@ -3,6 +3,8 @@ import { defaultCache } from "@serwist/turbopack/worker";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
 import { NetworkFirst, Serwist } from "serwist";
 
+const OFFLINE_URL = "/offline";
+
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
     __SW_MANIFEST: (PrecacheEntry | string)[] | undefined;
@@ -33,6 +35,18 @@ const serwist = new Serwist({
     },
     ...defaultCache,
   ],
+  // Shown instead of a raw network-error page when a document (full page)
+  // navigation fails with no connectivity and nothing else in the cache
+  // matches it. Requires OFFLINE_URL to already be precached — see
+  // additionalPrecacheEntries in src/app/serwist/[path]/route.ts.
+  fallbacks: {
+    entries: [
+      {
+        url: OFFLINE_URL,
+        matcher: ({ request }) => request.destination === "document",
+      },
+    ],
+  },
 });
 
 serwist.addEventListeners();

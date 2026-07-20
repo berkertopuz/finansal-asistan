@@ -272,5 +272,10 @@
       "saveFailed": "Could not save, please try again.",
       "genericInvalid": "Invalid details."
     }
+  },
+  "offline": {
+    "title": "No connection",
+    "description": "No internet connection found. You can try again once you're back online.",
+    "retry": "Try again"
   }
 }

@@ -272,5 +272,10 @@
       "saveFailed": "Kaydedilemedi, tekrar dene.",
       "genericInvalid": "Geçersiz bilgiler."
     }
+  },
+  "offline": {
+    "title": "Bağlantı yok",
+    "description": "İnternet bağlantısı bulunamadı. Bağlantın geri geldiğinde tekrar deneyebilirsin.",
+    "retry": "Tekrar dene"
   }
 }
