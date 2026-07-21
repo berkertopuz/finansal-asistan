@@ -43,11 +43,17 @@ export function occurrencesInRange(
 }
 
 // entries is treated as a literal transaction log — every row counts once,
-// signed by kind. Recurring rows contribute their historical occurred_at
-// here exactly once; their *future* recurrences are handled separately by
-// projectBalance, so there's no double-count.
+// signed by kind. Recurring templates (recurrence <> 'none') are excluded:
+// they're just the rule that generates real per-period rows (see
+// src/lib/recurrence-materialize.ts), not a transaction themselves — a
+// template row's `amount` would otherwise double-count alongside the
+// concrete rows it already produced. projectBalance handles *future*
+// recurrences separately, from the templates directly.
 export function currentBalance(entries: Entry[]): number {
-  return entries.reduce((sum, e) => sum + (e.kind === "income" ? e.amount : -e.amount), 0);
+  return entries.reduce(
+    (sum, e) => (e.recurrence === "none" ? sum + (e.kind === "income" ? e.amount : -e.amount) : sum),
+    0,
+  );
 }
 
 export type CashFlowEvent = { entry: Entry; occurrence: Date };

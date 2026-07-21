@@ -152,6 +152,10 @@ export async function updateEntry(
   }
 
   const isRecurring = parsed.data.recurrence !== "none";
+  // Only meaningful when editing a recurring rule (template) — the edit
+  // sheet asks the user to choose this via a confirmation dialog rather
+  // than silently picking one (src/components/ledger/QuickEntryForm.tsx).
+  const applyToAllOccurrences = formData.get("applyToAllOccurrences") === "true";
 
   // No explicit .eq("user_id", ...) needed beyond RLS (entries_update_own)
   // scoping the update to the caller's own rows — matching this codebase's
@@ -178,15 +182,44 @@ export async function updateEntry(
     return { error: t("saveFailed") };
   }
 
+  // Propagate to every row this template already generated (each keeps its
+  // own occurred_at — only what the user actually edited here changes).
+  // Not part of the same request's error path: the template itself already
+  // saved successfully, so a failure here shouldn't read to the user as
+  // "the edit failed".
+  if (isRecurring && applyToAllOccurrences) {
+    const { error: cascadeError } = await supabase
+      .from("entries")
+      .update({
+        kind: parsed.data.kind,
+        amount: parsed.data.amount,
+        category: parsed.data.category,
+        description: parsed.data.description ?? null,
+      })
+      .eq("template_id", id);
+    if (cascadeError) {
+      console.error("updateEntry: failed to propagate to generated rows", cascadeError);
+    }
+  }
+
   revalidatePath("/defter");
   revalidatePath("/");
   return { success: true };
 }
 
-export async function deleteEntry(id: string) {
+export async function deleteEntry(id: string, deleteGeneratedRows = false) {
   const supabase = await createClient();
   // No explicit user_id check needed — RLS already scopes deletes to the
   // caller's own rows (entries_delete_own policy).
+  //
+  // deleteGeneratedRows is only meaningful when `id` is a recurring
+  // template — the delete dialog asks the user to choose between stopping
+  // future generation (the default: template_id on already-generated rows
+  // just goes null via ON DELETE SET NULL, history untouched) or wiping
+  // every row this template ever produced too.
+  if (deleteGeneratedRows) {
+    await supabase.from("entries").delete().eq("template_id", id);
+  }
   await supabase.from("entries").delete().eq("id", id);
   revalidatePath("/defter");
   revalidatePath("/");

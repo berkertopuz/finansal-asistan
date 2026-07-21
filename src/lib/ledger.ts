@@ -1,6 +1,10 @@
 import { nextOccurrenceOnOrAfter } from "@/lib/recurrence";
 
-export type EntryKind = "income" | "expense" | "subscription";
+// "investment" is never user-selectable (not in ENTRY_KINDS below, not in
+// the addEntry/updateEntry zod schema) — it only ever exists on a row
+// created server-side by src/lib/actions/positions.ts alongside a
+// portfolio_positions row, when that purchase is marked as funded from cash.
+export type EntryKind = "income" | "expense" | "subscription" | "investment";
 export type EntryRecurrence = "none" | "weekly" | "monthly" | "yearly";
 
 export type Entry = {
@@ -14,10 +18,18 @@ export type Entry = {
   next_due_date: string | null;
   occurred_at: string;
   created_at: string;
+  // Set only on a concrete row generated from a recurring template (see
+  // src/lib/recurrence-materialize.ts) — null for both one-off entries and
+  // for the template row itself.
+  template_id: string | null;
+  // Set only on an "investment" row — the portfolio position it funded
+  // (src/lib/actions/positions.ts). Null for every other kind.
+  portfolio_position_id: string | null;
 };
 
 // Labels come from messages/{locale}.json ("ledger" namespace) — components
-// resolve via useTranslations, keyed by these values.
+// resolve via useTranslations, keyed by these values. "investment" is
+// deliberately excluded — see the EntryKind comment above.
 export const ENTRY_KINDS: EntryKind[] = ["expense", "income", "subscription"];
 export const ENTRY_RECURRENCES: EntryRecurrence[] = ["none", "weekly", "monthly", "yearly"];
 
@@ -52,7 +64,7 @@ export function categoryLabel(t: (key: string) => string, category: string | nul
   return isPresetCategory(value) ? t(`category.${value}`) : value;
 }
 
-function toDateString(d: Date): string {
+export function toDateString(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
@@ -68,9 +80,19 @@ function toDateString(d: Date): string {
 // showing it as *the* date read as "wrong" (it always looked like today).
 // One-off entries have no next_due_date at all, so occurred_at (now a real,
 // user-editable field) is the only meaningful date there.
-export function entryDisplayDate(entry: Pick<Entry, "recurrence" | "next_due_date" | "occurred_at">): string {
+//
+// `from` matters: it's the reference point the occurrence rolls forward
+// from. Defaulting to "today" is right for an unscoped view, but wrong when
+// the caller is asking "what does this look like *in September*" — passing
+// September 1st as `from` here is what makes a monthly bill actually show
+// up as due in September instead of being stuck on whichever single month
+// contains its next occurrence from today (see EntryTable's monthMatches).
+export function entryDisplayDate(
+  entry: Pick<Entry, "recurrence" | "next_due_date" | "occurred_at">,
+  from: Date = new Date(),
+): string {
   if (entry.recurrence !== "none" && entry.next_due_date) {
-    const next = nextOccurrenceOnOrAfter(entry.next_due_date, entry.recurrence);
+    const next = nextOccurrenceOnOrAfter(entry.next_due_date, entry.recurrence, from);
     if (next) return toDateString(next);
   }
   return entry.occurred_at;

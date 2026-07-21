@@ -1,10 +1,31 @@
 "use client";
 
-import useSWR from "swr";
+import { useState } from "react";
+import useSWR, { mutate } from "swr";
+import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
+import { Pencil, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { QuickEntryForm } from "@/components/ledger/QuickEntryForm";
+import { deleteEntry } from "@/lib/actions/entries";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { AppLocale } from "@/lib/locale";
 import { categoryLabel, type Entry, type EntryKind } from "@/lib/ledger";
@@ -21,6 +42,15 @@ const fetcher = (url: string) =>
 // which day this recurs on), not the literal next payment — the actual
 // upcoming occurrence is computed via nextOccurrenceOnOrAfter and sorted
 // soonest-first. Entries without an anchor sort last.
+//
+// This card doubles as the *only* place a recurring rule (income/expense
+// template — see src/lib/recurrence-materialize.ts) is edited or stopped.
+// There's deliberately no second table for this: a standalone "recurring
+// rules" list next to the month's transactions duplicated the same rows and
+// read as clutter, not signal. Tapping an item here opens the same edit
+// sheet the month table uses; a template always exists here even before its
+// first concrete row has materialized for the current month, so it's also
+// the reliable place to catch a freshly-added rule.
 export function FixedItemsTimeline({
   kind,
   initialData,
@@ -29,8 +59,12 @@ export function FixedItemsTimeline({
   initialData?: Entry[];
 }) {
   const { data, isLoading } = useSWR<Entry[]>(ENTRIES_KEY, fetcher, { fallbackData: initialData });
+  const router = useRouter();
   const locale = useLocale() as AppLocale;
   const t = useTranslations("ledger");
+  const tCommon = useTranslations("common");
+  const [editingEntry, setEditingEntry] = useState<Entry | null>(null);
+  const [deletingEntry, setDeletingEntry] = useState<Entry | null>(null);
 
   const title = kind === "income" ? t("fixedItems.incomeTitle") : t("fixedItems.expenseTitle");
 
@@ -48,6 +82,25 @@ export function FixedItemsTimeline({
       if (!b.nextOccurrence) return -1;
       return a.nextOccurrence.getTime() - b.nextOccurrence.getTime();
     });
+
+  // Every row here is a template (fixedItems already filters to
+  // recurrence !== "none"), so the delete dialog below always presents the
+  // full stop-vs-delete-all choice, unlike EntryTable's version of this
+  // dialog which also handles plain one-off rows.
+  async function handleConfirmDelete(deleteGeneratedRows: boolean) {
+    if (!deletingEntry) return;
+    const id = deletingEntry.id;
+    setDeletingEntry(null);
+    mutate(
+      ENTRIES_KEY,
+      (current: Entry[] | undefined) =>
+        current?.filter((e) => e.id !== id && (!deleteGeneratedRows || e.template_id !== id)),
+      false,
+    );
+    await deleteEntry(id, deleteGeneratedRows);
+    mutate(ENTRIES_KEY);
+    router.refresh();
+  }
 
   return (
     <Card>
@@ -72,16 +125,81 @@ export function FixedItemsTimeline({
                     : t("fixedItems.noDueDate")}
                 </span>
               </div>
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="flex shrink-0 items-center gap-1">
                 <Badge variant="outline">{t(`recurrence.${entry.recurrence}`)}</Badge>
                 <span className="font-medium text-foreground">
                   {formatCurrency(entry.amount, locale)}
                 </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-touch"
+                  aria-label={tCommon("edit")}
+                  className="text-foreground/70 hover:text-foreground"
+                  onClick={() => setEditingEntry(entry)}
+                >
+                  <Pencil className="size-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-touch"
+                  aria-label={tCommon("delete")}
+                  className="text-foreground/70 hover:text-destructive"
+                  onClick={() => setDeletingEntry(entry)}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
               </div>
             </div>
           ))
         )}
       </CardContent>
+
+      <Sheet open={editingEntry !== null} onOpenChange={(open) => !open && setEditingEntry(null)}>
+        <SheetContent
+          side="bottom"
+          className="sm:inset-x-auto sm:mx-auto sm:max-w-md sm:rounded-t-2xl"
+        >
+          <SheetHeader>
+            <SheetTitle>{t("form.editSheetTitle")}</SheetTitle>
+            <SheetDescription className="sr-only">{t("form.editSheetDescription")}</SheetDescription>
+          </SheetHeader>
+          {editingEntry && (
+            <QuickEntryForm editingEntry={editingEntry} onSaved={() => setEditingEntry(null)} />
+          )}
+        </SheetContent>
+      </Sheet>
+
+      <Dialog open={deletingEntry !== null} onOpenChange={(open) => !open && setDeletingEntry(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{tCommon("delete")}</DialogTitle>
+            <DialogDescription>{t("table.deleteRecurringPrompt")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:flex-col">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() => handleConfirmDelete(false)}
+            >
+              {t("table.stopFutureOnly")}
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              className="w-full"
+              onClick={() => handleConfirmDelete(true)}
+            >
+              {t("table.deleteAllOccurrences")}
+            </Button>
+            <Button type="button" variant="ghost" className="w-full" onClick={() => setDeletingEntry(null)}>
+              {tCommon("cancel")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

@@ -1,15 +1,30 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Entry } from "@/lib/ledger";
+import { materializeDueOccurrences } from "@/lib/recurrence-materialize";
 
 // Shared by the /api/entries route (client SWR refetches) and every
 // server-rendered Defter page (initial SWR fallbackData, so first paint
 // skips the loading skeleton entirely). No explicit user_id filter — RLS
 // (entries_select_own) already scopes this to the caller's own rows.
+//
+// materializeDueOccurrences runs first so this month's rows from any
+// recurring template always exist before they're read — it's also called
+// from the (app) layout (src/app/(app)/layout.tsx) so pages that read
+// v_monthly_surplus directly (Ana Sayfa) without ever calling getEntries
+// still see fresh data; both calls are idempotent, so doing it twice in one
+// request is harmless.
 export async function getEntries(supabase: SupabaseClient): Promise<Entry[]> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user) {
+    await materializeDueOccurrences(supabase, user.id);
+  }
+
   const { data } = await supabase
     .from("entries")
     .select(
-      "id, kind, amount, currency, category, description, recurrence, next_due_date, occurred_at, created_at",
+      "id, kind, amount, currency, category, description, recurrence, next_due_date, occurred_at, created_at, template_id, portfolio_position_id",
     )
     .order("occurred_at", { ascending: false })
     .order("created_at", { ascending: false });

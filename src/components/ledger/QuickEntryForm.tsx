@@ -19,6 +19,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 // Local date, not toISOString().slice(0,10) — that reads UTC parts, which
 // drifts a day off around midnight depending on the user's timezone.
@@ -53,6 +61,8 @@ export function QuickEntryForm({
   );
   const recurrenceTouched = useRef(Boolean(editingEntry));
   const formRef = useRef<HTMLFormElement>(null);
+  const applyToAllRef = useRef<HTMLInputElement>(null);
+  const [scopeDialogOpen, setScopeDialogOpen] = useState(false);
   const router = useRouter();
   const t = useTranslations("ledger");
   const tCommon = useTranslations("common");
@@ -70,6 +80,17 @@ export function QuickEntryForm({
     recurrenceTouched.current = true;
     setRecurrence(next);
   };
+
+  // Sets the hidden field imperatively (not via setState) so the value is
+  // guaranteed to be in the DOM before requestSubmit reads the form's
+  // FormData in the same call — a state update wouldn't re-render in time.
+  function submitWithScope(applyToAll: boolean) {
+    if (applyToAllRef.current) {
+      applyToAllRef.current.value = applyToAll ? "true" : "false";
+    }
+    setScopeDialogOpen(false);
+    formRef.current?.requestSubmit();
+  }
 
   // Side effects live in the action itself, not a useEffect keyed on
   // `state` — that would fire a setState-cascade on every render (React
@@ -102,6 +123,10 @@ export function QuickEntryForm({
       <input type="hidden" name="kind" value={kind} />
       <input type="hidden" name="category" value={category} />
       <input type="hidden" name="recurrence" value={recurrence} />
+      {/* Only ever read by updateEntry, and only when the row being edited
+          is itself a recurring rule — set imperatively by submitWithScope
+          right before requestSubmit, never via React state (see there). */}
+      <input ref={applyToAllRef} type="hidden" name="applyToAllOccurrences" defaultValue="false" />
 
       <ToggleGroup
         value={[kind]}
@@ -231,9 +256,49 @@ export function QuickEntryForm({
         <p className="text-sm text-signal-caution-foreground">{state.error}</p>
       )}
 
-      <Button type="submit" size="touch" disabled={pending} className="w-full">
+      <Button
+        type="submit"
+        size="touch"
+        disabled={pending}
+        className="w-full"
+        onClick={(e) => {
+          // Editing a recurring rule (not a brand-new one, and not a single
+          // month's already-generated row — that never reaches this form
+          // with recurrence !== "none") needs the user to pick a scope
+          // before anything is actually submitted.
+          if (editingEntry && editingEntry.recurrence !== "none") {
+            e.preventDefault();
+            setScopeDialogOpen(true);
+          }
+        }}
+      >
         {pending ? tCommon("saving") : editingEntry ? t("form.update") : tCommon("save")}
       </Button>
+
+      <Dialog open={scopeDialogOpen} onOpenChange={setScopeDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("form.editScopeTitle")}</DialogTitle>
+            <DialogDescription>{t("form.editScopeDescription")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:flex-col">
+            <Button type="button" variant="outline" className="w-full" onClick={() => submitWithScope(false)}>
+              {t("form.editScopeFutureOnly")}
+            </Button>
+            <Button type="button" variant="default" className="w-full" onClick={() => submitWithScope(true)}>
+              {t("form.editScopeAll")}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full"
+              onClick={() => setScopeDialogOpen(false)}
+            >
+              {tCommon("cancel")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </form>
   );
 }

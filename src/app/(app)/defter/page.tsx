@@ -5,10 +5,10 @@ import { CashFlowTimeline } from "@/components/ledger/CashFlowTimeline";
 import { QuickAddFAB } from "@/components/ledger/QuickAddFAB";
 import { createClient } from "@/lib/supabase/server";
 import { getEntries } from "@/lib/entries-data";
+import { getPositionsWithPrices } from "@/lib/positions-data";
 import { fetchReferenceRate, fetchTermDepositRate } from "@/lib/providers/evds";
 import { formatCurrency } from "@/lib/format";
 import type { AppLocale } from "@/lib/locale";
-import { cn } from "@/lib/utils";
 
 type MonthlySurplus = {
   income_total: number;
@@ -40,6 +40,29 @@ export default async function DefterPage() {
   const initialData = await getEntries(supabase);
   const locale = (await getLocale()) as AppLocale;
   const t = await getTranslations("ledger.summary");
+
+  // Every position's current worth, whether or not it was marked "funded
+  // from cash" — that checkbox only controls whether a matching cash-out
+  // row exists in entries (so the balance projection reflects real money
+  // leaving checking); it says nothing about whether the asset itself
+  // counts toward net worth. An asset you already owned before you started
+  // tracking cash still belongs in mal varlığı just as much as one you
+  // funded through the app. Live price × quantity where a price exists
+  // (BIST/gold/crypto/FX); avg_cost_try × quantity for "manual" positions
+  // and for anything whose price API happens to be down right now — a
+  // fallback to what was actually paid, never a fabricated price (CLAUDE.md
+  // rule 5).
+  const positions = user ? await getPositionsWithPrices(supabase, user.id) : [];
+  const totalInvestedValue = positions.reduce(
+    (sum, p) => sum + (p.latest_price_try ?? p.avg_cost_try) * p.quantity,
+    0,
+  );
+
+  // surplus.surplus (this month's income − expense − subscription) never
+  // touches "investment" entries rows at all — v_monthly_surplus's SQL
+  // simply doesn't select them — so it's added to totalInvestedValue rather
+  // than reduced by it first.
+  const netWorth = surplus.surplus + totalInvestedValue;
 
   // Parallel again — the "vadeli not showing in production" bug that led to
   // serializing these turned out to be a missing EVDS_API_KEY env var in
@@ -73,12 +96,24 @@ export default async function DefterPage() {
           <CardHeader>
             <CardTitle className="text-base">{t("title")}</CardTitle>
           </CardHeader>
-          {/* 4 columns only from lg: up — at md: (where the desktop sidebar
-              already ate 256px) sm:grid-cols-4 left each card too narrow for
+          {/* 5 columns only from lg: up — at md: (where the desktop sidebar
+              already ate 256px) sm:grid-cols-5 left each card too narrow for
               a bold ₺xxx.xxx,xx figure, wrapping/overflowing badly around
               ~773px viewports. truncate on the value is a defensive
               fallback so a future narrow case clips instead of overflowing. */}
-          <CardContent className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <CardContent className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+            {/* col-span-2 on mobile so it reads as the headline figure,
+                full-width above the other four's even 2x2 grid. Violet, not
+                a specific hex the user picked directly, not a semantic
+                token. */}
+            <div className="glass-card col-span-2 rounded-2xl p-4 lg:col-span-1">
+              <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
+                {t("netWorth")}
+              </p>
+              <p className="mt-1 truncate text-xl font-bold text-[#AB47BC]">
+                {formatCurrency(netWorth, locale)}
+              </p>
+            </div>
             <div className="glass-card rounded-2xl p-4">
               <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
                 {t("income")}
@@ -87,19 +122,26 @@ export default async function DefterPage() {
                 {formatCurrency(surplus.income_total, locale)}
               </p>
             </div>
+            {/* Caution-amber, not signal-buy green — an expense leaving the
+                account isn't a "good" signal the way income is, but it's
+                also not the sell/alarm-red used elsewhere for signals, so
+                this reuses the same amber CLAUDE.md already keeps for
+                "pay attention to this" tones. */}
             <div className="glass-card rounded-2xl p-4">
               <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
                 {t("expense")}
               </p>
-              <p className="mt-1 truncate text-xl font-bold text-foreground">
+              <p className="mt-1 truncate text-xl font-bold text-signal-caution-foreground">
                 {formatCurrency(surplus.expense_total, locale)}
               </p>
             </div>
+            {/* Specific hex the user picked directly, not a semantic
+                token. */}
             <div className="glass-card rounded-2xl p-4">
               <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
                 {t("subscription")}
               </p>
-              <p className="mt-1 truncate text-xl font-bold text-foreground">
+              <p className="mt-1 truncate text-xl font-bold text-[#E8E6E1]">
                 {formatCurrency(surplus.subscription_total, locale)}
               </p>
             </div>
@@ -107,14 +149,7 @@ export default async function DefterPage() {
               <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
                 {t("netSurplus")}
               </p>
-              <p
-                className={cn(
-                  "mt-1 truncate text-xl font-bold",
-                  surplus.surplus >= 0
-                    ? "text-signal-buy-foreground"
-                    : "text-signal-caution-foreground",
-                )}
-              >
+              <p className="mt-1 truncate text-xl font-bold text-blue-500 dark:text-blue-400">
                 {formatCurrency(surplus.surplus, locale)}
               </p>
             </div>

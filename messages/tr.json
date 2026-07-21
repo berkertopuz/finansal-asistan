@@ -28,7 +28,8 @@
     "bist": "BIST",
     "gold": "Altın",
     "crypto": "Kripto",
-    "fx": "Döviz"
+    "fx": "Döviz",
+    "manual": "Diğer (manuel)"
   },
   "auth": {
     "login": {
@@ -82,7 +83,7 @@
     "updated": "Veriler {time} güncellendi"
   },
   "home": {
-    "surplusTitle": "Bu ayın net fazlası",
+    "surplusTitle": "Bu ayın net bakiyesi",
     "viewLedger": "Defteri gör",
     "latestSignalsTitle": "Son sinyaller",
     "emptySignals": "Henüz öneri yok.",
@@ -127,12 +128,17 @@
     "bistDelayNote": "BIST fiyatları 15 dk gecikmeli.",
     "addPosition": "Pozisyon ekle",
     "addPositionSheetTitle": "Pozisyon ekle",
-    "addPositionSheetDescription": "BIST, altın, kripto veya döviz pozisyonu ekle.",
+    "addPositionSheetDescription": "BIST, altın, kripto, döviz veya manuel bir varlık ekle.",
     "assetClassLabel": "Varlık sınıfı",
     "symbolLabel": "Sembol",
     "symbolPlaceholder": "örn. THYAO, BTC",
+    "symbolPlaceholderManual": "örn. Bahçelievler'de arsa",
     "quantityLabel": "Adet",
     "avgCostLabel": "Ortalama maliyet (₺, birim başına)",
+    "fundedFromCashLabel": "Bu satın alma nakit bakiyemden yapıldı",
+    "fundedFromCashHint": "İşaretlersen tutar defterine bir yatırım kaydı olarak düşülür — gider sayılmaz, net fazlayı etkilemez.",
+    "fundedFromCashBadge": "Nakitten",
+    "manualNoPriceNote": "Fiyat takip edilmiyor",
     "loadError": "Pozisyonlar yüklenemedi. Sayfayı yenilemeyi dene.",
     "empty": "Henüz pozisyon yok. Sağ alttaki + düğmesiyle ilk pozisyonunu ekle.",
     "errors": {
@@ -153,13 +159,13 @@
     "nav": {
       "all": "Tümü",
       "income": "Gelirler",
-      "expense": "Giderler",
-      "subscription": "Abonelikler"
+      "expense": "Giderler"
     },
     "kind": {
       "income": "Gelir",
       "expense": "Gider",
-      "subscription": "Abonelik"
+      "subscription": "Abonelik",
+      "investment": "Yatırım"
     },
     "recurrence": {
       "none": "Tek seferlik",
@@ -182,7 +188,8 @@
       "income": "Gelir",
       "expense": "Gider",
       "subscription": "Abonelik",
-      "netSurplus": "Net fazla"
+      "netSurplus": "Net Bakiye",
+      "netWorth": "Mal varlığı"
     },
     "table": {
       "date": "Tarih",
@@ -195,7 +202,14 @@
       "empty": "Bu ayda kayıt yok.",
       "loadError": "Kayıtlar yüklenemedi. Sayfayı yenilemeyi dene.",
       "today": "Bugün",
-      "yesterday": "Dün"
+      "yesterday": "Dün",
+      "fromRecurring": "Tekrarlayan kayıttan",
+      "deleteRecurringPrompt": "Bu tekrarlayan kaydı nasıl silmek istersin?",
+      "stopFutureOnly": "Sadece gelecekte durdur",
+      "deleteAllOccurrences": "Tüm kayıtları sil (geçmiş dahil)",
+      "planned": "Planlanan",
+      "plannedNotYet": "Henüz oluşmadı",
+      "managedFromPortfolio": "Portföyden yönetiliyor"
     },
     "month": {
       "label": "Ay",
@@ -208,6 +222,10 @@
       "descriptionPlaceholder": "örn. Temmuz kirası",
       "recurrenceLabel": "Sıklık",
       "recurrenceNote": "Bu kayıt her ay otomatik olarak fazla hesabına dahil edilir, tekrar girmen gerekmez.",
+      "editScopeTitle": "Bu değişiklik nasıl uygulansın?",
+      "editScopeDescription": "Geçmiş aylardaki kayıtlar da güncellensin mi, yoksa sadece henüz oluşmamış gelecek aylar mı?",
+      "editScopeFutureOnly": "Sadece gelecek kayıtlar",
+      "editScopeAll": "Tüm kayıtlar (geçmiş dahil)",
       "dueDateLabel": "Ödeme tarihi",
       "categoryLabel": "Kategori",
       "addSheetTitle": "Yeni kayıt",
@@ -255,7 +273,6 @@
     "chartAriaLabel": "Önümüzdeki günler için projeksiyon edilen nakit bakiyesi grafiği",
     "legendActual": "Gerçek bakiye",
     "legendOptimized": "Günlük faizde tutulsaydı",
-    "summarySentence": "Bu bakiyeyi harcamadan günlük faiz işleyen bir hesapta tutsaydın, {days} gün sonunda ~{gain} daha fazla birikimin olurdu.",
     "eventGainSentence": "Bu tutarı ödeme gününe kadar günlük faiz işleyen bir hesapta bekletirsen ~{gain} ek kazanç sağlayabilirsin.",
     "evdsContext": "TLREF gecelik referans faiz oranı, günlük hesap yaklaşımının temeli ({asOf} itibarıyla): {rate}",
     "evdsUnavailable": "TCMB EVDS'e şu an ulaşılamıyor.",
@@ -263,6 +280,10 @@
     "rateLabel": "Günlük faiz hesaplamasında kullanılan oran (yıllık)",
     "useEvdsRate": "TCMB oranını kullan",
     "disclaimer": "Tahmini net getiridir (%17,5 stopaj düşülmüştür); günlük faiz işleyen, istediğin an erişebildiğin likit bir hesap varsayılır — vadeli mevduat gibi kilitli değildir. Gerçek getiri kullandığınız ürüne ve bankaya göre değişir. Yatırım tavsiyesi değildir.",
+    "dailyAccount": {
+      "title": "Günlük Faizle Kazanabileceğin Tutar",
+      "sentence": "Bu bakiyeyi harcamadan günlük faiz işleyen bir hesapta tutsaydın, {days} gün sonunda ~{gain} daha fazla birikimin olurdu."
+    },
     "termDeposit": {
       "title": "Vadeli mevduat alternatifi",
       "balanceSentence": "{days} günlük dönemde bakiyen <b>{minBalance}</b> altına düşmüyor.",

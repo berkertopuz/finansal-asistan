@@ -424,13 +424,30 @@ export function CashFlowTimeline({
           )}
         </div>
 
+        {/* Collapsed by default, same pattern as the vadeli card below —
+            the compact +gain in the summary row answers "is this worth a
+            look", the full sentence is one tap away instead of always-on
+            text. */}
         {endGain > 0 && (
-          <p className="text-sm font-medium text-foreground">
-            {t("summarySentence", {
-              days,
-              gain: formatCurrency(endGain, locale),
-            })}
-          </p>
+          <details className="glass-card group rounded-2xl">
+            <summary className="flex min-h-touch cursor-pointer list-none items-center justify-between gap-2 p-3 text-sm marker:content-none [&::-webkit-details-marker]:hidden">
+              <span className="font-medium text-foreground">{t("dailyAccount.title")}</span>
+              <span className="flex shrink-0 items-center gap-1">
+                <span className="font-medium text-signal-buy-foreground">
+                  +{formatCurrency(endGain, locale)}
+                </span>
+                <ChevronDown className="size-4 text-foreground/70 transition-transform group-open:rotate-180" />
+              </span>
+            </summary>
+            <div className="flex flex-col gap-2 px-3 pb-3 text-sm">
+              <p className="text-foreground/70">
+                {t("dailyAccount.sentence", {
+                  days,
+                  gain: formatCurrency(endGain, locale),
+                })}
+              </p>
+            </div>
+          </details>
         )}
 
         {/* Collapsed by default (matches the rate-info <details> below) —

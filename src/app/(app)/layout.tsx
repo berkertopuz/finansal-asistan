@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { SerwistProvider } from "@serwist/turbopack/react";
 import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/AppShell";
+import { materializeDueOccurrences } from "@/lib/recurrence-materialize";
 
 // ZERO financial data can render below this gate (CLAUDE.md rule 3).
 // getUser() is used, not getSession() — it revalidates the JWT against
@@ -19,6 +20,13 @@ export default async function AppLayout({
   if (!user) {
     redirect("/giris");
   }
+
+  // Every authenticated page (not just Defter, which already triggers this
+  // via getEntries) needs this month's recurring rows to exist before it
+  // reads them — Ana Sayfa's SurplusCard queries v_monthly_surplus directly
+  // without ever calling getEntries, so it would otherwise miss a template's
+  // current-month row on a user who never visits Defter this month.
+  await materializeDueOccurrences(supabase, user.id);
 
   return (
     // Scoped to the authenticated app, not the root layout — /giris,

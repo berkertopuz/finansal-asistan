@@ -29,6 +29,11 @@ export function PositionCard({
           <div className="flex items-center gap-2">
             <Badge variant="secondary">{tAssetClass(p.asset_class)}</Badge>
             <span className="text-sm font-semibold text-foreground">{p.symbol}</span>
+            {p.funded_from_cash && (
+              <Badge variant="outline" className="text-muted-foreground">
+                {tPortfolio("fundedFromCashBadge")}
+              </Badge>
+            )}
           </div>
           {p.latest_price_try !== null && p.latest_price_fetched_at ? (
             <span className="text-right text-sm text-foreground">
@@ -37,6 +42,8 @@ export function PositionCard({
                 · {formatTime(p.latest_price_fetched_at, locale)}
               </span>
             </span>
+          ) : p.asset_class === "manual" ? (
+            <span className="text-xs text-muted-foreground">{tPortfolio("manualNoPriceNote")}</span>
           ) : (
             <span className="text-xs text-signal-caution-foreground">
               {tPortfolio("priceUnavailable")}

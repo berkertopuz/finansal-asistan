@@ -8,12 +8,14 @@ import { useTranslations } from "next-intl";
 import { addPosition, type AddPositionState } from "@/lib/actions/positions";
 import { ASSET_CLASSES, FIXED_SYMBOLS, type AssetClass } from "@/lib/portfolio";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 export function AddPositionForm({ onSaved }: { onSaved: () => void }) {
   const [assetClass, setAssetClass] = useState<AssetClass>("bist");
+  const [fundedFromCash, setFundedFromCash] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
   const t = useTranslations("portfolio");
@@ -26,6 +28,7 @@ export function AddPositionForm({ onSaved }: { onSaved: () => void }) {
       if (result.success) {
         formRef.current?.reset();
         setAssetClass("bist");
+        setFundedFromCash(false);
         mutate("/api/positions");
         router.refresh();
         onSaved();
@@ -67,7 +70,7 @@ export function AddPositionForm({ onSaved }: { onSaved: () => void }) {
             id="symbol"
             name="symbol"
             type="text"
-            placeholder={t("symbolPlaceholder")}
+            placeholder={t(assetClass === "manual" ? "symbolPlaceholderManual" : "symbolPlaceholder")}
             autoFocus
             required
           />
@@ -101,6 +104,19 @@ export function AddPositionForm({ onSaved }: { onSaved: () => void }) {
           required
         />
       </div>
+
+      <label className="flex min-h-touch items-center gap-3 rounded-lg py-1">
+        <Checkbox
+          name="funded_from_cash"
+          value="true"
+          checked={fundedFromCash}
+          onCheckedChange={setFundedFromCash}
+        />
+        <span className="flex flex-col gap-0.5">
+          <span className="text-sm font-medium text-foreground">{t("fundedFromCashLabel")}</span>
+          <span className="text-xs text-muted-foreground">{t("fundedFromCashHint")}</span>
+        </span>
+      </label>
 
       {state?.error && (
         <p className="text-sm text-signal-caution-foreground">{state.error}</p>

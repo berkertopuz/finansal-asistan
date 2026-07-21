@@ -28,7 +28,8 @@
     "bist": "BIST",
     "gold": "Gold",
     "crypto": "Crypto",
-    "fx": "FX"
+    "fx": "FX",
+    "manual": "Other (manual)"
   },
   "auth": {
     "login": {
@@ -82,7 +83,7 @@
     "updated": "Data updated {time}"
   },
   "home": {
-    "surplusTitle": "This month's net surplus",
+    "surplusTitle": "This month's net balance",
     "viewLedger": "View ledger",
     "latestSignalsTitle": "Latest signals",
     "emptySignals": "No recommendations yet.",
@@ -127,12 +128,17 @@
     "bistDelayNote": "BIST prices are delayed by 15 minutes.",
     "addPosition": "Add position",
     "addPositionSheetTitle": "Add position",
-    "addPositionSheetDescription": "Add a BIST, gold, crypto, or FX position.",
+    "addPositionSheetDescription": "Add a BIST, gold, crypto, FX, or manual position.",
     "assetClassLabel": "Asset class",
     "symbolLabel": "Symbol",
     "symbolPlaceholder": "e.g. THYAO, BTC",
+    "symbolPlaceholderManual": "e.g. a plot of land in Bahçelievler",
     "quantityLabel": "Quantity",
     "avgCostLabel": "Average cost (₺, per unit)",
+    "fundedFromCashLabel": "This purchase came from my tracked cash balance",
+    "fundedFromCashHint": "If checked, the amount is recorded in your ledger as an investment — it isn't counted as an expense and doesn't affect net surplus.",
+    "fundedFromCashBadge": "From cash",
+    "manualNoPriceNote": "Price not tracked",
     "loadError": "Could not load positions. Try refreshing the page.",
     "empty": "No positions yet. Use the + button at the bottom right to add your first one.",
     "errors": {
@@ -153,13 +159,13 @@
     "nav": {
       "all": "All",
       "income": "Income",
-      "expense": "Expenses",
-      "subscription": "Subscriptions"
+      "expense": "Expenses"
     },
     "kind": {
       "income": "Income",
       "expense": "Expense",
-      "subscription": "Subscription"
+      "subscription": "Subscription",
+      "investment": "Investment"
     },
     "recurrence": {
       "none": "One-off",
@@ -182,7 +188,8 @@
       "income": "Income",
       "expense": "Expense",
       "subscription": "Subscription",
-      "netSurplus": "Net surplus"
+      "netSurplus": "Net Balance",
+      "netWorth": "Net worth"
     },
     "table": {
       "date": "Date",
@@ -195,7 +202,14 @@
       "empty": "No entries this month.",
       "loadError": "Could not load entries. Try refreshing the page.",
       "today": "Today",
-      "yesterday": "Yesterday"
+      "yesterday": "Yesterday",
+      "fromRecurring": "From a recurring rule",
+      "deleteRecurringPrompt": "How do you want to delete this recurring entry?",
+      "stopFutureOnly": "Stop future occurrences only",
+      "deleteAllOccurrences": "Delete all entries (including past)",
+      "planned": "Planned",
+      "plannedNotYet": "Not created yet",
+      "managedFromPortfolio": "Managed from portfolio"
     },
     "month": {
       "label": "Month",
@@ -208,6 +222,10 @@
       "descriptionPlaceholder": "e.g. July rent",
       "recurrenceLabel": "Recurrence",
       "recurrenceNote": "This entry is automatically included in the surplus every month — no need to add it again.",
+      "editScopeTitle": "How should this change apply?",
+      "editScopeDescription": "Should past months' entries update too, or only months that haven't happened yet?",
+      "editScopeFutureOnly": "Only future entries",
+      "editScopeAll": "All entries (including past)",
       "dueDateLabel": "Payment date",
       "categoryLabel": "Category",
       "addSheetTitle": "New entry",
@@ -255,7 +273,6 @@
     "chartAriaLabel": "Projected cash balance chart for the coming days",
     "legendActual": "Actual balance",
     "legendOptimized": "If kept in daily interest",
-    "summarySentence": "If you left this balance untouched in a daily-interest account, you'd have ~{gain} more after {days} days.",
     "eventGainSentence": "Holding this in a daily-interest account until its due date could earn ~{gain}.",
     "evdsContext": "TLREF overnight reference rate, the basis for the daily-account estimate (as of {asOf}): {rate}",
     "evdsUnavailable": "TCMB EVDS is currently unreachable.",
@@ -263,6 +280,10 @@
     "rateLabel": "Rate used for the daily-interest calculation (annual)",
     "useEvdsRate": "Use TCMB rate",
     "disclaimer": "Net estimate (17.5% withholding tax already deducted); assumes a liquid, anytime-accessible daily-interest account — not locked like a term deposit. Actual returns vary by bank and product. Not investment advice.",
+    "dailyAccount": {
+      "title": "What You'd Earn With Daily Interest",
+      "sentence": "If you left this balance untouched in a daily-interest account, you'd have ~{gain} more after {days} days."
+    },
     "termDeposit": {
       "title": "Term deposit alternative",
       "balanceSentence": "Over {days} days, your balance never drops below <b>{minBalance}</b>.",

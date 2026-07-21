@@ -3,7 +3,7 @@ import type { PositionWithPrice } from "@/lib/portfolio";
 
 type PositionRow = {
   id: string;
-  asset_class: "bist" | "gold" | "crypto" | "fx";
+  asset_class: "bist" | "gold" | "crypto" | "fx" | "manual";
   symbol: string;
   quantity: number;
   avg_cost_try: number;
@@ -58,7 +58,7 @@ export async function getPositionsWithPrices(
 
   const hasCrypto = positions.some((p) => p.asset_class === "crypto");
 
-  const [{ data: snapshotsData }, { data: signalsData }] = await Promise.all([
+  const [{ data: snapshotsData }, { data: signalsData }, { data: fundedRows }] = await Promise.all([
     supabase
       .from("market_snapshots")
       .select("asset_class, symbol, price, currency, source, fetched_at")
@@ -71,11 +71,18 @@ export async function getPositionsWithPrices(
       .eq("kind", "position_signal")
       .order("created_at", { ascending: false })
       .limit(100),
+    // Which positions have a linked "investment" cash-out entry — drives
+    // funded_from_cash below (src/lib/actions/positions.ts creates/removes
+    // this row in lockstep with the position's funded-from-cash toggle).
+    supabase.from("entries").select("portfolio_position_id").not("portfolio_position_id", "is", null),
   ]);
 
   const latestSnapshots = latestBySymbol((snapshotsData as SnapshotRow[]) ?? []);
   const latestSignals = latestBySymbol((signalsData as SignalRow[]) ?? []);
   const usdTrySnapshot = hasCrypto ? latestSnapshots.get("fx:USDTRY") : undefined;
+  const fundedPositionIds = new Set(
+    ((fundedRows as { portfolio_position_id: string }[]) ?? []).map((r) => r.portfolio_position_id),
+  );
 
   return positions.map((p) => {
     const key = `${p.asset_class}:${p.symbol}`;
@@ -112,6 +119,7 @@ export async function getPositionsWithPrices(
       latest_price_source: snapshot?.source ?? null,
       pl_try: plTry,
       pl_percent: plPercent,
+      funded_from_cash: fundedPositionIds.has(p.id),
       signal: signal
         ? {
             signal: signal.signal,

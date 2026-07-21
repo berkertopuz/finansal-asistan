@@ -5,11 +5,14 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
+// Abonelikler isn't its own tab — Giderler's "tüm abonelikleri gör" card
+// (src/app/(app)/defter/giderler/page.tsx) links straight to
+// /defter/abonelikler instead, so the page stays reachable without needing
+// a permanent slot in this bar.
 const TABS = [
   { href: "/defter", key: "all" },
   { href: "/defter/gelirler", key: "income" },
   { href: "/defter/giderler", key: "expense" },
-  { href: "/defter/abonelikler", key: "subscription" },
 ] as const;
 
 // Route-based sub-navigation, not a stateful Tabs widget — each view is a

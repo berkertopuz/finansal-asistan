@@ -45,7 +45,13 @@ export default async function AbonelikPage() {
         </Card>
       </div>
 
-      <EntryTable kind="subscription" initialData={initialData} showKindColumn={false} monthFilter={false} />
+      <EntryTable
+        kind="subscription"
+        initialData={initialData}
+        showKindColumn={false}
+        monthFilter={false}
+        templatesOnly
+      />
       <QuickAddFAB defaultKind="subscription" />
     </div>
   );

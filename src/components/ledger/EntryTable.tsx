@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import useSWR, { mutate } from "swr";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import { ArrowDown, ArrowUp, Pencil, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Clock, Pencil, Repeat, Trash2 } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -36,7 +36,8 @@ import { MonthSelect, currentMonthKey } from "@/components/ledger/MonthSelect";
 import { deleteEntry } from "@/lib/actions/entries";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { AppLocale } from "@/lib/locale";
-import { categoryLabel, entryDisplayDate, type Entry, type EntryKind } from "@/lib/ledger";
+import { categoryLabel, entryDisplayDate, toDateString, type Entry, type EntryKind } from "@/lib/ledger";
+import { occurrencesInRange } from "@/lib/cashflow";
 import { categoryIcon } from "@/lib/category-icons";
 import { cn } from "@/lib/utils";
 
@@ -57,6 +58,11 @@ function monthOf(dateStr: string): string {
   return dateStr.slice(0, 7); // "YYYY-MM-DD" -> "YYYY-MM"
 }
 
+function monthStartDate(monthKey: string): Date {
+  const [year, month] = monthKey.split("-").map(Number);
+  return new Date(year, month - 1, 1);
+}
+
 function isSameDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
@@ -74,7 +80,20 @@ function dayGroupLabel(dateStr: string, t: (key: string) => string, locale: AppL
   return formatDate(dateStr, locale);
 }
 
-type MobileRow = { type: "header"; label: string } | { type: "entry"; entry: Entry };
+// A planned row is a *preview* of a future, not-yet-materialized occurrence
+// of an active template — synthesized on the fly, never a real database
+// row. It exists only so browsing ahead (e.g. checking August while it's
+// still July) shows a standing bill rather than a flat "no entries",
+// without actually creating that row early (materializeDueOccurrences only
+// ever generates through the end of the *current* month — see
+// src/lib/recurrence-materialize.ts — specifically so a template edit can
+// never land on a period that already has a committed row). isPlanned is
+// what tells the row renderers below to drop the edit/delete actions (there
+// is nothing yet to edit or delete) and label it distinctly from a real,
+// already-happened transaction.
+type DisplayEntry = Entry & { isPlanned?: boolean };
+
+type MobileRow = { type: "header"; label: string } | { type: "entry"; entry: DisplayEntry };
 
 // income = calm green, expense = warm amber, subscription = neutral —
 // reuses the app's existing signal tokens (already used for buy/sell tone
@@ -94,6 +113,7 @@ export function EntryTable({
   allowAllMonths = false,
   defaultSortField = "occurred_at",
   showMonthSummary = false,
+  templatesOnly = false,
 }: {
   kind?: EntryKind | EntryKind[];
   initialData?: Entry[];
@@ -113,6 +133,14 @@ export function EntryTable({
   // still shows the full month picture, not just its own expense total.
   // Only rendered while a specific month is selected.
   showMonthSummary?: boolean;
+  // false (default): a month-scoped transaction list — only concrete rows
+  // (recurrence === "none"), whether one-off or generated from a template.
+  // true: the recurring-rule manager (Abonelikler and the Gelirler/Giderler
+  // "Tekrarlayan ..." sections) — only template rows (recurrence !== "none"),
+  // never the per-period rows they generate. A table must never show both:
+  // that would either double-count a period or, worse, let editing a
+  // template's row look like it edits one month's transaction.
+  templatesOnly?: boolean;
 }) {
   const { data, error, isLoading } = useSWR<Entry[]>(ENTRIES_KEY, fetcher, {
     fallbackData: initialData,
@@ -130,26 +158,96 @@ export function EntryTable({
 
   const kinds = kind ? (Array.isArray(kind) ? kind : [kind]) : null;
 
+  // The reference point entryDisplayDate rolls a recurring anchor forward
+  // from. "Today" is right for an unscoped view, but browsing a specific
+  // month needs that month's own start — otherwise a monthly bill can only
+  // ever resolve to whichever single month contains its next occurrence
+  // *from today*, and never show up when browsing further out (e.g.
+  // September stays empty forever, no matter how far you navigate). Memoized
+  // on `month` alone so it's a stable reference across renders, not a fresh
+  // `new Date()` every time (which would defeat sorted's own memoization).
+  const dateReference = useMemo(
+    () => (month === "all" ? new Date() : monthStartDate(month)),
+    [month],
+  );
+
   // entryDisplayDate, not raw occurred_at — a recurring entry's due date can
   // roll into a different month than when it was added, and filtering on
   // one date while *displaying* another (the previous version of this) is
   // exactly what made "July selected" show August-dated rows.
-  const monthMatches = (e: Entry) => month === "all" || monthOf(entryDisplayDate(e)) === month;
+  const monthMatches = (e: Entry) => month === "all" || monthOf(entryDisplayDate(e, dateReference)) === month;
 
-  const filtered = useMemo(() => {
+  // Only a month strictly after the current one can ever be "planned-only"
+  // — materializeDueOccurrences always covers the current month already, so
+  // there's nothing to preview there (a real row already exists), and past
+  // months are, well, past.
+  const isFutureMonth = month !== "all" && month > currentMonthKey();
+
+  // Synthesized preview rows for a future month, one per template
+  // occurrence actually due within it — not filtered by `kinds` here (see
+  // monthSummary below, which needs every kind regardless of this table's
+  // own filter); `filtered` applies the kind filter when it consumes these.
+  const plannedRows = useMemo<DisplayEntry[]>(() => {
+    if (!data || templatesOnly || !monthFilter || !isFutureMonth) return [];
+    const monthStart = monthStartDate(month);
+    const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
+    const rows: DisplayEntry[] = [];
+    for (const tpl of data) {
+      if (tpl.recurrence === "none" || !tpl.next_due_date) continue;
+      for (const occurrence of occurrencesInRange(tpl.next_due_date, tpl.recurrence, monthStart, monthEnd)) {
+        rows.push({
+          ...tpl,
+          id: `planned-${tpl.id}-${toDateString(occurrence)}`,
+          recurrence: "none",
+          next_due_date: null,
+          occurred_at: toDateString(occurrence),
+          template_id: tpl.id,
+          isPlanned: true,
+        });
+      }
+    }
+    return rows;
+  }, [data, templatesOnly, monthFilter, isFutureMonth, month]);
+
+  const filtered = useMemo<DisplayEntry[]>(() => {
     if (!data) return [];
-    return data.filter((e) => (kinds ? kinds.includes(e.kind) : true) && (!monthFilter || monthMatches(e)));
-  }, [data, kinds, month, monthFilter]);
+    const real = data.filter(
+      (e) =>
+        (kinds ? kinds.includes(e.kind) : true) &&
+        (templatesOnly ? e.recurrence !== "none" : e.recurrence === "none") &&
+        (!monthFilter || monthMatches(e)),
+    );
+    const planned = kinds ? plannedRows.filter((e) => kinds.includes(e.kind)) : plannedRows;
+    return [...real, ...planned];
+  }, [data, kinds, month, monthFilter, templatesOnly, plannedRows]);
 
   const monthSummary = useMemo(() => {
     if (!data || !showMonthSummary || month === "all") return null;
     const totals = { income: 0, expense: 0, subscription: 0 };
     for (const e of data) {
+      // Templates aren't a transaction themselves (see currentBalance in
+      // src/lib/cashflow.ts for the same exclusion) — only the concrete
+      // rows they generate count toward a month's totals.
+      if (e.recurrence !== "none") continue;
+      // Money moved into an investment, not spent — it reduces cash
+      // (currentBalance in src/lib/cashflow.ts already accounts for that)
+      // but isn't a "gider" and shouldn't skew net fazla.
+      if (e.kind === "investment") continue;
       if (!monthMatches(e)) continue;
       totals[e.kind] += e.amount;
     }
+    // A future month has no real rows of its own yet (see plannedRows
+    // above) — without adding these in, browsing ahead to a month with a
+    // standing bill due would show a flat ₺0 summary right next to the row
+    // that says otherwise. plannedRows only ever come from templates, which
+    // can never be kind="investment" (that kind is always a one-off cash-out
+    // row, never recurring) — the guard just keeps this indexable by type.
+    for (const e of plannedRows) {
+      if (e.kind === "investment") continue;
+      totals[e.kind] += e.amount;
+    }
     return { ...totals, net: totals.income - totals.expense - totals.subscription };
-  }, [data, showMonthSummary, month]);
+  }, [data, showMonthSummary, month, plannedRows]);
 
   const sorted = useMemo(() => {
     const rows = [...filtered];
@@ -158,11 +256,11 @@ export function EntryTable({
       if (sortField === "amount") cmp = a.amount - b.amount;
       else if (sortField === "category") cmp = (a.category ?? "").localeCompare(b.category ?? "");
       else if (sortField === "created_at") cmp = a.created_at.localeCompare(b.created_at);
-      else cmp = entryDisplayDate(a).localeCompare(entryDisplayDate(b));
+      else cmp = entryDisplayDate(a, dateReference).localeCompare(entryDisplayDate(b, dateReference));
       return sortDir === "asc" ? cmp : -cmp;
     });
     return rows;
-  }, [filtered, sortField, sortDir]);
+  }, [filtered, sortField, sortDir, dateReference]);
 
   // Day headers only make sense in date order — sorting by amount/category
   // would scatter the same day's entries apart, so those sorts fall back to
@@ -174,7 +272,7 @@ export function EntryTable({
     const rows: MobileRow[] = [];
     let lastLabel: string | null = null;
     for (const entry of sorted) {
-      const label = dayGroupLabel(entryDisplayDate(entry), t, locale);
+      const label = dayGroupLabel(entryDisplayDate(entry, dateReference), t, locale);
       if (label !== lastLabel) {
         rows.push({ type: "header", label });
         lastLabel = label;
@@ -182,7 +280,7 @@ export function EntryTable({
       rows.push({ type: "entry", entry });
     }
     return rows;
-  }, [sorted, sortField, t, locale]);
+  }, [sorted, sortField, t, locale, dateReference]);
 
   function toggleSort(field: SortField) {
     if (field === sortField) {
@@ -193,12 +291,17 @@ export function EntryTable({
     }
   }
 
-  async function handleConfirmDelete() {
+  async function handleConfirmDelete(deleteGeneratedRows: boolean) {
     if (!deletingEntry) return;
     const id = deletingEntry.id;
     setDeletingEntry(null);
-    mutate(ENTRIES_KEY, (current: Entry[] | undefined) => current?.filter((e) => e.id !== id), false);
-    await deleteEntry(id);
+    mutate(
+      ENTRIES_KEY,
+      (current: Entry[] | undefined) =>
+        current?.filter((e) => e.id !== id && (!deleteGeneratedRows || e.template_id !== id)),
+      false,
+    );
+    await deleteEntry(id, deleteGeneratedRows);
     mutate(ENTRIES_KEY);
     router.refresh();
   }
@@ -247,7 +350,7 @@ export function EntryTable({
             <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
               {t("summary.expense")}
             </p>
-            <p className="mt-1 truncate text-lg font-bold text-foreground">
+            <p className="mt-1 truncate text-lg font-bold text-signal-caution-foreground">
               {formatCurrency(monthSummary.expense, locale)}
             </p>
           </div>
@@ -255,7 +358,7 @@ export function EntryTable({
             <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
               {t("summary.subscription")}
             </p>
-            <p className="mt-1 truncate text-lg font-bold text-foreground">
+            <p className="mt-1 truncate text-lg font-bold text-[#E8E6E1]">
               {formatCurrency(monthSummary.subscription, locale)}
             </p>
           </div>
@@ -263,12 +366,7 @@ export function EntryTable({
             <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
               {t("summary.netSurplus")}
             </p>
-            <p
-              className={cn(
-                "mt-1 truncate text-lg font-bold",
-                monthSummary.net >= 0 ? "text-signal-buy-foreground" : "text-signal-caution-foreground",
-              )}
-            >
+            <p className="mt-1 truncate text-lg font-bold text-blue-500 dark:text-blue-400">
               {formatCurrency(monthSummary.net, locale)}
             </p>
           </div>
@@ -309,8 +407,8 @@ export function EntryTable({
               </TableHeader>
               <TableBody>
                 {sorted.map((entry) => (
-                  <TableRow key={entry.id}>
-                    <TableCell>{formatDate(entryDisplayDate(entry), locale)}</TableCell>
+                  <TableRow key={entry.id} className={cn(entry.isPlanned && "opacity-60")}>
+                    <TableCell>{formatDate(entryDisplayDate(entry, dateReference), locale)}</TableCell>
                     {showKindColumn && (
                       <TableCell>
                         <Badge variant="secondary" className={kindBadgeClassName(entry.kind)}>
@@ -323,8 +421,20 @@ export function EntryTable({
                       {entry.description ?? ""}
                     </TableCell>
                     <TableCell>
-                      {entry.recurrence !== "none" && (
+                      {entry.isPlanned ? (
+                        <Badge variant="outline" className="gap-1 text-muted-foreground">
+                          <Clock className="size-3" />
+                          {t("table.planned")}
+                        </Badge>
+                      ) : entry.recurrence !== "none" ? (
                         <Badge variant="outline">{t(`recurrence.${entry.recurrence}`)}</Badge>
+                      ) : (
+                        entry.template_id && (
+                          <Badge variant="outline" className="gap-1 text-muted-foreground">
+                            <Repeat className="size-3" />
+                            {t("table.fromRecurring")}
+                          </Badge>
+                        )
                       )}
                     </TableCell>
                     <TableCell
@@ -337,28 +447,34 @@ export function EntryTable({
                       {formatCurrency(entry.amount, locale)}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          aria-label={tCommon("edit")}
-                          className="text-foreground/70 hover:text-foreground"
-                          onClick={() => setEditingEntry(entry)}
-                        >
-                          <Pencil className="size-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          aria-label={tCommon("delete")}
-                          className="text-foreground/70 hover:text-destructive"
-                          onClick={() => setDeletingEntry(entry)}
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
-                      </div>
+                      {entry.isPlanned ? (
+                        <span className="text-xs text-muted-foreground">{t("table.plannedNotYet")}</span>
+                      ) : entry.kind === "investment" && entry.portfolio_position_id ? (
+                        <span className="text-xs text-muted-foreground">{t("table.managedFromPortfolio")}</span>
+                      ) : (
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            aria-label={tCommon("edit")}
+                            className="text-foreground/70 hover:text-foreground"
+                            onClick={() => setEditingEntry(entry)}
+                          >
+                            <Pencil className="size-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            aria-label={tCommon("delete")}
+                            className="text-foreground/70 hover:text-destructive"
+                            onClick={() => setDeletingEntry(entry)}
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -386,8 +502,15 @@ export function EntryTable({
               }
               const entry = row.entry;
               const { Icon, colorClassName } = categoryIcon(entry.category);
+              const isManagedFromPortfolio = entry.kind === "investment" && Boolean(entry.portfolio_position_id);
               return (
-                <div key={entry.id} className="glass-card flex items-center gap-3 rounded-2xl p-4">
+                <div
+                  key={entry.id}
+                  className={cn(
+                    "glass-card flex items-center gap-3 rounded-2xl p-4",
+                    entry.isPlanned && "opacity-60",
+                  )}
+                >
                   <div
                     className={cn(
                       "flex size-12 shrink-0 items-center justify-center rounded-xl",
@@ -407,9 +530,17 @@ export function EntryTable({
                       {categoryLabel(t, entry.category)}
                     </span>
                     <span className="truncate text-xs text-muted-foreground">
-                      {formatDate(entryDisplayDate(entry), locale)}
+                      {formatDate(entryDisplayDate(entry, dateReference), locale)}
                       {entry.description ? ` · ${entry.description}` : ""}
-                      {entry.recurrence !== "none" ? ` · ${t(`recurrence.${entry.recurrence}`)}` : ""}
+                      {entry.isPlanned
+                        ? ` · ${t("table.planned")}`
+                        : isManagedFromPortfolio
+                          ? ` · ${t("table.managedFromPortfolio")}`
+                          : entry.recurrence !== "none"
+                            ? ` · ${t(`recurrence.${entry.recurrence}`)}`
+                            : entry.template_id
+                              ? ` · ${t("table.fromRecurring")}`
+                              : ""}
                     </span>
                   </div>
                   <span
@@ -421,28 +552,30 @@ export function EntryTable({
                     {entry.kind === "income" ? "+" : "−"}
                     {formatCurrency(entry.amount, locale)}
                   </span>
-                  <div className="flex shrink-0">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-touch"
-                      aria-label={tCommon("edit")}
-                      className="text-foreground/70 hover:text-foreground"
-                      onClick={() => setEditingEntry(entry)}
-                    >
-                      <Pencil className="size-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-touch"
-                      aria-label={tCommon("delete")}
-                      className="text-foreground/70 hover:text-destructive"
-                      onClick={() => setDeletingEntry(entry)}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  </div>
+                  {!entry.isPlanned && (
+                    <div className="flex shrink-0">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-touch"
+                        aria-label={tCommon("edit")}
+                        className="text-foreground/70 hover:text-foreground"
+                        onClick={() => setEditingEntry(entry)}
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-touch"
+                        aria-label={tCommon("delete")}
+                        className="text-foreground/70 hover:text-destructive"
+                        onClick={() => setDeletingEntry(entry)}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -469,16 +602,49 @@ export function EntryTable({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{tCommon("delete")}</DialogTitle>
-            <DialogDescription>{tCommon("confirmDelete")}</DialogDescription>
+            <DialogDescription>
+              {deletingEntry && deletingEntry.recurrence !== "none"
+                ? t("table.deleteRecurringPrompt")
+                : tCommon("confirmDelete")}
+            </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setDeletingEntry(null)}>
-              {tCommon("cancel")}
-            </Button>
-            <Button type="button" variant="destructive" onClick={handleConfirmDelete}>
-              {tCommon("delete")}
-            </Button>
-          </DialogFooter>
+          {deletingEntry && deletingEntry.recurrence !== "none" ? (
+            <DialogFooter className="sm:flex-col">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => handleConfirmDelete(false)}
+              >
+                {t("table.stopFutureOnly")}
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                className="w-full"
+                onClick={() => handleConfirmDelete(true)}
+              >
+                {t("table.deleteAllOccurrences")}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full"
+                onClick={() => setDeletingEntry(null)}
+              >
+                {tCommon("cancel")}
+              </Button>
+            </DialogFooter>
+          ) : (
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setDeletingEntry(null)}>
+                {tCommon("cancel")}
+              </Button>
+              <Button type="button" variant="destructive" onClick={() => handleConfirmDelete(false)}>
+                {tCommon("delete")}
+              </Button>
+            </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
     </div>
