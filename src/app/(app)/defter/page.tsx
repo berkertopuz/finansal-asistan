@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EntryTable } from "@/components/ledger/EntryTable";
 import { CashFlowTimeline } from "@/components/ledger/CashFlowTimeline";
 import { QuickAddFAB } from "@/components/ledger/QuickAddFAB";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getUser } from "@/lib/supabase/server";
 import { getEntries } from "@/lib/entries-data";
 import { getPositionsWithPrices } from "@/lib/positions-data";
 import { fetchReferenceRate, fetchTermDepositRate } from "@/lib/providers/evds";
@@ -32,27 +32,54 @@ export default async function DefterPage() {
   const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getUser();
 
-  // No rows yet this month (brand-new user) → view returns nothing, not zeros.
-  const { data } = await supabase.from("v_monthly_surplus").select("*").maybeSingle();
-  const surplus = (data as MonthlySurplus | null) ?? EMPTY_SURPLUS;
-  const initialData = await getEntries(supabase);
-  const locale = (await getLocale()) as AppLocale;
-  const t = await getTranslations("ledger.summary");
-
-  // Every position's current worth, whether or not it was marked "funded
-  // from cash" — that checkbox only controls whether a matching cash-out
-  // row exists in entries (so the balance projection reflects real money
-  // leaving checking); it says nothing about whether the asset itself
-  // counts toward net worth. An asset you already owned before you started
-  // tracking cash still belongs in mal varlığı just as much as one you
-  // funded through the app. Live price × quantity where a price exists
-  // (BIST/gold/crypto/FX); avg_cost_try × quantity for "manual" positions
-  // and for anything whose price API happens to be down right now — a
-  // fallback to what was actually paid, never a fabricated price (CLAUDE.md
-  // rule 5).
-  const positions = user ? await getPositionsWithPrices(supabase, user.id) : [];
+  // All independent — none of these read another's result, only the render
+  // below does. Used to run serially (surplus → getEntries → positions →
+  // profile/evds/termDeposit), each paying its own round trip in turn. Safe
+  // to fully parallelize now: the entries materialization that getEntries()
+  // triggers internally already happened once in the (app) layout before
+  // this page even started rendering (and is cache()-deduped — see
+  // src/lib/recurrence-materialize.ts), so there's no ordering dependency
+  // left between the surplus view and getEntries.
+  const [
+    { data: surplusRow },
+    initialData,
+    positions,
+    { data: profile },
+    evdsRate,
+    termDepositRate,
+    locale,
+    t,
+  ] = await Promise.all([
+    // No rows yet this month (brand-new user) → view returns nothing, not zeros.
+    supabase.from("v_monthly_surplus").select("*").maybeSingle(),
+    getEntries(supabase),
+    // Every position's current worth, whether or not it was marked "funded
+    // from cash" — that checkbox only controls whether a matching cash-out
+    // row exists in entries (so the balance projection reflects real money
+    // leaving checking); it says nothing about whether the asset itself
+    // counts toward net worth. An asset you already owned before you started
+    // tracking cash still belongs in mal varlığı just as much as one you
+    // funded through the app. Live price × quantity where a price exists
+    // (BIST/gold/crypto/FX); avg_cost_try × quantity for "manual" positions
+    // and for anything whose price API happens to be down right now — a
+    // fallback to what was actually paid, never a fabricated price (CLAUDE.md
+    // rule 5).
+    user ? getPositionsWithPrices(supabase, user.id) : Promise.resolve([]),
+    supabase.from("profiles").select("assumed_annual_rate").eq("id", user!.id).maybeSingle(),
+    // The "vadeli not showing in production" bug that led to serializing
+    // these turned out to be a missing EVDS_API_KEY env var in Vercel, not
+    // EVDS dropping concurrent requests (that was never actually confirmed,
+    // just the working theory at the time). fetchLatestSeriesValue now
+    // retries once on failure as a cheaper safety net against the original
+    // theory, if it was ever real.
+    fetchReferenceRate(),
+    fetchTermDepositRate(),
+    getLocale() as Promise<AppLocale>,
+    getTranslations("ledger.summary"),
+  ]);
+  const surplus = (surplusRow as MonthlySurplus | null) ?? EMPTY_SURPLUS;
   const totalInvestedValue = positions.reduce(
     (sum, p) => sum + (p.latest_price_try ?? p.avg_cost_try) * p.quantity,
     0,
@@ -63,19 +90,6 @@ export default async function DefterPage() {
   // simply doesn't select them — so it's added to totalInvestedValue rather
   // than reduced by it first.
   const netWorth = surplus.surplus + totalInvestedValue;
-
-  // Parallel again — the "vadeli not showing in production" bug that led to
-  // serializing these turned out to be a missing EVDS_API_KEY env var in
-  // Vercel, not EVDS dropping concurrent requests (that was never actually
-  // confirmed, just the working theory at the time). Serializing cost a
-  // measured ~780ms of extra document request latency on a cold cache
-  // (Lighthouse). fetchLatestSeriesValue now retries once on failure as a
-  // cheaper safety net against the original theory, if it was ever real.
-  const [{ data: profile }, evdsRate, termDepositRate] = await Promise.all([
-    supabase.from("profiles").select("assumed_annual_rate").eq("id", user!.id).maybeSingle(),
-    fetchReferenceRate(),
-    fetchTermDepositRate(),
-  ]);
 
   let assumedRate = Number(
     (profile as { assumed_annual_rate: number } | null)?.assumed_annual_rate ??

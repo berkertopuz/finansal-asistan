@@ -1,21 +1,22 @@
 import { redirect } from "next/navigation";
 import { SerwistProvider } from "@serwist/turbopack/react";
-import { createClient } from "@/lib/supabase/server";
+import { getUser } from "@/lib/supabase/server";
 import { AppShell } from "@/components/AppShell";
 import { materializeDueOccurrences } from "@/lib/recurrence-materialize";
 
 // ZERO financial data can render below this gate (CLAUDE.md rule 3).
 // getUser() is used, not getSession() — it revalidates the JWT against
-// Supabase Auth instead of trusting the (spoofable) cookie contents.
+// Supabase Auth instead of trusting the (spoofable) cookie contents. It's
+// the cache()-wrapped helper (src/lib/supabase/server.ts) so this check and
+// the page underneath it share one network round trip instead of two.
 export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getUser();
 
   if (!user) {
     redirect("/giris");
@@ -26,7 +27,7 @@ export default async function AppLayout({
   // reads them — Ana Sayfa's SurplusCard queries v_monthly_surplus directly
   // without ever calling getEntries, so it would otherwise miss a template's
   // current-month row on a user who never visits Defter this month.
-  await materializeDueOccurrences(supabase, user.id);
+  await materializeDueOccurrences(user.id);
 
   return (
     // Scoped to the authenticated app, not the root layout — /giris,

@@ -5,14 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ProfileForm } from "@/components/settings/ProfileForm";
 import { DataFreshnessStatus } from "@/components/settings/DataFreshnessStatus";
 import { LocaleSwitcher } from "@/components/LocaleSwitcher";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getUser } from "@/lib/supabase/server";
 import { signOut } from "@/lib/actions/auth";
 
 export default async function AyarlarPage() {
   const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getUser();
 
   const { data: profile } = await supabase
     .from("profiles")

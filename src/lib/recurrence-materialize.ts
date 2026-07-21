@@ -1,7 +1,8 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { cache } from "react";
 import type { Entry } from "@/lib/ledger";
 import { toDateString } from "@/lib/ledger";
 import { occurrencesInRange } from "@/lib/cashflow";
+import { createClient } from "@/lib/supabase/server";
 
 type TemplateRow = Pick<
   Entry,
@@ -29,10 +30,16 @@ type TemplateRow = Pick<
 // already-materialized future row silently stuck on the old amount —
 // capping at "this month" means an edit to the template always lands on a
 // period that doesn't exist as a row yet.
-export async function materializeDueOccurrences(
-  supabase: SupabaseClient,
-  userId: string,
-): Promise<void> {
+// Wrapped in cache() and creates its own client rather than taking one as a
+// param — it's called once from the (app) layout on every navigation and
+// again from getEntries() on Defter; within a single request those used to
+// run twice serially. Keying cache() on the (object) supabase client a
+// caller happened to construct wouldn't dedupe (different instances break
+// memoization), so this takes only the primitive userId and makes its own
+// client — any client built from the same request's cookies sees the same
+// session, so which instance runs the query doesn't matter.
+export const materializeDueOccurrences = cache(async (userId: string): Promise<void> => {
+  const supabase = await createClient();
   const { data: templates } = await supabase
     .from("entries")
     .select(
@@ -94,4 +101,4 @@ export async function materializeDueOccurrences(
   if (error) {
     console.error("materializeDueOccurrences upsert failed", error);
   }
-}
+});

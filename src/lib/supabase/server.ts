@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
@@ -29,3 +30,17 @@ export async function createClient() {
     },
   );
 }
+
+// getUser() is network-validated (revalidates the JWT against Supabase Auth,
+// unlike the spoofable cookie-only getSession() — CLAUDE.md rule 3), so each
+// call is a real round trip. The (app) layout, every page under it, and
+// getEntries()/materializeDueOccurrences all used to call it independently —
+// up to 4 serial round trips for a single navigation. react's cache()
+// memoizes this per request/render pass, so all of those collapse into one
+// actual network call; it does NOT persist across separate navigations or
+// requests, so the security guarantee (every request re-validated) is
+// unchanged.
+export const getUser = cache(async () => {
+  const supabase = await createClient();
+  return supabase.auth.getUser();
+});
