@@ -249,7 +249,9 @@
       "incomeTitle": "Sabit gelirler",
       "empty": "Henüz sabit kayıt yok.",
       "nextDue": "Sıradaki ödeme: {date}",
-      "noDueDate": "Ödeme tarihi belirtilmemiş"
+      "noDueDate": "Ödeme tarihi belirtilmemiş",
+      "count": "{count} kayıt",
+      "viewAll": "Tümünü gör"
     },
     "subscriptions": {
       "summaryTitle": "Abonelikler",

@@ -2,7 +2,6 @@ import Link from "next/link";
 import { getLocale, getTranslations } from "next-intl/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EntryTable } from "@/components/ledger/EntryTable";
-import { FixedItemsTimeline } from "@/components/ledger/FixedItemsTimeline";
 import { QuickAddFAB } from "@/components/ledger/QuickAddFAB";
 import { createClient } from "@/lib/supabase/server";
 import { getEntries } from "@/lib/entries-data";
@@ -12,6 +11,9 @@ import type { AppLocale } from "@/lib/locale";
 export default async function GiderlerPage() {
   const supabase = await createClient();
   const initialData = await getEntries(supabase);
+  const fixedExpenseCount = initialData.filter(
+    (e) => e.kind === "expense" && e.recurrence !== "none",
+  ).length;
   const { data } = await supabase
     .from("v_monthly_surplus")
     .select("subscription_total")
@@ -22,8 +24,26 @@ export default async function GiderlerPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-4">
+      {/* Full list moved to its own page (/defter/giderler/sabit) — every
+          fixed expense row shown inline here, above the month's own
+          transactions, was most of "this page is too tall". */}
       <div className="px-4 md:px-0">
-        <FixedItemsTimeline kind="expense" initialData={initialData} />
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-normal text-muted-foreground">
+              {t("fixedItems.expenseTitle")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex items-center justify-between">
+            <p className="text-sm text-foreground">{t("fixedItems.count", { count: fixedExpenseCount })}</p>
+            <Link
+              href="/defter/giderler/sabit"
+              className="text-xs text-muted-foreground underline underline-offset-2"
+            >
+              {t("fixedItems.viewAll")}
+            </Link>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="px-4 md:px-0">

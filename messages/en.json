@@ -249,7 +249,9 @@
       "incomeTitle": "Fixed income",
       "empty": "No fixed entries yet.",
       "nextDue": "Next due: {date}",
-      "noDueDate": "No due date set"
+      "noDueDate": "No due date set",
+      "count": "{count, plural, one {# entry} other {# entries}}",
+      "viewAll": "View all"
     },
     "subscriptions": {
       "summaryTitle": "Subscriptions",

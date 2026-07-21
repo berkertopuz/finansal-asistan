@@ -29,8 +29,12 @@ export type Entry = {
 
 // Labels come from messages/{locale}.json ("ledger" namespace) — components
 // resolve via useTranslations, keyed by these values. "investment" is
-// deliberately excluded — see the EntryKind comment above.
-export const ENTRY_KINDS: EntryKind[] = ["expense", "income", "subscription"];
+// deliberately excluded — see the EntryKind comment above. "subscription"
+// is also excluded: a subscription is only ever created from the
+// Abonelikler page's own FAB (defaultKind="subscription") or edited from
+// its own list — QuickEntryForm hides its kind switcher entirely in that
+// case (see there), so it never needs to appear as a choice here.
+export const ENTRY_KINDS: EntryKind[] = ["expense", "income"];
 export const ENTRY_RECURRENCES: EntryRecurrence[] = ["none", "weekly", "monthly", "yearly"];
 
 // Preset category chips (docs/phase1-plan.md A.1 — entries.category). The
