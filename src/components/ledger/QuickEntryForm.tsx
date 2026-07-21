@@ -64,6 +64,17 @@ export function QuickEntryForm({
   const [recurrence, setRecurrence] = useState<EntryRecurrence>(
     editingEntry?.recurrence ?? (defaultKind === "subscription" ? "monthly" : "none"),
   );
+  // One shared field for occurred_at/next_due_date — they render as a
+  // single input that just relabels itself depending on recurrence (see
+  // below), so a date the user already typed carries over instead of
+  // vanishing into a blank "Ödeme tarihi" the moment they switch Sıklık to
+  // something other than "Tek seferlik".
+  const [dateValue, setDateValue] = useState<string>(() => {
+    if (!editingEntry) return todayDateInputValue();
+    return editingEntry.recurrence === "none"
+      ? editingEntry.occurred_at
+      : (editingEntry.next_due_date ?? "");
+  });
   const recurrenceTouched = useRef(Boolean(editingEntry));
   const formRef = useRef<HTMLFormElement>(null);
   const applyToAllRef = useRef<HTMLInputElement>(null);
@@ -111,6 +122,7 @@ export function QuickEntryForm({
           setKind(defaultKind);
           setCategory(DEFAULT_CATEGORY);
           setRecurrence("none");
+          setDateValue(todayDateInputValue());
           recurrenceTouched.current = false;
         }
         mutate("/api/entries");
@@ -123,7 +135,7 @@ export function QuickEntryForm({
   );
 
   return (
-    <form ref={formRef} action={formAction} className="flex flex-col gap-4 px-4 pb-6">
+    <form ref={formRef} action={formAction} className="flex flex-col gap-3 px-4 pb-6">
       {editingEntry && <input type="hidden" name="id" value={editingEntry.id} />}
       <input type="hidden" name="kind" value={kind} />
       <input type="hidden" name="category" value={category} />
@@ -164,39 +176,49 @@ export function QuickEntryForm({
         </ToggleGroup>
       )}
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="amount">{t("form.amountLabel")}</Label>
-        <Input
-          id="amount"
-          name="amount"
-          type="number"
-          inputMode="decimal"
-          step="0.01"
-          min="0"
-          placeholder="0,00"
-          defaultValue={editingEntry?.amount}
-          autoFocus
-          required
-        />
-      </div>
-
-      {/* Only for one-off entries — a recurring entry's single meaningful
-          date is the due date below (next_due_date), which anchors every
-          future occurrence. Showing both here was confusing: which one is
-          "the" date? occurred_at for a recurring row just means "added to
-          the ledger on this day" and isn't user-facing at all now. */}
-      {recurrence === "none" && (
+      {/* Tutar paired with whichever date field currently applies (never
+          both at once — see the comment below) instead of each stacking as
+          its own full-width row. This is the main space saving in the
+          whole form: one less row of height, on every screen size, without
+          hiding anything. */}
+      <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="occurred_at">{t("form.dateLabel")}</Label>
+          <Label htmlFor="amount">{t("form.amountLabel")}</Label>
           <Input
-            id="occurred_at"
-            name="occurred_at"
-            type="date"
-            defaultValue={editingEntry?.occurred_at ?? todayDateInputValue()}
+            id="amount"
+            name="amount"
+            type="number"
+            inputMode="decimal"
+            step="0.01"
+            min="0"
+            placeholder="0,00"
+            defaultValue={editingEntry?.amount}
+            autoFocus
             required
           />
         </div>
-      )}
+
+        {/* One input standing in for both occurred_at (one-off) and
+            next_due_date (recurring) — never both meaningful at once (a
+            recurring row's occurred_at is just "added to the ledger on
+            this day", not user-facing), so relabeling the same field on
+            recurrence change is what keeps a date the user already typed
+            from vanishing into a blank field the moment they switch
+            Sıklık. */}
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="entry-date">
+            {recurrence === "none" ? t("form.dateLabel") : t("form.dueDateLabel")}
+          </Label>
+          <Input
+            id="entry-date"
+            name={recurrence === "none" ? "occurred_at" : "next_due_date"}
+            type="date"
+            value={dateValue}
+            onChange={(e) => setDateValue(e.target.value)}
+            required
+          />
+        </div>
+      </div>
 
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="description">{t("form.descriptionLabel")}</Label>
@@ -238,19 +260,6 @@ export function QuickEntryForm({
           <p className="text-xs text-muted-foreground">{t("form.recurrenceNote")}</p>
         )}
       </div>
-
-      {recurrence !== "none" && (
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="next_due_date">{t("form.dueDateLabel")}</Label>
-          <Input
-            id="next_due_date"
-            name="next_due_date"
-            type="date"
-            defaultValue={editingEntry?.next_due_date ?? ""}
-            required
-          />
-        </div>
-      )}
 
       <div className="flex flex-col gap-1.5">
         <Label>{t("form.categoryLabel")}</Label>
