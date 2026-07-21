@@ -283,7 +283,7 @@
     "useEvdsRate": "Use TCMB rate",
     "disclaimer": "Net estimate (17.5% withholding tax already deducted); assumes a liquid, anytime-accessible daily-interest account — not locked like a term deposit. Actual returns vary by bank and product. Not investment advice.",
     "dailyAccount": {
-      "title": "What You'd Earn With Daily Interest",
+      "title": "What you'd earn with daily interest",
       "sentence": "If you left this balance untouched in a daily-interest account, you'd have ~{gain} more after {days} days."
     },
     "termDeposit": {

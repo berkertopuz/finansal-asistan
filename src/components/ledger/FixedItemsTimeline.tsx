@@ -157,10 +157,7 @@ export function FixedItemsTimeline({
       </CardContent>
 
       <Sheet open={editingEntry !== null} onOpenChange={(open) => !open && setEditingEntry(null)}>
-        <SheetContent
-          side="bottom"
-          className="sm:inset-x-auto sm:mx-auto sm:max-w-md sm:rounded-t-2xl"
-        >
+        <SheetContent side="bottom">
           <SheetHeader>
             <SheetTitle>{t("form.editSheetTitle")}</SheetTitle>
             <SheetDescription className="sr-only">{t("form.editSheetDescription")}</SheetDescription>

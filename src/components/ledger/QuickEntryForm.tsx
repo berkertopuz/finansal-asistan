@@ -27,7 +27,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
 
 // Local date, not toISOString().slice(0,10) — that reads UTC parts, which
 // drifts a day off around midnight depending on the user's timezone.
@@ -154,17 +153,10 @@ export function QuickEntryForm({
               // Toggle marks the pressed item aria-pressed="true" (not
               // data-state), and the base style's aria-pressed:bg-muted
               // beats an unconditional class on specificity, not order.
-              // Colored per kind (income green, expense amber) rather than
-              // both sharing the same primary teal — that made every active
-              // control in this form read as the same green, expense
-              // included, which doesn't fit "money leaving" the way income
-              // does.
-              className={cn(
-                "h-touch flex-1",
-                value === "income"
-                  ? "aria-pressed:bg-signal-buy-bg aria-pressed:text-signal-buy-foreground"
-                  : "aria-pressed:bg-signal-caution-bg aria-pressed:text-signal-caution-foreground",
-              )}
+              // A specific hex the user picked directly (not a semantic
+              // signal token) — same for both Gider and Gelir, deliberately
+              // not yellow/amber.
+              className="h-touch flex-1 aria-pressed:bg-[#7c95b0] aria-pressed:text-background aria-pressed:hover:bg-[#7c95b0]/90"
             >
               {t(`kind.${value}`)}
             </ToggleGroupItem>

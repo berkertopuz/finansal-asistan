@@ -36,10 +36,7 @@ export function QuickAddFAB({ defaultKind }: { defaultKind?: EntryKind } = {}) {
         <Plus className="size-6" />
       </Button>
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent
-          side="bottom"
-          className="sm:inset-x-auto sm:mx-auto sm:max-w-md sm:rounded-t-2xl"
-        >
+        <SheetContent side="bottom">
           <SheetHeader>
             <SheetTitle>{t("form.addSheetTitle")}</SheetTitle>
             <SheetDescription className="sr-only">

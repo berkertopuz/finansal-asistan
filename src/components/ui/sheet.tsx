@@ -62,7 +62,28 @@ function SheetContent({
           // keyboard silently blocking the save button (this is a PWA
           // bound for the Play Store as a real installed app, not just a
           // page glanced at in a desktop browser — this has to hold up).
-          "fixed z-50 flex flex-col gap-4 bg-popover bg-clip-padding text-sm text-popover-foreground shadow-lg transition duration-200 ease-in-out data-ending-style:opacity-0 data-starting-style:opacity-0 data-[side=bottom]:inset-x-0 data-[side=bottom]:bottom-0 data-[side=bottom]:h-auto data-[side=bottom]:max-h-[85dvh] data-[side=bottom]:overflow-y-auto data-[side=bottom]:border-t data-[side=bottom]:data-ending-style:translate-y-[2.5rem] data-[side=bottom]:data-starting-style:translate-y-[2.5rem] data-[side=left]:inset-y-0 data-[side=left]:left-0 data-[side=left]:h-full data-[side=left]:w-3/4 data-[side=left]:border-r data-[side=left]:data-ending-style:translate-x-[-2.5rem] data-[side=left]:data-starting-style:translate-x-[-2.5rem] data-[side=right]:inset-y-0 data-[side=right]:right-0 data-[side=right]:h-full data-[side=right]:w-3/4 data-[side=right]:border-l data-[side=right]:data-ending-style:translate-x-[2.5rem] data-[side=right]:data-starting-style:translate-x-[2.5rem] data-[side=top]:inset-x-0 data-[side=top]:top-0 data-[side=top]:h-auto data-[side=top]:border-b data-[side=top]:data-ending-style:translate-y-[-2.5rem] data-[side=top]:data-starting-style:translate-y-[-2.5rem] data-[side=left]:sm:max-w-sm data-[side=right]:sm:max-w-sm",
+          // The scrollbar-* rules are a thin, theme-tinted bar instead of
+          // the stock OS one — at this size (a whole sheet, not a small
+          // list) a full-width default scrollbar reads as a raw browser
+          // chrome leftover rather than part of the app.
+          //
+          // sm:left-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2:
+          // a bottom sheet is the right pattern on mobile (thumb-reachable,
+          // slides up from the edge you're touching) but on a mouse-driven
+          // desktop viewport that same sheet just reads as a form
+          // awkwardly glued to the bottom of the window — every one of
+          // this app's bottom sheets used to add sm:mx-auto sm:max-w-md
+          // individually to narrow it, but that only re-centers
+          // horizontally, and (per data-[side=bottom]:inset-x-0 below,
+          // still forcing left:0/right:0 at every breakpoint) didn't
+          // actually take effect either. The explicit left/top +
+          // negative-translate pair is the bulletproof way to center a
+          // `position: fixed` box regardless of its own width/height, and
+          // composes cleanly with the enter/exit slide (translate-y-[2.5rem]
+          // only applies during the brief data-starting/ending-style
+          // transition, never at rest, so there's nothing to conflict with
+          // once open).
+          "fixed z-50 flex flex-col gap-4 bg-popover bg-clip-padding text-sm text-popover-foreground shadow-lg transition duration-200 ease-in-out data-ending-style:opacity-0 data-starting-style:opacity-0 data-[side=bottom]:inset-x-0 data-[side=bottom]:bottom-0 data-[side=bottom]:h-auto data-[side=bottom]:max-h-[85dvh] data-[side=bottom]:overflow-y-auto data-[side=bottom]:border-t data-[side=bottom]:data-ending-style:translate-y-[2.5rem] data-[side=bottom]:data-starting-style:translate-y-[2.5rem] data-[side=bottom]:sm:inset-x-auto data-[side=bottom]:sm:top-1/2 data-[side=bottom]:sm:left-1/2 data-[side=bottom]:sm:bottom-auto data-[side=bottom]:sm:w-full data-[side=bottom]:sm:max-w-md data-[side=bottom]:sm:-translate-x-1/2 data-[side=bottom]:sm:-translate-y-1/2 data-[side=bottom]:sm:rounded-2xl data-[side=bottom]:sm:border data-[side=left]:inset-y-0 data-[side=left]:left-0 data-[side=left]:h-full data-[side=left]:w-3/4 data-[side=left]:border-r data-[side=left]:data-ending-style:translate-x-[-2.5rem] data-[side=left]:data-starting-style:translate-x-[-2.5rem] data-[side=right]:inset-y-0 data-[side=right]:right-0 data-[side=right]:h-full data-[side=right]:w-3/4 data-[side=right]:border-l data-[side=right]:data-ending-style:translate-x-[2.5rem] data-[side=right]:data-starting-style:translate-x-[2.5rem] data-[side=top]:inset-x-0 data-[side=top]:top-0 data-[side=top]:h-auto data-[side=top]:border-b data-[side=top]:data-ending-style:translate-y-[-2.5rem] data-[side=top]:data-starting-style:translate-y-[-2.5rem] data-[side=left]:sm:max-w-sm data-[side=right]:sm:max-w-sm [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border",
           className
         )}
         {...props}

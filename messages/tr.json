@@ -283,7 +283,7 @@
     "useEvdsRate": "TCMB oranını kullan",
     "disclaimer": "Tahmini net getiridir (%17,5 stopaj düşülmüştür); günlük faiz işleyen, istediğin an erişebildiğin likit bir hesap varsayılır — vadeli mevduat gibi kilitli değildir. Gerçek getiri kullandığınız ürüne ve bankaya göre değişir. Yatırım tavsiyesi değildir.",
     "dailyAccount": {
-      "title": "Günlük Faizle Kazanabileceğin Tutar",
+      "title": "Günlük faizle kazanabileceğin tutar",
       "sentence": "Bu bakiyeyi harcamadan günlük faiz işleyen bir hesapta tutsaydın, {days} gün sonunda ~{gain} daha fazla birikimin olurdu."
     },
     "termDeposit": {
