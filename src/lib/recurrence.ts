@@ -1,11 +1,23 @@
 import type { EntryRecurrence } from "@/lib/ledger";
 
-function daysInMonth(year: number, monthIndex0: number): number {
+export function daysInMonth(year: number, monthIndex0: number): number {
   return new Date(year, monthIndex0 + 1, 0).getDate();
 }
 
-function clampMonthDay(year: number, monthIndex0: number, day: number): Date {
+export function clampMonthDay(year: number, monthIndex0: number, day: number): Date {
   return new Date(year, monthIndex0, Math.min(day, daysInMonth(year, monthIndex0)));
+}
+
+// Taksit'in date math'i — "sonraki uygun tarih" değil, anchor'ın gününü
+// aynen `monthsToAdd` ay ileri taşır (ay sonu clamp'iyle, nextOccurrenceOnOrAfter'ın
+// monthly dalıyla aynı mantık). i=0 anchor'ın kendisini döner, taksit
+// serisinin ilk satırı için de bu kullanılır.
+export function addMonthsClamped(anchorDateStr: string, monthsToAdd: number): Date {
+  const anchor = new Date(`${anchorDateStr}T00:00:00`);
+  const targetMonthIndex = anchor.getMonth() + monthsToAdd;
+  const year = anchor.getFullYear() + Math.floor(targetMonthIndex / 12);
+  const month = ((targetMonthIndex % 12) + 12) % 12;
+  return clampMonthDay(year, month, anchor.getDate());
 }
 
 // The user enters `next_due_date` as an ANCHOR — any date (past, present,

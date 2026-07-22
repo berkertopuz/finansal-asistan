@@ -1,4 +1,5 @@
 import type { Entry, EntryRecurrence } from "@/lib/ledger";
+import { toDateString } from "@/lib/ledger";
 import { nextOccurrenceOnOrAfter } from "@/lib/recurrence";
 
 const DAY_MS = 86_400_000;
@@ -49,21 +50,35 @@ export function occurrencesInRange(
 // template row's `amount` would otherwise double-count alongside the
 // concrete rows it already produced. projectBalance handles *future*
 // recurrences separately, from the templates directly.
-export function currentBalance(entries: Entry[]): number {
-  return entries.reduce(
-    (sum, e) => (e.recurrence === "none" ? sum + (e.kind === "income" ? e.amount : -e.amount) : sum),
-    0,
-  );
+//
+// A concrete row dated in the future (occurred_at > from) is excluded too —
+// it hasn't happened yet from the caller's point of view. This used to be a
+// non-issue because a one-off row's occurred_at was, in practice, always
+// "today" (the form defaulted to it and nothing else produced concrete rows
+// ahead of time). Taksit (src/lib/installments.ts) broke that assumption on
+// purpose: it eagerly creates every future month's row up front, so without
+// this guard, adding a 12-installment purchase would drop today's balance by
+// the *entire* total instead of just the first installment. projectBalance
+// below is what picks these future rows up as scheduled events instead.
+export function currentBalance(entries: Entry[], from: Date = new Date()): number {
+  const today = toDateString(new Date(from.getFullYear(), from.getMonth(), from.getDate()));
+  return entries.reduce((sum, e) => {
+    if (e.recurrence !== "none" || e.occurred_at > today) return sum;
+    return sum + (e.kind === "income" ? e.amount : -e.amount);
+  }, 0);
 }
 
 export type CashFlowEvent = { entry: Entry; occurrence: Date };
 export type CashFlowPoint = { date: Date; balance: number };
 
-// Day-by-day running balance from today through `days` days out. Only
-// recurring entries with a next_due_date anchor project forward (same
-// precondition FixedItemsTimeline uses) — a one-off entry already happened
-// (occurred_at is always "today" at creation time) and is already folded
-// into the starting balance.
+// Day-by-day running balance from today through `days` days out. Recurring
+// entries project forward from their next_due_date anchor (same
+// precondition FixedItemsTimeline uses); concrete (recurrence='none')
+// entries project forward from their own occurred_at if that's still ahead
+// of `from` — a plain one-off entry's occurred_at is "today" in practice
+// (already folded into the starting balance, nothing to project), but a
+// taksit installment's is a real future month, so it needs the same
+// treatment as a recurring occurrence.
 export function projectBalance(
   entries: Entry[],
   days: number,
@@ -75,14 +90,27 @@ export function projectBalance(
 
   const events: CashFlowEvent[] = [];
   for (const entry of entries) {
-    if (entry.recurrence === "none" || !entry.next_due_date) continue;
+    if (entry.recurrence === "none") {
+      // A concrete row dated ahead of `from` (taksit's future installments,
+      // or any manually future-dated one-off entry) — currentBalance below
+      // deliberately excludes these from the starting balance, so they need
+      // to land here instead, exactly like a recurring template's projected
+      // occurrence, or they'd vanish from the projection entirely.
+      if (!entry.occurred_at || entry.occurred_at <= toDateString(today)) continue;
+      const occurrence = new Date(`${entry.occurred_at}T00:00:00`);
+      if (occurrence >= rangeStart && occurrence <= rangeEnd) {
+        events.push({ entry, occurrence });
+      }
+      continue;
+    }
+    if (!entry.next_due_date) continue;
     for (const occurrence of occurrencesInRange(entry.next_due_date, entry.recurrence, rangeStart, rangeEnd)) {
       events.push({ entry, occurrence });
     }
   }
   events.sort((a, b) => a.occurrence.getTime() - b.occurrence.getTime());
 
-  const startingBalance = currentBalance(entries);
+  const startingBalance = currentBalance(entries, from);
   const points: CashFlowPoint[] = [{ date: today, balance: startingBalance }];
   let running = startingBalance;
   let eventIndex = 0;

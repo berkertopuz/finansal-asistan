@@ -76,7 +76,8 @@
     "dataFreshness": {
       "title": "Data freshness",
       "empty": "No data yet."
-    }
+    },
+    "categoriesTitle": "My categories"
   },
   "stale": {
     "waiting": "Waiting for data…",
@@ -209,7 +210,11 @@
       "deleteAllOccurrences": "Delete all entries (including past)",
       "planned": "Planned",
       "plannedNotYet": "Not created yet",
-      "managedFromPortfolio": "Managed from portfolio"
+      "managedFromPortfolio": "Managed from portfolio",
+      "installmentRemaining": "{amount} remaining",
+      "deleteInstallmentPrompt": "How do you want to delete this installment entry?",
+      "deleteThisInstallmentOnly": "Delete only this installment",
+      "deleteFutureInstallments": "Delete this and future installments"
     },
     "month": {
       "label": "Month",
@@ -228,6 +233,9 @@
       "editScopeAll": "All entries (including past)",
       "dueDateLabel": "Payment date",
       "categoryLabel": "Category",
+      "installmentLabel": "Installments",
+      "installmentCountLabel": "Number of installments",
+      "installmentPreview": "{count} installments x {amount}",
       "addSheetTitle": "New entry",
       "addSheetDescription": "Add income, an expense, or a subscription.",
       "editSheetTitle": "Edit entry",
@@ -259,6 +267,22 @@
       "yearlyTotal": "Yearly total",
       "viewAll": "View all subscriptions",
       "add": "Add subscription"
+    },
+    "categories": {
+      "addLabel": "+ Tag",
+      "addDialogTitle": "New tag",
+      "addDialogDescription": "Create your own category tag — pick it again next time you add income/expenses.",
+      "namePlaceholder": "e.g. Entertainment",
+      "empty": "No custom tags yet.",
+      "deleteConfirm": "Delete this tag? Past entries using it won't be affected.",
+      "errors": {
+        "nameRequired": "Tag name is required.",
+        "nameTooLong": "Tag name is too long.",
+        "duplicate": "You already have this tag.",
+        "noSession": "No session found, please log in again.",
+        "saveFailed": "Could not save, please try again.",
+        "genericInvalid": "Invalid details."
+      }
     },
     "addEntry": "Add entry"
   },

@@ -3,9 +3,11 @@
 import { useRef, useState } from "react";
 import { useActionState } from "react";
 import { useRouter } from "next/navigation";
-import { mutate } from "swr";
-import { useTranslations } from "next-intl";
+import useSWR, { mutate } from "swr";
+import { useLocale, useTranslations } from "next-intl";
 import { addEntry, updateEntry, type AddEntryState } from "@/lib/actions/entries";
+import { addCategory } from "@/lib/actions/categories";
+import type { Category } from "@/lib/categories-data";
 import {
   DEFAULT_CATEGORY,
   ENTRY_CATEGORIES,
@@ -15,9 +17,12 @@ import {
   type EntryKind,
   type EntryRecurrence,
 } from "@/lib/ledger";
+import { formatCurrency } from "@/lib/format";
+import type { AppLocale } from "@/lib/locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Dialog,
@@ -27,6 +32,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+
+const CATEGORIES_KEY = "/api/categories";
+const categoriesFetcher = (url: string) =>
+  fetch(url).then((res) => {
+    if (!res.ok) throw new Error("failed to fetch categories");
+    return res.json();
+  });
 
 // Local date, not toISOString().slice(0,10) — that reads UTC parts, which
 // drifts a day off around midnight depending on the user's timezone.
@@ -75,13 +87,49 @@ export function QuickEntryForm({
       ? editingEntry.occurred_at
       : (editingEntry.next_due_date ?? "");
   });
+  // Taksit — sadece brand-new bir gider için anlamlı (editingEntry'de hiç
+  // gösterilmiyor, aşağıya bkz.): tek bir satırı düzenlemek zaten sıradan
+  // bir düzenleme, "seriyi" düzenlemek diye ayrı bir kavram yok.
+  const [isInstallment, setIsInstallment] = useState(false);
+  const [installmentCount, setInstallmentCount] = useState(2);
+  // Controlled only so the taksit preview below can read it live — every
+  // other field stays uncontrolled (defaultValue) on purpose, this is the
+  // one exception.
+  const [amountValue, setAmountValue] = useState<string>(
+    editingEntry ? String(editingEntry.amount) : "",
+  );
   const recurrenceTouched = useRef(Boolean(editingEntry));
   const formRef = useRef<HTMLFormElement>(null);
   const applyToAllRef = useRef<HTMLInputElement>(null);
   const [scopeDialogOpen, setScopeDialogOpen] = useState(false);
+  const [addCategoryOpen, setAddCategoryOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [addCategoryError, setAddCategoryError] = useState<string | undefined>();
+  const [addCategoryPending, setAddCategoryPending] = useState(false);
   const router = useRouter();
+  const locale = useLocale() as AppLocale;
   const t = useTranslations("ledger");
   const tCommon = useTranslations("common");
+  const { data: customCategories } = useSWR<Category[]>(CATEGORIES_KEY, categoriesFetcher);
+
+  async function handleAddCategory() {
+    const name = newCategoryName.trim();
+    if (!name) return;
+    setAddCategoryPending(true);
+    setAddCategoryError(undefined);
+    const result = await addCategory(name);
+    setAddCategoryPending(false);
+    if (result.success && result.category) {
+      mutate(CATEGORIES_KEY, (current: Category[] | undefined) => [...(current ?? []), result.category!], {
+        revalidate: false,
+      });
+      setCategory(result.category.name);
+      setNewCategoryName("");
+      setAddCategoryOpen(false);
+    } else {
+      setAddCategoryError(result.error);
+    }
+  }
 
   const handleKindChange = (nextKind: EntryKind) => {
     setKind(nextKind);
@@ -90,11 +138,18 @@ export function QuickEntryForm({
     if (!recurrenceTouched.current) {
       setRecurrence(nextKind === "subscription" ? "monthly" : "none");
     }
+    // Taksit sadece gider için var — Gelir'e geçince checkbox'ın kendisi
+    // gizlenir ama state kalırsa gizli input'lar yanlışlıkla "taksitli"
+    // göndermeye devam eder.
+    if (nextKind !== "expense") setIsInstallment(false);
   };
 
   const handleRecurrenceChange = (next: EntryRecurrence) => {
     recurrenceTouched.current = true;
     setRecurrence(next);
+    // Taksit ve tekrarlayan kayıt birbirini dışlar — biri açılınca öbürünün
+    // state'i temizlenir (bkz. yukarıdaki handleKindChange'in aynı mantığı).
+    if (next !== "none") setIsInstallment(false);
   };
 
   // Sets the hidden field imperatively (not via setState) so the value is
@@ -123,6 +178,8 @@ export function QuickEntryForm({
           setCategory(DEFAULT_CATEGORY);
           setRecurrence("none");
           setDateValue(todayDateInputValue());
+          setIsInstallment(false);
+          setInstallmentCount(2);
           recurrenceTouched.current = false;
         }
         mutate("/api/entries");
@@ -140,6 +197,8 @@ export function QuickEntryForm({
       <input type="hidden" name="kind" value={kind} />
       <input type="hidden" name="category" value={category} />
       <input type="hidden" name="recurrence" value={recurrence} />
+      <input type="hidden" name="isInstallment" value={isInstallment ? "true" : "false"} />
+      <input type="hidden" name="installmentCount" value={installmentCount} />
       {/* Only ever read by updateEntry, and only when the row being edited
           is itself a recurring rule — set imperatively by submitWithScope
           right before requestSubmit, never via React state (see there). */}
@@ -192,7 +251,8 @@ export function QuickEntryForm({
             step="0.01"
             min="0"
             placeholder="0,00"
-            defaultValue={editingEntry?.amount}
+            value={amountValue}
+            onChange={(e) => setAmountValue(e.target.value)}
             autoFocus
             required
           />
@@ -261,6 +321,42 @@ export function QuickEntryForm({
         )}
       </div>
 
+      {/* Taksit yalnızca yeni, tek seferlik bir gider için anlamlı —
+          tekrarlayan bir kuralın (recurrence !== "none") ya da zaten var
+          olan bir satırın (editingEntry) "taksitli" hâle getirilmesi diye
+          bir kavram yok; ikisi de kavramsal olarak farklı şeyler. */}
+      {kind === "expense" && recurrence === "none" && !editingEntry && (
+        <div className="flex flex-col gap-1.5">
+          <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <Checkbox checked={isInstallment} onCheckedChange={setIsInstallment} />
+            {t("form.installmentLabel")}
+          </label>
+          {isInstallment && (
+            <div className="flex flex-col gap-1.5 pl-1">
+              <Label htmlFor="installment-count">{t("form.installmentCountLabel")}</Label>
+              <Input
+                id="installment-count"
+                type="number"
+                inputMode="numeric"
+                min={2}
+                max={36}
+                value={installmentCount}
+                onChange={(e) => setInstallmentCount(Number(e.target.value) || 2)}
+                className="max-w-24"
+              />
+              {Number(amountValue) > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {t("form.installmentPreview", {
+                    count: installmentCount,
+                    amount: formatCurrency(Number(amountValue) / installmentCount, locale),
+                  })}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="flex flex-col gap-1.5">
         <Label>{t("form.categoryLabel")}</Label>
         <ToggleGroup
@@ -280,7 +376,30 @@ export function QuickEntryForm({
               {t(`category.${cat}`)}
             </ToggleGroupItem>
           ))}
+          {/* Kullanıcının kendi eklediği etiketler (Ayarlar'dan da
+              yönetilir — src/components/settings/CategoryManager.tsx) —
+              ham `name` metniyle basılır, categoryLabel() zaten preset
+              olmayan değerleri olduğu gibi gösteriyor (src/lib/ledger.ts). */}
+          {customCategories?.map((cat) => (
+            <ToggleGroupItem
+              key={cat.id}
+              value={cat.name}
+              variant="outline"
+              className="h-touch aria-pressed:border-foreground/30 aria-pressed:bg-foreground/10 aria-pressed:text-foreground"
+            >
+              {cat.name}
+            </ToggleGroupItem>
+          ))}
         </ToggleGroup>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="min-h-touch w-fit text-muted-foreground"
+          onClick={() => setAddCategoryOpen(true)}
+        >
+          {t("categories.addLabel")}
+        </Button>
       </div>
 
       {state?.error && (
@@ -326,6 +445,49 @@ export function QuickEntryForm({
               onClick={() => setScopeDialogOpen(false)}
             >
               {tCommon("cancel")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={addCategoryOpen}
+        onOpenChange={(open) => {
+          setAddCategoryOpen(open);
+          if (!open) {
+            setNewCategoryName("");
+            setAddCategoryError(undefined);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("categories.addDialogTitle")}</DialogTitle>
+            <DialogDescription>{t("categories.addDialogDescription")}</DialogDescription>
+          </DialogHeader>
+          <Input
+            type="text"
+            maxLength={50}
+            placeholder={t("categories.namePlaceholder")}
+            value={newCategoryName}
+            onChange={(e) => setNewCategoryName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleAddCategory();
+              }
+            }}
+            autoFocus
+          />
+          {addCategoryError && (
+            <p className="text-sm text-signal-caution-foreground">{addCategoryError}</p>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setAddCategoryOpen(false)}>
+              {tCommon("cancel")}
+            </Button>
+            <Button type="button" disabled={addCategoryPending} onClick={handleAddCategory}>
+              {addCategoryPending ? tCommon("saving") : tCommon("add")}
             </Button>
           </DialogFooter>
         </DialogContent>

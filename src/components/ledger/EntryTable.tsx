@@ -221,6 +221,23 @@ export function EntryTable({
     return [...real, ...planned];
   }, [data, kinds, month, monthFilter, templatesOnly, plannedRows]);
 
+  // Kalan taksit borcu — grup başına, henüz olmamış (occurred_at bugünden
+  // ileri) satırların toplamı. `data` (SWR'ın ham, ay/kind filtresiz listesi)
+  // üzerinden hesaplanır ki hangi ay/sekme görüntüleniyor olursa olsun doğru
+  // kalsın. `occurred_at > today` sınırı src/lib/cashflow.ts'teki
+  // currentBalance/projectBalance düzeltmesiyle aynı tanımı kullanıyor —
+  // "henüz gerçekleşmemiş" aynı anlama geliyor her iki yerde de.
+  const installmentRemainingByGroup = useMemo(() => {
+    const map = new Map<string, number>();
+    if (!data) return map;
+    const today = toDateString(new Date());
+    for (const e of data) {
+      if (!e.installment_group_id || e.occurred_at <= today) continue;
+      map.set(e.installment_group_id, (map.get(e.installment_group_id) ?? 0) + e.amount);
+    }
+    return map;
+  }, [data]);
+
   const monthSummary = useMemo(() => {
     if (!data || !showMonthSummary || month === "all") return null;
     const totals = { income: 0, expense: 0, subscription: 0 };
@@ -291,17 +308,31 @@ export function EntryTable({
     }
   }
 
-  async function handleConfirmDelete(deleteGeneratedRows: boolean) {
+  async function handleConfirmDelete(deleteGeneratedRows: boolean, deleteFutureInstallments = false) {
     if (!deletingEntry) return;
     const id = deletingEntry.id;
+    const installmentGroupId = deletingEntry.installment_group_id;
+    const occurredAt = deletingEntry.occurred_at;
     setDeletingEntry(null);
     mutate(
       ENTRIES_KEY,
       (current: Entry[] | undefined) =>
-        current?.filter((e) => e.id !== id && (!deleteGeneratedRows || e.template_id !== id)),
+        current?.filter((e) => {
+          if (e.id === id) return false;
+          if (deleteGeneratedRows && e.template_id === id) return false;
+          if (
+            deleteFutureInstallments &&
+            installmentGroupId &&
+            e.installment_group_id === installmentGroupId &&
+            e.occurred_at > occurredAt
+          ) {
+            return false;
+          }
+          return true;
+        }),
       false,
     );
-    await deleteEntry(id, deleteGeneratedRows);
+    await deleteEntry(id, deleteGeneratedRows, deleteFutureInstallments);
     mutate(ENTRIES_KEY);
     router.refresh();
   }
@@ -428,6 +459,22 @@ export function EntryTable({
                         </Badge>
                       ) : entry.recurrence !== "none" ? (
                         <Badge variant="outline">{t(`recurrence.${entry.recurrence}`)}</Badge>
+                      ) : entry.installment_count ? (
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant="outline">
+                            {entry.installment_index}/{entry.installment_count}
+                          </Badge>
+                          {Boolean(installmentRemainingByGroup.get(entry.installment_group_id!)) && (
+                            <span className="text-xs text-muted-foreground">
+                              {t("table.installmentRemaining", {
+                                amount: formatCurrency(
+                                  installmentRemainingByGroup.get(entry.installment_group_id!)!,
+                                  locale,
+                                ),
+                              })}
+                            </span>
+                          )}
+                        </div>
                       ) : (
                         entry.template_id && (
                           <Badge variant="outline" className="gap-1 text-muted-foreground">
@@ -538,9 +585,20 @@ export function EntryTable({
                           ? ` · ${t("table.managedFromPortfolio")}`
                           : entry.recurrence !== "none"
                             ? ` · ${t(`recurrence.${entry.recurrence}`)}`
-                            : entry.template_id
-                              ? ` · ${t("table.fromRecurring")}`
-                              : ""}
+                            : entry.installment_count
+                              ? ` · ${entry.installment_index}/${entry.installment_count}${
+                                  installmentRemainingByGroup.get(entry.installment_group_id!)
+                                    ? ` · ${t("table.installmentRemaining", {
+                                        amount: formatCurrency(
+                                          installmentRemainingByGroup.get(entry.installment_group_id!)!,
+                                          locale,
+                                        ),
+                                      })}`
+                                    : ""
+                                }`
+                              : entry.template_id
+                                ? ` · ${t("table.fromRecurring")}`
+                                : ""}
                     </span>
                   </div>
                   <span
@@ -602,7 +660,9 @@ export function EntryTable({
             <DialogDescription>
               {deletingEntry && deletingEntry.recurrence !== "none"
                 ? t("table.deleteRecurringPrompt")
-                : tCommon("confirmDelete")}
+                : deletingEntry?.installment_count
+                  ? t("table.deleteInstallmentPrompt")
+                  : tCommon("confirmDelete")}
             </DialogDescription>
           </DialogHeader>
           {deletingEntry && deletingEntry.recurrence !== "none" ? (
@@ -622,6 +682,33 @@ export function EntryTable({
                 onClick={() => handleConfirmDelete(true)}
               >
                 {t("table.deleteAllOccurrences")}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full"
+                onClick={() => setDeletingEntry(null)}
+              >
+                {tCommon("cancel")}
+              </Button>
+            </DialogFooter>
+          ) : deletingEntry?.installment_count ? (
+            <DialogFooter className="sm:flex-col">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => handleConfirmDelete(false, false)}
+              >
+                {t("table.deleteThisInstallmentOnly")}
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                className="w-full"
+                onClick={() => handleConfirmDelete(false, true)}
+              >
+                {t("table.deleteFutureInstallments")}
               </Button>
               <Button
                 type="button"

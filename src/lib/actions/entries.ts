@@ -5,6 +5,7 @@ import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_CATEGORY } from "@/lib/ledger";
+import { buildInstallmentRows } from "@/lib/installments";
 
 export type AddEntryState = { error?: string; success?: boolean };
 
@@ -50,6 +51,11 @@ async function buildEntrySchema() {
         .string()
         .optional()
         .transform((v) => (v ? v : undefined)),
+      // Taksit sayısı — isInstallment kendisi zod'un dışında, ham FormData'dan
+      // okunuyor (updateEntry'deki applyToAllOccurrences ile aynı desen),
+      // çünkü z.coerce.boolean() "false" string'ini de truthy sayar. Bu alan
+      // sadece isInstallment true iken addEntry içinde elle doğrulanır.
+      installmentCount: z.coerce.number().int().min(2).max(36).optional(),
     })
     .superRefine((data, ctx) => {
       if (data.recurrence === "none" && !data.occurred_at) {
@@ -75,6 +81,7 @@ export async function addEntry(
     description: formData.get("description") || undefined,
     recurrence: formData.get("recurrence") || "none",
     next_due_date: formData.get("next_due_date") || undefined,
+    installmentCount: formData.get("installmentCount") || undefined,
   });
 
   if (!parsed.success) {
@@ -91,6 +98,49 @@ export async function addEntry(
   }
 
   const isRecurring = parsed.data.recurrence !== "none";
+  const isInstallment = formData.get("isInstallment") === "true";
+
+  // Taksit: bir şablon değil, toplamı ve sayısı baştan belli sabit bir seri —
+  // tüm satırlar kayıt anında toplu insert edilir (src/lib/installments.ts),
+  // recurrence-materialize.ts'in ay-ay üretimiyle karıştırılmamalı. QuickEntryForm
+  // bu checkbox'ı sadece kind=expense && recurrence=none iken gösteriyor, ama
+  // form dışından (elle FormData) gelebilecek tutarsız bir kombinasyona karşı
+  // burada da doğrulanıyor.
+  if (isInstallment) {
+    if (parsed.data.kind !== "expense" || isRecurring || !parsed.data.installmentCount) {
+      return { error: t("genericInvalid") };
+    }
+
+    const rows = buildInstallmentRows(
+      parsed.data.amount,
+      parsed.data.installmentCount,
+      parsed.data.occurred_at!,
+    );
+    const installmentGroupId = crypto.randomUUID();
+
+    const { error: installmentError } = await supabase.from("entries").insert(
+      rows.map((row) => ({
+        user_id: user.id,
+        kind: "expense" as const,
+        amount: row.amount,
+        category: parsed.data.category,
+        occurred_at: row.occurred_at,
+        description: parsed.data.description ?? null,
+        recurrence: "none" as const,
+        installment_group_id: installmentGroupId,
+        installment_index: row.index,
+        installment_count: row.count,
+      })),
+    );
+
+    if (installmentError) {
+      return { error: t("saveFailed") };
+    }
+
+    revalidatePath("/defter");
+    revalidatePath("/");
+    return { success: true };
+  }
 
   const { error } = await supabase.from("entries").insert({
     user_id: user.id,
@@ -207,7 +257,11 @@ export async function updateEntry(
   return { success: true };
 }
 
-export async function deleteEntry(id: string, deleteGeneratedRows = false) {
+export async function deleteEntry(
+  id: string,
+  deleteGeneratedRows = false,
+  deleteFutureInstallments = false,
+) {
   const supabase = await createClient();
   // No explicit user_id check needed — RLS already scopes deletes to the
   // caller's own rows (entries_delete_own policy).
@@ -219,6 +273,26 @@ export async function deleteEntry(id: string, deleteGeneratedRows = false) {
   // every row this template ever produced too.
   if (deleteGeneratedRows) {
     await supabase.from("entries").delete().eq("template_id", id);
+  }
+  // deleteFutureInstallments is only meaningful when `id` is one row of a
+  // taksit series — unlike deleteGeneratedRows above, this deliberately
+  // never touches PAST installments (occurred_at <= this row's own date):
+  // those months' money is already spent, deleting them would retroactively
+  // rewrite history that already happened. Only this row and whatever's
+  // still ahead of it get removed.
+  if (deleteFutureInstallments) {
+    const { data: row } = await supabase
+      .from("entries")
+      .select("installment_group_id, occurred_at")
+      .eq("id", id)
+      .maybeSingle();
+    if (row?.installment_group_id) {
+      await supabase
+        .from("entries")
+        .delete()
+        .eq("installment_group_id", row.installment_group_id)
+        .gt("occurred_at", row.occurred_at);
+    }
   }
   await supabase.from("entries").delete().eq("id", id);
   revalidatePath("/defter");

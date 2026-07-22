@@ -11,8 +11,8 @@ import { cn } from "@/lib/utils";
 // a permanent slot in this bar.
 const TABS = [
   { href: "/defter", key: "all" },
-  { href: "/defter/gelirler", key: "income" },
   { href: "/defter/giderler", key: "expense" },
+  { href: "/defter/gelirler", key: "income" },
 ] as const;
 
 // Route-based sub-navigation, not a stateful Tabs widget — each view is a

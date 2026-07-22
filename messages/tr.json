@@ -76,7 +76,8 @@
     "dataFreshness": {
       "title": "Veri tazeliği",
       "empty": "Henüz veri yok."
-    }
+    },
+    "categoriesTitle": "Kategorilerim"
   },
   "stale": {
     "waiting": "Veri bekleniyor…",
@@ -209,7 +210,11 @@
       "deleteAllOccurrences": "Tüm kayıtları sil (geçmiş dahil)",
       "planned": "Planlanan",
       "plannedNotYet": "Henüz oluşmadı",
-      "managedFromPortfolio": "Portföyden yönetiliyor"
+      "managedFromPortfolio": "Portföyden yönetiliyor",
+      "installmentRemaining": "Kalan {amount}",
+      "deleteInstallmentPrompt": "Bu taksitli kaydı nasıl silmek istersin?",
+      "deleteThisInstallmentOnly": "Sadece bu taksiti sil",
+      "deleteFutureInstallments": "Bu ve sonraki taksitleri sil"
     },
     "month": {
       "label": "Ay",
@@ -228,6 +233,9 @@
       "editScopeAll": "Tüm kayıtlar (geçmiş dahil)",
       "dueDateLabel": "Ödeme tarihi",
       "categoryLabel": "Kategori",
+      "installmentLabel": "Taksitli",
+      "installmentCountLabel": "Taksit sayısı",
+      "installmentPreview": "{count} taksit x {amount}",
       "addSheetTitle": "Yeni kayıt",
       "addSheetDescription": "Gelir, gider ya da abonelik ekle.",
       "editSheetTitle": "Kaydı düzenle",
@@ -259,6 +267,22 @@
       "yearlyTotal": "Yıllık toplam",
       "viewAll": "Tüm abonelikleri gör",
       "add": "Abonelik ekle"
+    },
+    "categories": {
+      "addLabel": "+ Etiket",
+      "addDialogTitle": "Yeni etiket",
+      "addDialogDescription": "Kendi kategori etiketini oluştur — gelir/gider eklerken tekrar seçebilirsin.",
+      "namePlaceholder": "örn. Eğlence",
+      "empty": "Henüz özel etiket eklemedin.",
+      "deleteConfirm": "Bu etiketi silmek istediğine emin misin? Bu etiketle kaydedilmiş geçmiş kayıtlar etkilenmez.",
+      "errors": {
+        "nameRequired": "Etiket adı gerekli.",
+        "nameTooLong": "Etiket adı çok uzun.",
+        "duplicate": "Bu etiketi zaten eklemişsin.",
+        "noSession": "Oturum bulunamadı, tekrar giriş yap.",
+        "saveFailed": "Kaydedilemedi, tekrar dene.",
+        "genericInvalid": "Geçersiz bilgiler."
+      }
     },
     "addEntry": "Kayıt ekle"
   },
