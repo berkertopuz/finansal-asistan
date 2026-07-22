@@ -5,9 +5,11 @@ import {
   Home,
   type LucideIcon,
   MoreHorizontal,
+  PartyPopper,
   Receipt,
   Repeat,
   ShoppingCart,
+  UtensilsCrossed,
 } from "lucide-react";
 import { DEFAULT_CATEGORY, isPresetCategory } from "@/lib/ledger";
 
@@ -22,6 +24,8 @@ const CATEGORY_ICON: Record<string, LucideIcon> = {
   fatura: Receipt,
   abonelik: Repeat,
   market: ShoppingCart,
+  yemek: UtensilsCrossed,
+  "eğlence": PartyPopper,
   "ulaşım": Car,
   "diğer": MoreHorizontal,
 };
@@ -33,6 +37,8 @@ const CATEGORY_COLOR_CLASS: Record<string, string> = {
   fatura: "bg-orange-500/10 text-orange-500",
   abonelik: "bg-sky-500/10 text-sky-500",
   market: "bg-amber-500/10 text-amber-500",
+  yemek: "bg-rose-500/10 text-rose-500",
+  "eğlence": "bg-pink-500/10 text-pink-500",
   "ulaşım": "bg-indigo-500/10 text-indigo-500",
   "diğer": "bg-muted text-muted-foreground",
 };

@@ -181,6 +181,8 @@
       "fatura": "Fatura",
       "abonelik": "Abonelik",
       "market": "Market",
+      "yemek": "Yemek",
+      "eğlence": "Eğlence",
       "ulaşım": "Ulaşım",
       "diğer": "Diğer"
     },
@@ -321,6 +323,66 @@
     },
     "errors": {
       "rateOutOfRange": "Oran 0 ile 200 arasında olmalı.",
+      "noSession": "Oturum bulunamadı, tekrar giriş yap.",
+      "saveFailed": "Kaydedilemedi, tekrar dene.",
+      "genericInvalid": "Geçersiz bilgiler."
+    }
+  },
+  "statements": {
+    "uploadSheetTitle": "{name} — ekstre yükle",
+    "uploadSheetDescription": "Kredi kartı ekstresi PDF'ini yükleyip harcamalarını deftere aktar.",
+    "consentText": "Yüklediğin kredi kartı ekstresi, işlem satırlarını (tarih, açıklama, tutar) ayrıştırmak için OpenAI'ın (ABD merkezli) yapay zeka servisine gönderilir. Kart numarası, kimlik bilgisi ve adres bilgilerin bu işleme hiç dahil edilmez, sunucularımızda saklanmaz. Ham dosya işlendikten sonra silinir, kalıcı olarak tutulmaz.",
+    "consentAccept": "Okudum, onaylıyorum",
+    "uploadHint": "Bankandan indirdiğin ekstre PDF'ini seç.",
+    "chooseFile": "PDF seç ve yükle",
+    "uploading": "İşleniyor…",
+    "suggestDaysUpdate": "Bu ekstreye göre ekstre günü {statementDay}, ödeme günü {paymentDay} — kart bilgilerini güncelle?",
+    "noTransactionsFound": "Bu ekstrede işlem bulunamadı.",
+    "possibleDuplicate": "Mükerrer olabilir",
+    "importSelected": "{count} kaydı ekle",
+    "rowType": {
+      "harcama": "Harcama",
+      "odeme": "Ödeme",
+      "ucret": "Ücret"
+    },
+    "errors": {
+      "noSession": "Oturum bulunamadı, tekrar giriş yap.",
+      "consentRequired": "Devam etmeden önce onay vermen gerekiyor.",
+      "invalidFile": "Geçerli bir PDF dosyası seç.",
+      "fileTooLarge": "Dosya çok büyük.",
+      "extractFailed": "PDF okunamadı, dosyanın bozuk olmadığından emin ol.",
+      "noTransactionsFound": "Bu PDF'te bir işlem tablosu bulunamadı.",
+      "sessionInvalid": "Oturum doğrulanamadı, tekrar giriş yap.",
+      "parseFailed": "Ekstre ayrıştırılamadı, tekrar dene.",
+      "connectionError": "Bağlantı sorunu, tekrar dene.",
+      "genericInvalid": "Geçersiz bilgiler.",
+      "saveFailed": "Kaydedilemedi, tekrar dene."
+    }
+  },
+  "creditCards": {
+    "summaryTitle": "Kredi Kartı Ekstreleri",
+    "count": "{count} kart",
+    "viewAll": "Kartları yönet",
+    "title": "Kartlarım",
+    "empty": "Henüz kart eklemedin.",
+    "addLabel": "Kart ekle",
+    "addDialogTitle": "Yeni kart",
+    "addDialogDescription": "Ekstre ve ödeme günü hatırlatmaları için bir kredi kartı ekle.",
+    "nameLabel": "Kart adı",
+    "statementDayLabel": "Ekstre günü",
+    "paymentDayLabel": "Ödeme günü",
+    "statementDayShort": "Ekstre: her ayın {day}'i",
+    "paymentDayShort": "Ödeme: her ayın {day}'i",
+    "remindersLabel": "Hatırlatmalar açık",
+    "uploadStatement": "Ekstre yükle",
+    "notificationsTitle": "Bildirimler",
+    "notificationsDescription": "Ekstre ve ödeme günlerinde bildirim almak için izin ver.",
+    "notificationsEnable": "Bildirimleri aç",
+    "notificationsDenied": "Bildirim izni reddedildi — tarayıcı ayarlarından açman gerekiyor.",
+    "errors": {
+      "nameRequired": "Kart adı gerekli.",
+      "nameTooLong": "Kart adı çok uzun.",
+      "dayInvalid": "Gün 1 ile 31 arasında olmalı.",
       "noSession": "Oturum bulunamadı, tekrar giriş yap.",
       "saveFailed": "Kaydedilemedi, tekrar dene.",
       "genericInvalid": "Geçersiz bilgiler."

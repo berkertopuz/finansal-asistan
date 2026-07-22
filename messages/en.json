@@ -181,6 +181,8 @@
       "fatura": "Bill",
       "abonelik": "Subscription",
       "market": "Groceries",
+      "yemek": "Dining",
+      "eğlence": "Entertainment",
       "ulaşım": "Transport",
       "diğer": "Other"
     },
@@ -321,6 +323,66 @@
     },
     "errors": {
       "rateOutOfRange": "Rate must be between 0 and 200.",
+      "noSession": "No session found, please log in again.",
+      "saveFailed": "Could not save, please try again.",
+      "genericInvalid": "Invalid details."
+    }
+  },
+  "statements": {
+    "uploadSheetTitle": "{name} — upload statement",
+    "uploadSheetDescription": "Upload a credit card statement PDF to import your expenses into the ledger.",
+    "consentText": "The credit card statement you upload is sent to OpenAI's (US-based) AI service to parse the transaction lines (date, description, amount). Your card number, ID information, and address are never included in this and are never stored on our servers. The raw file is discarded after processing, never kept.",
+    "consentAccept": "I've read this and agree",
+    "uploadHint": "Choose the statement PDF you downloaded from your bank.",
+    "chooseFile": "Choose PDF and upload",
+    "uploading": "Processing…",
+    "suggestDaysUpdate": "This statement shows a statement day of {statementDay} and a payment day of {paymentDay} — update the card's info?",
+    "noTransactionsFound": "No transactions found in this statement.",
+    "possibleDuplicate": "Might be a duplicate",
+    "importSelected": "{count, plural, one {Add # entry} other {Add # entries}}",
+    "rowType": {
+      "harcama": "Purchase",
+      "odeme": "Payment",
+      "ucret": "Fee"
+    },
+    "errors": {
+      "noSession": "No session found, please log in again.",
+      "consentRequired": "You need to give consent before continuing.",
+      "invalidFile": "Please choose a valid PDF file.",
+      "fileTooLarge": "The file is too large.",
+      "extractFailed": "Could not read the PDF — make sure it isn't corrupted.",
+      "noTransactionsFound": "No transaction table found in this PDF.",
+      "sessionInvalid": "Could not verify session, please log in again.",
+      "parseFailed": "Could not parse the statement, please try again.",
+      "connectionError": "Connection issue, please try again.",
+      "genericInvalid": "Invalid details.",
+      "saveFailed": "Could not save, please try again."
+    }
+  },
+  "creditCards": {
+    "summaryTitle": "Credit Card Statements",
+    "count": "{count, plural, one {# card} other {# cards}}",
+    "viewAll": "Manage cards",
+    "title": "My cards",
+    "empty": "No cards added yet.",
+    "addLabel": "Add card",
+    "addDialogTitle": "New card",
+    "addDialogDescription": "Add a credit card to get statement and payment day reminders.",
+    "nameLabel": "Card name",
+    "statementDayLabel": "Statement day",
+    "paymentDayLabel": "Payment day",
+    "statementDayShort": "Statement: {day} of each month",
+    "paymentDayShort": "Payment: {day} of each month",
+    "remindersLabel": "Reminders on",
+    "uploadStatement": "Upload statement",
+    "notificationsTitle": "Notifications",
+    "notificationsDescription": "Allow notifications to get reminders on statement and payment days.",
+    "notificationsEnable": "Enable notifications",
+    "notificationsDenied": "Notification permission denied — you'll need to enable it in your browser settings.",
+    "errors": {
+      "nameRequired": "Card name is required.",
+      "nameTooLong": "Card name is too long.",
+      "dayInvalid": "Day must be between 1 and 31.",
       "noSession": "No session found, please log in again.",
       "saveFailed": "Could not save, please try again.",
       "genericInvalid": "Invalid details."

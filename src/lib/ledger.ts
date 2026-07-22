@@ -58,6 +58,8 @@ export const ENTRY_CATEGORIES = [
   "fatura",
   "abonelik",
   "market",
+  "yemek",
+  "eğlence",
   "ulaşım",
   "diğer",
 ] as const;

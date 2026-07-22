@@ -50,3 +50,36 @@ const serwist = new Serwist({
 });
 
 serwist.addEventListeners();
+
+// Kart ekstre/ödeme günü hatırlatmaları (supabase/functions/send-card-reminders) —
+// Serwist'in kendi listener'larından bağımsız, ayrı bir event türü olduğu
+// için çakışmaz. Payload her zaman {title, body} şeklinde düz JSON (bkz.
+// send-card-reminders/index.ts), başka bir şema yok.
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+  const { title, body } = event.data.json() as { title: string; body: string };
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon: "/icon1",
+      badge: "/icon1",
+    }),
+  );
+});
+
+// Bildirime tıklayınca uygulamayı odaklar, açık bir sekme yoksa yeni bir
+// tane açar.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    (async () => {
+      const clientsList = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      const existing = clientsList.find((c) => "focus" in c);
+      if (existing) {
+        await (existing as WindowClient).focus();
+        return;
+      }
+      await self.clients.openWindow("/defter/giderler/kartlar");
+    })(),
+  );
+});
