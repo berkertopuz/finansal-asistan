@@ -155,7 +155,21 @@ const QNB_CALIBRATION_ANCHORS: { pattern: RegExp; letters: string[] }[] = [
   { pattern: new RegExp(`Alı(${QNB_MARKER_PATTERN})veri(${QNB_MARKER_PATTERN})Faizi`), letters: ["ş", "ş"] },
 ];
 
-function calibrateQnbCodeMap(markedText: string): Record<number, string> {
+// "Ğ" için hiçbir şablon ibaresinde çapa yok (bkz. yukarıdaki not), ama
+// iki farklı aya ait gerçek QNB ekstresinde de bu glyph'in font genişliği
+// (width) hep 778 çıktı — tesadüfen "Ö" ile aynı genişlik, ama "Ö" zaten
+// yukarıdaki çok sayıda güçlü çapayla neredeyse her zaman çözülüyor. Bu
+// yüzden kalibrasyondan sonra HÂLÂ çözülememiş bir kod 778 genişlikteyse,
+// bunun "Ğ" olma ihtimali yüksek — boş bırakmaktansa "Ğ" ile doldurmak
+// (kullanıcı isteği: bariz merchant adlarında — "KAĞAN", "BAĞDAT",
+// "...OĞLU" — harfin tamamen düşmesindense yanlış büyük/küçük ihtimaline
+// razı olunması) daha okunaklı bir sonuç veriyor. Diğer çözülemeyen kodlar
+// (ör. genişliği "Ç"/"Ü" ile çakışan, gerçekten belirsiz "12" kodu) bu
+// genişlik-tahmini kapsamına alınmıyor — orada birden fazla harf aynı
+// genişliği paylaşıyor, yanlış tahmin riski yüksek.
+const QNB_GHE_WIDTH = 778;
+
+function calibrateQnbCodeMap(markedText: string, codeWidths: Map<number, number>): Record<number, string> {
   const map: Record<number, string> = {};
   for (const { pattern, letters } of QNB_CALIBRATION_ANCHORS) {
     const match = pattern.exec(markedText);
@@ -165,20 +179,24 @@ function calibrateQnbCodeMap(markedText: string): Record<number, string> {
       map[code] = letter;
     });
   }
+  for (const [code, width] of codeWidths) {
+    if (!(code in map) && width === QNB_GHE_WIDTH) map[code] = "Ğ";
+  }
   return map;
 }
 
-// Bir belgede hiç çözülemeyen (kalibrasyon çapası bulunamayan) glyph boş
-// bırakılır — yanlış tahmin etmek, sessizce yanlış bir harf yazmaktan
-// (ör. yanlış bir işlem tutarının/tarihinin LLM'e gitmesi) daha güvenli.
-function resolveQnbMarkers(markedText: string): string {
+// Bir belgede hiç çözülemeyen (kalibrasyon çapası bulunamayan, genişlikle de
+// tahmin edilemeyen) glyph boş bırakılır — yanlış tahmin etmek, sessizce
+// yanlış bir harf yazmaktan (ör. yanlış bir işlem tutarının/tarihinin LLM'e
+// gitmesi) daha güvenli.
+function resolveQnbMarkers(markedText: string, codeWidths: Map<number, number>): string {
   if (!QNB_MARKER_RE.test(markedText)) return markedText;
-  const codeMap = calibrateQnbCodeMap(markedText);
+  const codeMap = calibrateQnbCodeMap(markedText, codeWidths);
   return markedText.replace(QNB_MARKER_RE_GLOBAL, (marker) => codeMap[qnbCodeFromMarker(marker)] ?? "");
 }
 
 type PDFDocumentLike = Awaited<ReturnType<typeof getDocumentProxy>>;
-type Glyph = { originalCharCode?: number; unicode?: string };
+type Glyph = { originalCharCode?: number; unicode?: string; width?: number };
 
 function isGlyphArray(value: unknown): value is Glyph[] {
   return (
@@ -219,6 +237,7 @@ function isGlyphArray(value: unknown): value is Glyph[] {
 async function extractRawText(pdf: PDFDocumentLike): Promise<string> {
   let safeText = "";
   let aggressiveText = "";
+  const codeWidths = new Map<number, number>();
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
     const opList = await page.getOperatorList();
@@ -231,6 +250,7 @@ async function extractRawText(pdf: PDFDocumentLike): Promise<string> {
         safeText += looksBroken ? "" : uni;
         if (g.originalCharCode !== undefined && g.originalCharCode < 32) {
           aggressiveText += qnbMarker(g.originalCharCode);
+          if (g.width !== undefined) codeWidths.set(g.originalCharCode, g.width);
         } else {
           aggressiveText += uni;
         }
@@ -239,7 +259,7 @@ async function extractRawText(pdf: PDFDocumentLike): Promise<string> {
     safeText += "\n";
     aggressiveText += "\n";
   }
-  return safeText.includes("QNB") ? resolveQnbMarkers(aggressiveText) : safeText;
+  return safeText.includes("QNB") ? resolveQnbMarkers(aggressiveText, codeWidths) : safeText;
 }
 
 function toIsoDateFromDDMMYYYY(ddmmyyyy: string): string {
