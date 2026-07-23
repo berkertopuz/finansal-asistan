@@ -11,11 +11,17 @@ import type { AppLocale } from "@/lib/locale";
 
 export default async function GiderlerPage() {
   const supabase = await createClient();
-  const [initialData, creditCards, surplusRow] = await Promise.all([
+  // getEntries() (materializes this month's template occurrences) runs
+  // before the surplus view is read — see the same fix + explanation in
+  // defter/abonelikler/page.tsx.
+  const [initialData, creditCards] = await Promise.all([
     getEntries(supabase),
     getCreditCards(supabase),
-    supabase.from("v_monthly_surplus").select("subscription_total").maybeSingle(),
   ]);
+  const surplusRow = await supabase
+    .from("v_monthly_surplus")
+    .select("subscription_total")
+    .maybeSingle();
   const fixedExpenseCount = initialData.filter(
     (e) => e.kind === "expense" && e.recurrence !== "none",
   ).length;

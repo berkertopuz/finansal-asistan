@@ -115,6 +115,7 @@ export function EntryTable({
   defaultSortField = "occurred_at",
   showMonthSummary = false,
   templatesOnly = false,
+  titleField = "category",
 }: {
   kind?: EntryKind | EntryKind[];
   // Exact category match (e.g. "abonelik") — Abonelikler uses this for a
@@ -147,6 +148,15 @@ export function EntryTable({
   // that would either double-count a period or, worse, let editing a
   // template's row look like it edits one month's transaction.
   templatesOnly?: boolean;
+  // "category" (default) is the bold mobile-row title everywhere else, but
+  // on Abonelikler every row already shares the same category ("abonelik")
+  // — repeating it as the title on every single row says nothing, while the
+  // description (the actual service name, e.g. "Netflix") is what's
+  // distinctive. "description" swaps the two: description becomes the bold
+  // title, category moves into the subtitle instead. Falls back to category
+  // if description is empty (defensive — the add/edit form makes description
+  // required for kind="subscription", but this guards older rows anyway).
+  titleField?: "category" | "description";
 }) {
   const { data, error, isLoading } = useSWR<Entry[]>(ENTRIES_KEY, fetcher, {
     fallbackData: initialData,
@@ -558,6 +568,9 @@ export function EntryTable({
               const entry = row.entry;
               const { Icon, colorClassName } = categoryIcon(entry.category);
               const isManagedFromPortfolio = entry.kind === "investment" && Boolean(entry.portfolio_position_id);
+              const useDescriptionAsTitle = titleField === "description" && Boolean(entry.description);
+              const primaryText = useDescriptionAsTitle ? entry.description! : categoryLabel(t, entry.category);
+              const secondaryPrefix = useDescriptionAsTitle ? categoryLabel(t, entry.category) : entry.description;
               return (
                 <div
                   key={entry.id}
@@ -582,11 +595,11 @@ export function EntryTable({
                         already conveyed by the icon color and the amount's
                         sign, so it's dropped here rather than squeezed in. */}
                     <span className="truncate text-sm font-semibold text-foreground">
-                      {categoryLabel(t, entry.category)}
+                      {primaryText}
                     </span>
                     <span className="truncate text-xs text-muted-foreground">
                       {formatDate(entryDisplayDate(entry, dateReference), locale)}
-                      {entry.description ? ` · ${entry.description}` : ""}
+                      {secondaryPrefix ? ` · ${secondaryPrefix}` : ""}
                       {entry.isPlanned
                         ? ` · ${t("table.planned")}`
                         : isManagedFromPortfolio

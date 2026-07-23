@@ -9,10 +9,17 @@ import type { AppLocale } from "@/lib/locale";
 
 export default async function AbonelikPage() {
   const supabase = await createClient();
-  const [initialData, { data }] = await Promise.all([
-    getEntries(supabase),
-    supabase.from("v_monthly_surplus").select("subscription_total").maybeSingle(),
-  ]);
+  // Sequential, not Promise.all: getEntries() materializes this month's
+  // occurrences for any template (including one just converted from a
+  // one-off expense — see QuickEntryForm's "Aboneliğe çevir") before the
+  // surplus view is read. Racing the two meant a freshly-converted row's
+  // total sometimes didn't show up until a second refresh, since
+  // v_monthly_surplus only sees concrete rows that already exist.
+  const initialData = await getEntries(supabase);
+  const { data } = await supabase
+    .from("v_monthly_surplus")
+    .select("subscription_total")
+    .maybeSingle();
   const monthlyTotal = Number((data as { subscription_total: number } | null)?.subscription_total ?? 0);
   const yearlyTotal = monthlyTotal * 12;
   const locale = (await getLocale()) as AppLocale;
@@ -53,6 +60,7 @@ export default async function AbonelikPage() {
         showKindColumn={false}
         monthFilter={false}
         templatesOnly
+        titleField="description"
       />
 
       {/* Ekstre içe aktarmadan gelen "abonelik" kategorili tek seferlik
@@ -72,6 +80,7 @@ export default async function AbonelikPage() {
         initialData={initialData}
         showKindColumn={false}
         monthFilter={false}
+        titleField="description"
       />
 
       <QuickAddFAB defaultKind="subscription" />

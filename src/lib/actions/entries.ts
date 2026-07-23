@@ -64,6 +64,13 @@ async function buildEntrySchema() {
       if (data.recurrence !== "none" && !data.next_due_date) {
         ctx.addIssue({ code: "custom", path: ["next_due_date"], message: t("dateRequired") });
       }
+      // Abonelikler, bu alanı satırın başlığı olarak gösteriyor
+      // (EntryTable titleField="description") — boş bir "abonelik" satırı
+      // orada isimsiz görünürdü. Client zaten <input required> ile bunu
+      // engelliyor, bu sunucu tarafındaki backstop.
+      if (data.kind === "subscription" && !data.description) {
+        ctx.addIssue({ code: "custom", path: ["description"], message: t("descriptionRequired") });
+      }
     });
 }
 

@@ -67,7 +67,13 @@ export function QuickEntryForm({
   defaultKind?: EntryKind;
 }) {
   const [kind, setKind] = useState<EntryKind>(editingEntry?.kind ?? defaultKind);
-  const [category, setCategory] = useState<string>(editingEntry?.category ?? DEFAULT_CATEGORY);
+  // A fresh subscription defaults straight to the "abonelik" chip instead of
+  // "diğer" — same reasoning as the recurrence default just below (kind's
+  // toggle is hidden for subscriptions, so there's no user click to set this
+  // any other way for a brand-new one).
+  const [category, setCategory] = useState<string>(
+    editingEntry?.category ?? (defaultKind === "subscription" ? "abonelik" : DEFAULT_CATEGORY),
+  );
   // Mirrors handleKindChange's same rule below — but that only fires on a
   // user-driven toggle switch, which never happens for a fresh subscription
   // (its kind toggle is hidden entirely, see below, so there's no click to
@@ -137,6 +143,16 @@ export function QuickEntryForm({
     // kendi eliyle değiştirmediyse bu varsayılanı ezmiyoruz.
     if (!recurrenceTouched.current) {
       setRecurrence(nextKind === "subscription" ? "monthly" : "none");
+    } else if (nextKind === "subscription" && recurrence === "none") {
+      // Var olan bir satırı düzenlerken (recurrenceTouched zaten true
+      // başlar, bkz. yukarısı) kind'ı Abonelik'e çevirmek — ekstreden gelen
+      // tek seferlik bir kart harcamasını gerçek bir tekrarlayan kurala
+      // dönüştürmenin yolu bu. recurrence "none" kalırsa satır ne
+      // "Tekrarlayan kurallar" (recurrence<>none filtreli) ne de
+      // "kind=expense" filtreli ikinci bölümde görünür, sessizce kaybolurdu
+      // — o yüzden burada da aylığa zorlanıyor, kullanıcı zaten başka bir
+      // sıklık seçmediyse.
+      setRecurrence("monthly");
     }
     // Taksit sadece gider için var — Gelir'e geçince checkbox'ın kendisi
     // gizlenir ama state kalırsa gizli input'lar yanlışlıkla "taksitli"
@@ -205,18 +221,20 @@ export function QuickEntryForm({
       <input ref={applyToAllRef} type="hidden" name="applyToAllOccurrences" defaultValue="false" />
 
       {/* Hidden, not just left unselected, when editing/adding a
-          subscription — ENTRY_KINDS no longer lists "subscription" (see
-          src/lib/ledger.ts), so a pressed toggle would have nothing to
-          show as active. Subscriptions only ever come from the Abonelikler
-          page's own FAB or its edit sheet, both of which already know the
-          kind and don't need a switcher for it. */}
+          subscription — a pressed toggle would have nothing to show as
+          active otherwise. A brand-new entry never offers "Abonelik" here
+          (subscriptions only ever start from the Abonelikler page's own
+          FAB, which skips this toggle entirely via defaultKind) — but
+          editing an existing row does, so a one-off card charge can be
+          turned into a real recurring subscription rule just by picking
+          this and Aylık/Yıllık below, then Güncelle. */}
       {kind !== "subscription" && (
         <ToggleGroup
           value={[kind]}
           onValueChange={(next) => next[0] && handleKindChange(next[0] as EntryKind)}
           className="w-full flex-nowrap"
         >
-          {ENTRY_KINDS.map((value) => (
+          {(editingEntry ? [...ENTRY_KINDS, "subscription" as const] : ENTRY_KINDS).map((value) => (
             <ToggleGroupItem
               key={value}
               value={value}
@@ -281,13 +299,21 @@ export function QuickEntryForm({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="description">{t("form.descriptionLabel")}</Label>
+        {/* Abonelikler, bu alanı satırın ana başlığı olarak gösteriyor
+            (EntryTable'ın titleField="description" modu — kategori zaten
+            her satırda "Abonelik" olduğu için ayırt edici olan bu). O yüzden
+            kind="subscription" iken zorunlu — boş kalırsa o satırın başlığı
+            olmazdı. */}
+        <Label htmlFor="description">
+          {kind === "subscription" ? t("form.subscriptionNameLabel") : t("form.descriptionLabel")}
+        </Label>
         <Input
           id="description"
           name="description"
           type="text"
           maxLength={200}
-          placeholder={t("form.descriptionPlaceholder")}
+          placeholder={kind === "subscription" ? t("form.subscriptionNamePlaceholder") : t("form.descriptionPlaceholder")}
+          required={kind === "subscription"}
           defaultValue={editingEntry?.description ?? ""}
         />
       </div>
