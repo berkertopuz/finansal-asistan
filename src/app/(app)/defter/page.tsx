@@ -180,7 +180,7 @@ export default async function DefterPage() {
         />
       </div>
 
-      <EntryTable initialData={initialData} allowAllMonths defaultSortField="created_at" />
+      <EntryTable initialData={initialData} allowAllMonths />
       <QuickAddFAB />
     </div>
   );

@@ -48,10 +48,7 @@ const fetcher = (url: string) =>
     return res.json();
   });
 
-// "created_at" isn't a clickable column header — it's only ever the
-// Tümü tab's initial default (most-recently-added-first, like an activity
-// feed), before the user picks one of the three real sortable columns.
-type SortField = "occurred_at" | "amount" | "category" | "created_at";
+type SortField = "occurred_at" | "amount" | "category";
 type SortDir = "asc" | "desc";
 
 function monthOf(dateStr: string): string {
@@ -312,7 +309,6 @@ export function EntryTable({
       let cmp = 0;
       if (sortField === "amount") cmp = a.amount - b.amount;
       else if (sortField === "category") cmp = (a.category ?? "").localeCompare(b.category ?? "");
-      else if (sortField === "created_at") cmp = a.created_at.localeCompare(b.created_at);
       else cmp = entryDisplayDate(a, dateReference).localeCompare(entryDisplayDate(b, dateReference));
       return sortDir === "asc" ? cmp : -cmp;
     });
