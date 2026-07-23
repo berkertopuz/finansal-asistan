@@ -146,22 +146,13 @@ export function QuickEntryForm({
     }
   }
 
+  // nextKind is only ever "income" or "expense" here — this toggle no
+  // longer offers "Abonelik" as a kind (see the comment by its JSX below),
+  // so there's no subscription-specific branch to worry about anymore.
   const handleKindChange = (nextKind: EntryKind) => {
     setKind(nextKind);
-    // Abonelikler varsayılan olarak aylık tekrar eder — kullanıcı sıklığı
-    // kendi eliyle değiştirmediyse bu varsayılanı ezmiyoruz.
     if (!recurrenceTouched.current) {
-      setRecurrence(nextKind === "subscription" ? "monthly" : "none");
-    } else if (nextKind === "subscription" && recurrence === "none") {
-      // Var olan bir satırı düzenlerken (recurrenceTouched zaten true
-      // başlar, bkz. yukarısı) kind'ı Abonelik'e çevirmek — ekstreden gelen
-      // tek seferlik bir kart harcamasını gerçek bir tekrarlayan kurala
-      // dönüştürmenin yolu bu. recurrence "none" kalırsa satır ne
-      // "Tekrarlayan kurallar" (recurrence<>none filtreli) ne de
-      // "kind=expense" filtreli ikinci bölümde görünür, sessizce kaybolurdu
-      // — o yüzden burada da aylığa zorlanıyor, kullanıcı zaten başka bir
-      // sıklık seçmediyse.
-      setRecurrence("monthly");
+      setRecurrence("none");
     }
     // Taksit sadece gider için var — Gelir'e geçince checkbox'ın kendisi
     // gizlenir ama state kalırsa gizli input'lar yanlışlıkla "taksitli"
@@ -240,25 +231,26 @@ export function QuickEntryForm({
 
       {/* Hidden, not just left unselected, when editing/adding a
           subscription — a pressed toggle would have nothing to show as
-          active otherwise. A brand-new entry never offers "Abonelik" here
-          (subscriptions only ever start from the Abonelikler page's own
-          FAB, which skips this toggle entirely via defaultKind). Editing an
-          existing "kart harcamalarından abonelik" row skips this toggle
-          entirely (see onlyOfferSubscriptionKind above) — kind there is
-          driven directly by the Sıklık choice below (handleRecurrenceChange),
-          not a separate click here. A previous version offered a single
-          "Abonelik" pill alongside the frequency toggle and it was easy to
-          miss: picking "Yıllık" without also clicking that pill saved as a
-          recurring EXPENSE template that showed up in neither Abonelikler
-          section. Any other edit (a normal expense/income row) still offers
-          all three kinds. */}
+          active otherwise. "Abonelik" never appears as a pickable option
+          here at all — only editing a "kart harcamalarından abonelik" row
+          converts to one, and that skips this toggle entirely (see
+          onlyOfferSubscriptionKind above): kind there is driven directly by
+          the Sıklık choice below (handleRecurrenceChange), not a separate
+          click here. An earlier version added "Abonelik" as a third option
+          on THIS toggle for any edited row, sitting right next to the
+          unrelated "Abonelik" category chip further down — indistinguishable
+          at a glance, and editing an ordinary expense (say, changing its
+          category to "Abonelik" and giving it a Sıklık) could silently
+          leave it as a recurring EXPENSE tagged abonelik instead of
+          converting it, or the reverse. Keeping this toggle to just
+          Gider/Gelir removes that ambiguity entirely. */}
       {kind !== "subscription" && !onlyOfferSubscriptionKind && (
         <ToggleGroup
           value={[kind]}
           onValueChange={(next) => next[0] && handleKindChange(next[0] as EntryKind)}
           className="w-full flex-nowrap"
         >
-          {(editingEntry ? [...ENTRY_KINDS, "subscription" as const] : ENTRY_KINDS).map((value) => (
+          {ENTRY_KINDS.map((value) => (
             <ToggleGroupItem
               key={value}
               value={value}
