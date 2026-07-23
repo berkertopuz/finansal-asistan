@@ -82,39 +82,100 @@ const TURKISH_MONTHS: Record<string, string> = {
   aralik: "12",
 };
 
-// Bazı bankaların (şu ana kadar sadece QNB Xtra) PDF'lerinde gömülü font,
-// Türkçe'ye özgü harfleri metin katmanına hiç aktarmıyor — pdf.js bu
-// glyph'leri BULABİLİYOR (fontta gerçekten var, bir genişliği/şekli var,
-// `isInFont: true`) ama Unicode karşılığını çözemediği için ham karakter
-// kodunu (0, 1, 2, ...) döndürüyor, extractRawText de bunu boş bırakır ya
-// da tutarsız bir karaktere düşürür. Bu tablo, gerçek bir QNB ekstresi
-// üzerinde bu ham kodları düzinelerce kelimede (Müşteri, Dönem, İşlem,
-// Açıklaması, İstanbul, Şişli, Üniversite, Öğrenci, Bağdat, Kağan, Şirketi
-// gibi) çapraz doğrulayarak elle çıkarıldı — SADECE bu embedded fontun kod
-// sırası için geçerli; başka bir bankanın aynı sorunu yaşaması, kendi kod
-// tablosunu gerektirir (glyph kodları fonta özel, evrensel bir standart
-// değil). Kod 12 tek bir yerde (bir mağaza adında) göründü ve hiçbir bilinen
-// kelimeyle güvenle eşleşmedi — yanlış tahmin etmek yerine haritanın dışında
-// bırakıldı, o karakter (öncekiyle aynı şekilde) boş kalır.
-const QNB_FONT_CODE_MAP: Record<number, string> = {
-  0: "ü",
-  1: "ş",
-  2: "ö",
-  3: "Ö",
-  4: "Ö",
-  5: "ğ",
-  7: "İ",
-  8: "Ç",
-  9: "Ş",
-  10: "İ",
-  11: "Ü",
-  13: "ş",
-  14: "ç",
-  15: "Ü",
-  16: "ö",
-  17: "ğ",
-  19: "Ğ",
-};
+// QNB Xtra'nın PDF'lerinde gömülü font, Türkçe'ye özgü harfleri metin
+// katmanına hiç aktarmıyor — pdf.js bu glyph'leri BULABİLİYOR (fontta
+// gerçekten var, bir genişliği/şekli var, `isInFont: true`) ama Unicode
+// karşılığını çözemediği için ham karakter kodunu (0, 1, 2, ...) döndürüyor.
+// Bu ham kod aralığı (0-31, ASCII kontrol karakterleri bandı — normal
+// yazdırılabilir font 32'den, boşluktan başlıyor) HER AYKI ekstrede aynı
+// bantta kalıyor, ama kod↔harf eşleşmesi HER PDF'te farklı: font her ay
+// yeniden "subset" ediliyor ve bu bandın içindeki 20'ye yakın ekstra glyph,
+// o belgede hangi harflerin geçtiğine göre yeniden numaralanıyor. İki farklı
+// aya ait gerçek QNB ekstresi karşılaştırılarak doğrulandı — aynı kod (ör.
+// 19), bir belgede "Ğ", başka bir belgede "ö" karşılığı çıktı. Bu yüzden
+// sabit bir kod→harf tablosu yalnızca çıkarıldığı belgede çalışıyordu.
+//
+// Çözüm: sabit tablo yerine HER PDF için kendi haritasını, o PDF'in metni
+// üzerinde banka şablonundan gelen (kullanıcıdan kullanıcıya değişmeyen)
+// sabit etiket/ibareleri (ör. "Müşteri Numarası", "Asgari Ödeme Tutarı",
+// altbilgideki "Telefon Bankacılığı: 0850 222 0 900") arayarak kalibre
+// ediyoruz — bkz. QNB_CALIBRATION_ANCHORS. Bir kod hiçbir çapaya denk
+// gelmediyse (ör. yalnızca bir müşteri adında/adresinde geçen nadir bir
+// harf) o karakter boş bırakılır; adres/isim bloğu zaten transactionText'e
+// hiç dahil edilmiyor (bkz. extractStatementText), o yüzden bu sınırlama
+// işlem verisini etkilemiyor.
+const QNB_MARKER_BASE = 0xe000; // Unicode Private Use Area — gerçek metinle asla çakışmaz
+
+function qnbMarker(code: number): string {
+  return String.fromCodePoint(QNB_MARKER_BASE + code);
+}
+function qnbCodeFromMarker(marker: string): number {
+  return marker.codePointAt(0)! - QNB_MARKER_BASE;
+}
+const QNB_MARKER_PATTERN = "[-]";
+const QNB_MARKER_RE = new RegExp(QNB_MARKER_PATTERN);
+const QNB_MARKER_RE_GLOBAL = new RegExp(QNB_MARKER_PATTERN, "g");
+
+// Her kural: banka şablonunun gerçek iki farklı aya ait ekstrede birebir
+// aynı çıktığı doğrulanmış bir ibare, çözülecek harflerin konumunda tek
+// karakterlik yakalama grubuyla. groups.length, regex'teki yakalama grubu
+// sayısıyla aynı sırada eşleşmeli.
+//
+// Bilinen sınırlama: "Ğ" (büyük) için hiçbir sabit/şablon ibaresinde
+// güvenilir bir çapa bulunamadı — iki gerçek ekstrede de yalnızca işlem
+// açıklamalarında geçiyordu (ör. "KAĞAN", "BAĞDAT", "...OĞLU"), hiçbir
+// zaman banka şablonunun sabit kısmında değil. Kalibrasyon bu harfi
+// çözemezse o glyph (mevcut "belirsiz kod" davranışıyla tutarlı şekilde)
+// boş bırakılır — işlem tutarı/tarihi gibi kritik alanları etkilemez,
+// yalnızca ilgili satırdaki bir harf eksik görünür.
+const QNB_CALIBRATION_ANCHORS: { pattern: RegExp; letters: string[] }[] = [
+  { pattern: new RegExp(`M(${QNB_MARKER_PATTERN})(${QNB_MARKER_PATTERN})teri Numaras`), letters: ["ü", "ş"] },
+  { pattern: new RegExp(`Asgari (${QNB_MARKER_PATTERN})deme Tutar`), letters: ["Ö"] },
+  { pattern: new RegExp(`Asgari (${QNB_MARKER_PATTERN})deme Oran`), letters: ["Ö"] },
+  { pattern: new RegExp(`Kar(${QNB_MARKER_PATTERN})ılı(${QNB_MARKER_PATTERN})ı`), letters: ["ş", "ğ"] },
+  { pattern: new RegExp(`Kazanılan (${QNB_MARKER_PATTERN})zel ParaPuan`), letters: ["Ö"] },
+  { pattern: new RegExp(`Son (${QNB_MARKER_PATTERN})deme Tarihi`), letters: ["Ö"] },
+  {
+    pattern: new RegExp(`(${QNB_MARKER_PATTERN})nceki D(${QNB_MARKER_PATTERN})nem Bakiyeniz`),
+    letters: ["Ö", "ö"],
+  },
+  { pattern: new RegExp(`(${QNB_MARKER_PATTERN})(${QNB_MARKER_PATTERN})lem Tarihi`), letters: ["İ", "ş"] },
+  { pattern: new RegExp(`A(${QNB_MARKER_PATTERN})ıklaması`), letters: ["ç"] },
+  { pattern: new RegExp(`Bankacılı(${QNB_MARKER_PATTERN})ı: 0850`), letters: ["ğ"] },
+  { pattern: new RegExp(`Ticaret Unvanı: QNB Bank A\\.(${QNB_MARKER_PATTERN})\\.`), letters: ["Ş"] },
+  { pattern: new RegExp(`B(${QNB_MARKER_PATTERN})y(${QNB_MARKER_PATTERN})kdere Cad`), letters: ["ü", "ü"] },
+  {
+    pattern: new RegExp(`215 (${QNB_MARKER_PATTERN})i(${QNB_MARKER_PATTERN})li/(${QNB_MARKER_PATTERN})stanbul`),
+    letters: ["Ş", "ş", "İ"],
+  },
+  { pattern: new RegExp(`Nakit Avans(${QNB_MARKER_PATTERN})cretler`), letters: ["Ü"] },
+  { pattern: new RegExp(`Nakit (${QNB_MARKER_PATTERN})ekim`), letters: ["Ç"] },
+  { pattern: new RegExp(`Hesap (${QNB_MARKER_PATTERN})zetiniz`), letters: ["Ö"] },
+  { pattern: new RegExp(`son (${QNB_MARKER_PATTERN})deme tarihiniz`), letters: ["ö"] },
+  { pattern: new RegExp(`Alı(${QNB_MARKER_PATTERN})veri(${QNB_MARKER_PATTERN})Faizi`), letters: ["ş", "ş"] },
+];
+
+function calibrateQnbCodeMap(markedText: string): Record<number, string> {
+  const map: Record<number, string> = {};
+  for (const { pattern, letters } of QNB_CALIBRATION_ANCHORS) {
+    const match = pattern.exec(markedText);
+    if (!match) continue;
+    letters.forEach((letter, i) => {
+      const code = qnbCodeFromMarker(match[i + 1]);
+      map[code] = letter;
+    });
+  }
+  return map;
+}
+
+// Bir belgede hiç çözülemeyen (kalibrasyon çapası bulunamayan) glyph boş
+// bırakılır — yanlış tahmin etmek, sessizce yanlış bir harf yazmaktan
+// (ör. yanlış bir işlem tutarının/tarihinin LLM'e gitmesi) daha güvenli.
+function resolveQnbMarkers(markedText: string): string {
+  if (!QNB_MARKER_RE.test(markedText)) return markedText;
+  const codeMap = calibrateQnbCodeMap(markedText);
+  return markedText.replace(QNB_MARKER_RE_GLOBAL, (marker) => codeMap[qnbCodeFromMarker(marker)] ?? "");
+}
 
 type PDFDocumentLike = Awaited<ReturnType<typeof getDocumentProxy>>;
 type Glyph = { originalCharCode?: number; unicode?: string };
@@ -131,18 +192,33 @@ function isGlyphArray(value: unknown): value is Glyph[] {
 
 // unpdf'in extractText()'i pdf.js'in getTextContent() API'si üzerinden
 // çalışıyor — bu API, Unicode'a çözülemeyen glyph'leri (QNB'nin fontundaki
-// gibi) ya tamamen düşürüyor ya da (gerçek PDF üzerinde doğrulandı)
-// TUTARSIZ bir şekilde farklı/yanlış kodlar veriyor, çünkü kendi iç metin
-// gruplama mantığı bu glyph'leri beklenmedik yerlerde bölüyor.
-// getOperatorList() (pdf.js'in daha alt seviyeli, ham içerik akışı API'si)
-// her glyph için orijinal karakter kodunu HER ZAMAN aynı ve tutarlı şekilde
-// koruyor — QNB_FONT_CODE_MAP ile düzeltmeyi bu yüzden burada, extractText()
-// yerine bu fonksiyonda yapıyoruz. Enpara'nın PDF'inde bu şekilde düşen
-// glyph hiç yok (doğrulandı: 0 kontrol karakteri çıktı) ve buradaki metin
-// unpdf'in kendi extractText()'iyle üretilenle aynı — bu fonksiyon extractText()'in
-// tam yerine güvenle geçiyor, iki ayrı yol tutmaya gerek yok.
+// gibi) ya tamamen düşürüyor ya da (gerçek PDF üzerinde doğrulandı) TUTARSIZ
+// bir şekilde farklı/yanlış kodlar veriyor. getOperatorList() (pdf.js'in daha
+// alt seviyeli, ham içerik akışı API'si) her glyph için orijinal karakter
+// kodunu HER ZAMAN aynı ve tutarlı şekilde koruyor — düzeltmeyi bu yüzden
+// extractText() yerine burada, ham glyph akışı üzerinde yapıyoruz.
+//
+// originalCharCode < 32 (ASCII kontrol bandı) QNB'de "fontun standart
+// WinAnsi düzenine sığmayan, sona eklenmiş ekstra Türkçe glyph'ler" için
+// ayrılmış — ama bu EVRENSEL bir pdf.js/font kuralı değil, QNB'ye özel bir
+// alt-kümeleme (subsetting) tercihi. Gerçek bir Enpara ekstresi üzerinde bu
+// bandın Enpara'da TAM TERSİNE sıradan harfler (E, k, s, t, r, e, rakamlar...)
+// için kullanıldığı ve `g.unicode`'un bunlarda HER ZAMAN doğru olduğu
+// doğrulandı — yani bu bandı körü körüne "bozuk" sayıp QNB_MARKER'a
+// çevirmek Enpara'yı bozuyordu (regresyon, gerçek PDF ile yakalandı).
+// Çözüm: önce EVRENSEL güvenli kuralla (yalnızca g.unicode'un KENDİSİ bir
+// kontrol karakteriyse şüpheli say — orijinal, ilk sürümdeki kural) bir
+// "safeText" kur; "QNB" imzası bu bantta hiçbir zaman bozulmuyor (Q/N/B
+// hep normal, >=32 kodlu glyph'ler), o yüzden bankayı safeText üzerinden
+// güvenle tespit edebiliyoruz. QNB tespit edilirse, ham glyph akışını BU
+// SEFER originalCharCode < 32 olan HER glyph için (g.unicode ne derse
+// desin) QNB_MARKER'a çevirip kalibrasyona bırakan agresif kuralla yeniden
+// kuruyoruz — çünkü QNB'de bu bandın unicode tahmini bazen kontrol
+// karakterine, bazen yanlış ama okunaklı görünen bir harfe düşüyor, salt
+// "kontrol karakteri mi" testi ikincisini yakalayamıyor.
 async function extractRawText(pdf: PDFDocumentLike): Promise<string> {
-  let fullText = "";
+  let safeText = "";
+  let aggressiveText = "";
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
     const opList = await page.getOperatorList();
@@ -151,16 +227,19 @@ async function extractRawText(pdf: PDFDocumentLike): Promise<string> {
       if (!Array.isArray(args) || !isGlyphArray(args[0])) continue;
       for (const g of args[0]) {
         const uni = g.unicode ?? "";
-        if (uni.length === 1 && uni.charCodeAt(0) < 32 && g.originalCharCode !== undefined) {
-          fullText += QNB_FONT_CODE_MAP[g.originalCharCode] ?? "";
+        const looksBroken = uni.length === 1 && uni.charCodeAt(0) < 32;
+        safeText += looksBroken ? "" : uni;
+        if (g.originalCharCode !== undefined && g.originalCharCode < 32) {
+          aggressiveText += qnbMarker(g.originalCharCode);
         } else {
-          fullText += uni;
+          aggressiveText += uni;
         }
       }
     }
-    fullText += "\n";
+    safeText += "\n";
+    aggressiveText += "\n";
   }
-  return fullText;
+  return safeText.includes("QNB") ? resolveQnbMarkers(aggressiveText) : safeText;
 }
 
 function toIsoDateFromDDMMYYYY(ddmmyyyy: string): string {
