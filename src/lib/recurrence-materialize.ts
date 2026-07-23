@@ -17,6 +17,17 @@ type TemplateRow = Pick<
   | "occurred_at"
 > & { skip_dates: string[] };
 
+// How far ahead a template's occurrences get pre-generated as real rows —
+// far enough that a user planning a couple years out already sees them,
+// without generating an unbounded/"sonsuz" number of rows per template.
+// updateEntry's edit-scope cascade and deleteEntry's "stop future
+// generation" path both key off "today" for exactly this reason: with a
+// multi-year horizon, "future" rows already exist as concrete entries the
+// moment the template does, so editing/stopping "only going forward" has
+// to actively touch/remove already-materialized rows dated today or later
+// (src/lib/actions/entries.ts), not just skip generating new ones.
+const FUTURE_HORIZON_YEARS = 2;
+
 // A "template" is just an entries row with recurrence <> 'none' — this
 // generates the real, independent per-period rows it's due for (kind='kira'
 // this month, next month, etc.), each stamped with template_id so a later
@@ -25,11 +36,6 @@ type TemplateRow = Pick<
 // model replaces: a single eternal row that any edit/delete changed
 // retroactively for every past month too).
 //
-// Horizon stops at the end of *this* month, not further ahead. If next
-// month were pre-generated, editing the template today would leave that
-// already-materialized future row silently stuck on the old amount —
-// capping at "this month" means an edit to the template always lands on a
-// period that doesn't exist as a row yet.
 // Wrapped in cache() and creates its own client rather than taking one as a
 // param — it's called once from the (app) layout on every navigation and
 // again from getEntries() on Defter; within a single request those used to
@@ -50,25 +56,22 @@ export const materializeDueOccurrences = cache(async (userId: string): Promise<v
   if (!templates || templates.length === 0) return;
 
   const today = new Date();
-  const rangeEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  // The lower bound is always the *start of the current* month, never the
+  // template's own occurred_at — no backfilling. A template added (or
+  // converted) today only ever generates from today's month forward; it
+  // doesn't reconstruct months that already passed before it existed as a
+  // rule. occurrencesInRange's first candidate is computed relative to
+  // rangeStart, and nextOccurrenceOnOrAfter treats any anchor day-of-month
+  // before that reference day as "already passed" and rolls it to the
+  // following month — truncating to the 1st (not today's exact day) is what
+  // keeps a bill due on, say, the 15th from being skipped straight to next
+  // month when today is the 20th.
+  const rangeStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const rangeEnd = new Date(today.getFullYear() + FUTURE_HORIZON_YEARS, today.getMonth() + 1, 0);
 
   const rows: Record<string, unknown>[] = [];
   for (const tpl of templates as TemplateRow[]) {
     if (!tpl.next_due_date) continue;
-    // The lower bound is always the *start* of the month the template was
-    // added in, never the exact day — occurrencesInRange's first candidate
-    // is computed relative to rangeStart, and nextOccurrenceOnOrAfter treats
-    // any anchor day-of-month before that reference day as "already passed"
-    // and rolls it to the following month. Using the literal occurred_at
-    // (e.g. the 21st) as rangeStart meant a bill due on the 15th — already
-    // paid this month, which is exactly why the user is recording it —
-    // silently skipped straight to next month. Truncating to the 1st keeps
-    // this working the same way even after a gap: if occurred_at is from
-    // three months ago and the user only opens the app again today,
-    // rangeStart still lands on THAT month's 1st, not "the 21st of three
-    // months ago", so the very first catch-up month isn't skipped either.
-    const occurredAt = new Date(`${tpl.occurred_at}T00:00:00`);
-    const rangeStart = new Date(occurredAt.getFullYear(), occurredAt.getMonth(), 1);
     const occurrences = occurrencesInRange(tpl.next_due_date, tpl.recurrence, rangeStart, rangeEnd);
     const skipDates = new Set(tpl.skip_dates ?? []);
     for (const occurrence of occurrences) {

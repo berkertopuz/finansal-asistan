@@ -82,15 +82,16 @@ function dayGroupLabel(dateStr: string, t: (key: string) => string, locale: AppL
 
 // A planned row is a *preview* of a future, not-yet-materialized occurrence
 // of an active template — synthesized on the fly, never a real database
-// row. It exists only so browsing ahead (e.g. checking August while it's
-// still July) shows a standing bill rather than a flat "no entries",
-// without actually creating that row early (materializeDueOccurrences only
-// ever generates through the end of the *current* month — see
-// src/lib/recurrence-materialize.ts — specifically so a template edit can
-// never land on a period that already has a committed row). isPlanned is
-// what tells the row renderers below to drop the edit/delete actions (there
-// is nothing yet to edit or delete) and label it distinctly from a real,
-// already-happened transaction.
+// row. materializeDueOccurrences now pre-generates real rows
+// FUTURE_HORIZON_YEARS ahead (src/lib/recurrence-materialize.ts), so most
+// months have a real row well before a user ever browses there — this only
+// fills whatever narrow gap isn't covered yet (a template just added or
+// edited since the last materialize pass ran, or a month past the
+// horizon). plannedRows below skips any occurrence that already has a real
+// row, or browsing ahead would show every recurring item twice. isPlanned
+// is what tells the row renderers below to drop the edit/delete actions
+// (there is nothing yet to edit or delete) and label it distinctly from a
+// real, already-happened transaction.
 type DisplayEntry = Entry & { isPlanned?: boolean };
 
 type MobileRow = { type: "header"; label: string } | { type: "entry"; entry: DisplayEntry };
@@ -191,7 +192,20 @@ export function EntryTable({
   // roll into a different month than when it was added, and filtering on
   // one date while *displaying* another (the previous version of this) is
   // exactly what made "July selected" show August-dated rows.
-  const monthMatches = (e: Entry) => month === "all" || monthOf(entryDisplayDate(e, dateReference)) === month;
+  //
+  // "Tümü" (allowAllMonths, only Defter's main tab) is a general ACTIVITY
+  // FEED of what already happened, not a forward calendar — but
+  // materializeDueOccurrences pre-generates FUTURE_HORIZON_YEARS of real
+  // future rows per template now (src/lib/recurrence-materialize.ts), so
+  // without this cutoff "Tümü" would render every one of those at once
+  // (hundreds of rows for just a handful of monthly templates) instead of
+  // only real, already-happened transactions. A specific month can still be
+  // picked to browse ahead — this only trims the "all" default.
+  const todayStr = toDateString(new Date());
+  const monthMatches = (e: Entry) => {
+    if (month === "all") return entryDisplayDate(e, dateReference) <= todayStr;
+    return monthOf(entryDisplayDate(e, dateReference)) === month;
+  };
 
   // Only a month strictly after the current one can ever be "planned-only"
   // — materializeDueOccurrences always covers the current month already, so
@@ -207,16 +221,24 @@ export function EntryTable({
     if (!data || templatesOnly || !monthFilter || !isFutureMonth) return [];
     const monthStart = monthStartDate(month);
     const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
+    // (template_id, occurred_at) pairs that already have a real row —
+    // materialize's multi-year horizon means most of these already exist,
+    // and synthesizing a preview on top would show the same bill twice.
+    const existingOccurrences = new Set(
+      data.filter((e) => e.template_id).map((e) => `${e.template_id}:${e.occurred_at}`),
+    );
     const rows: DisplayEntry[] = [];
     for (const tpl of data) {
       if (tpl.recurrence === "none" || !tpl.next_due_date) continue;
       for (const occurrence of occurrencesInRange(tpl.next_due_date, tpl.recurrence, monthStart, monthEnd)) {
+        const occurredAt = toDateString(occurrence);
+        if (existingOccurrences.has(`${tpl.id}:${occurredAt}`)) continue;
         rows.push({
           ...tpl,
-          id: `planned-${tpl.id}-${toDateString(occurrence)}`,
+          id: `planned-${tpl.id}-${occurredAt}`,
           recurrence: "none",
           next_due_date: null,
-          occurred_at: toDateString(occurrence),
+          occurred_at: occurredAt,
           template_id: tpl.id,
           isPlanned: true,
         });

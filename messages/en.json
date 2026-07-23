@@ -229,6 +229,7 @@
       "descriptionPlaceholder": "e.g. July rent",
       "subscriptionNameLabel": "Subscription name",
       "subscriptionNamePlaceholder": "e.g. Netflix, Spotify",
+      "convertToSubscriptionHint": "Picking a frequency turns this into a recurring subscription rule.",
       "recurrenceLabel": "Recurrence",
       "recurrenceNote": "This entry is automatically included in the surplus every month — no need to add it again.",
       "editScopeTitle": "How should this change apply?",

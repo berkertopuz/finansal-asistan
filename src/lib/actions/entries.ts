@@ -284,13 +284,21 @@ export async function updateEntry(
     }
   }
 
-  // Propagate to every row this template already generated (each keeps its
-  // own occurred_at — only what the user actually edited here changes).
-  // Not part of the same request's error path: the template itself already
+  // Propagate to rows this template already generated (each keeps its own
+  // occurred_at — only what the user actually edited here changes). Not
+  // part of the same request's error path: the template itself already
   // saved successfully, so a failure here shouldn't read to the user as
   // "the edit failed".
-  if (isRecurring && applyToAllOccurrences) {
-    const { error: cascadeError } = await supabase
+  //
+  // materializeDueOccurrences pre-generates FUTURE_HORIZON_YEARS of
+  // occurrences as real rows (src/lib/recurrence-materialize.ts), so
+  // "gelecek kayıtlar" (future records) already exist as concrete rows the
+  // moment the template does — "Sadece gelecek kayıtlar" has to actively
+  // update the not-yet-occurred ones (occurred_at >= today) rather than
+  // leaving them stuck on the old value, while "Tüm kayıtlar (geçmiş
+  // dahil)" still reaches every row regardless of date.
+  if (isRecurring) {
+    let cascadeQuery = supabase
       .from("entries")
       .update({
         kind: parsed.data.kind,
@@ -299,6 +307,10 @@ export async function updateEntry(
         description: parsed.data.description ?? null,
       })
       .eq("template_id", id);
+    if (!applyToAllOccurrences) {
+      cascadeQuery = cascadeQuery.gte("occurred_at", todayDateString());
+    }
+    const { error: cascadeError } = await cascadeQuery;
     if (cascadeError) {
       console.error("updateEntry: failed to propagate to generated rows", cascadeError);
     }
@@ -320,11 +332,20 @@ export async function deleteEntry(
   //
   // deleteGeneratedRows is only meaningful when `id` is a recurring
   // template — the delete dialog asks the user to choose between stopping
-  // future generation (the default: template_id on already-generated rows
-  // just goes null via ON DELETE SET NULL, history untouched) or wiping
-  // every row this template ever produced too.
+  // future generation or wiping every row this template ever produced too.
+  //
+  // "Stopping future generation" used to be a no-op here (nothing had been
+  // generated past the current month yet) — materializeDueOccurrences now
+  // pre-generates FUTURE_HORIZON_YEARS ahead as real rows
+  // (src/lib/recurrence-materialize.ts), so those not-yet-occurred rows
+  // already exist and have to be actively removed, or they'd keep counting
+  // as real future expenses/income even though the rule that produced them
+  // no longer exists. Past rows are untouched either way — their
+  // template_id just goes null via ON DELETE SET NULL below.
   if (deleteGeneratedRows) {
     await supabase.from("entries").delete().eq("template_id", id);
+  } else {
+    await supabase.from("entries").delete().eq("template_id", id).gte("occurred_at", todayDateString());
   }
   // deleteFutureInstallments is only meaningful when `id` is one row of a
   // taksit series — unlike deleteGeneratedRows above, this deliberately

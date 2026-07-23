@@ -172,6 +172,15 @@ export function QuickEntryForm({
   const handleRecurrenceChange = (next: EntryRecurrence) => {
     recurrenceTouched.current = true;
     setRecurrence(next);
+    // Bu satırın düzenlenmesinin tek sebebi abonelik yapmak (bkz.
+    // onlyOfferSubscriptionKind) — kind'ı ayrı bir düğmeye değil, doğrudan
+    // sıklık seçimine bağlamak, kullanıcının "Yıllık" seçip ayrı duran
+    // "Abonelik" düğmesine hiç basmadan kaydettiği (kind='expense' kalıp
+    // Abonelikler'in hiçbir bölümünde görünmeyen bir tekrarlayan gider
+    // şablonu oluşan) gerçek bir hatayı düzeltiyor.
+    if (onlyOfferSubscriptionKind) {
+      setKind(next === "none" ? "expense" : "subscription");
+    }
     // Taksit ve tekrarlayan kayıt birbirini dışlar — biri açılınca öbürünün
     // state'i temizlenir (bkz. yukarıdaki handleKindChange'in aynı mantığı).
     if (next !== "none") setIsInstallment(false);
@@ -234,23 +243,22 @@ export function QuickEntryForm({
           active otherwise. A brand-new entry never offers "Abonelik" here
           (subscriptions only ever start from the Abonelikler page's own
           FAB, which skips this toggle entirely via defaultKind). Editing an
-          existing "kart harcamalarından abonelik" row narrows the toggle
-          down to just "Abonelik" (see onlyOfferSubscriptionKind above) —
-          Gider/Gelir don't apply there, the only reason to open this sheet
-          is to turn the charge into a real subscription rule. Any other
-          edit (a normal expense/income row) still offers all three. */}
-      {kind !== "subscription" && (
+          existing "kart harcamalarından abonelik" row skips this toggle
+          entirely (see onlyOfferSubscriptionKind above) — kind there is
+          driven directly by the Sıklık choice below (handleRecurrenceChange),
+          not a separate click here. A previous version offered a single
+          "Abonelik" pill alongside the frequency toggle and it was easy to
+          miss: picking "Yıllık" without also clicking that pill saved as a
+          recurring EXPENSE template that showed up in neither Abonelikler
+          section. Any other edit (a normal expense/income row) still offers
+          all three kinds. */}
+      {kind !== "subscription" && !onlyOfferSubscriptionKind && (
         <ToggleGroup
           value={[kind]}
           onValueChange={(next) => next[0] && handleKindChange(next[0] as EntryKind)}
           className="w-full flex-nowrap"
         >
-          {(onlyOfferSubscriptionKind
-            ? (["subscription"] as const)
-            : editingEntry
-              ? [...ENTRY_KINDS, "subscription" as const]
-              : ENTRY_KINDS
-          ).map((value) => (
+          {(editingEntry ? [...ENTRY_KINDS, "subscription" as const] : ENTRY_KINDS).map((value) => (
             <ToggleGroupItem
               key={value}
               value={value}
@@ -336,6 +344,9 @@ export function QuickEntryForm({
 
       <div className="flex flex-col gap-1.5">
         <Label>{t("form.recurrenceLabel")}</Label>
+        {onlyOfferSubscriptionKind && (
+          <p className="text-xs text-muted-foreground">{t("form.convertToSubscriptionHint")}</p>
+        )}
         <ToggleGroup
           value={[recurrence]}
           onValueChange={(next) =>
@@ -358,7 +369,7 @@ export function QuickEntryForm({
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
-        {recurrence !== "none" && (
+        {recurrence !== "none" && !onlyOfferSubscriptionKind && (
           <p className="text-xs text-muted-foreground">{t("form.recurrenceNote")}</p>
         )}
       </div>

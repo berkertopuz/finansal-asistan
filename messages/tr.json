@@ -229,6 +229,7 @@
       "descriptionPlaceholder": "örn. Temmuz kirası",
       "subscriptionNameLabel": "Abonelik adı",
       "subscriptionNamePlaceholder": "örn. Netflix, Spotify",
+      "convertToSubscriptionHint": "Bir sıklık seçmen bu kaydı tekrarlayan bir abonelik kuralına dönüştürür.",
       "recurrenceLabel": "Sıklık",
       "recurrenceNote": "Bu kayıt her ay otomatik olarak fazla hesabına dahil edilir, tekrar girmen gerekmez.",
       "editScopeTitle": "Bu değişiklik nasıl uygulansın?",
