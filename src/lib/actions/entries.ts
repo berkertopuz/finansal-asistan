@@ -294,6 +294,35 @@ export async function deleteEntry(
         .gt("occurred_at", row.occurred_at);
     }
   }
+
+  // Deleting a single materialized occurrence (template_id set, this isn't
+  // the deleteGeneratedRows path) would otherwise come back on the next
+  // page load: materializeDueOccurrences (src/lib/recurrence-materialize.ts)
+  // just sees an empty (template_id, occurred_at) slot and regenerates it.
+  // Recording the date on the template's skip_dates is what makes a single
+  // delete actually stick.
+  if (!deleteGeneratedRows) {
+    const { data: row } = await supabase
+      .from("entries")
+      .select("template_id, occurred_at")
+      .eq("id", id)
+      .maybeSingle();
+    if (row?.template_id) {
+      const { data: template } = await supabase
+        .from("entries")
+        .select("skip_dates")
+        .eq("id", row.template_id)
+        .maybeSingle();
+      const skipDates = (template as { skip_dates: string[] } | null)?.skip_dates ?? [];
+      if (!skipDates.includes(row.occurred_at)) {
+        await supabase
+          .from("entries")
+          .update({ skip_dates: [...skipDates, row.occurred_at] })
+          .eq("id", row.template_id);
+      }
+    }
+  }
+
   await supabase.from("entries").delete().eq("id", id);
   revalidatePath("/defter");
   revalidatePath("/");

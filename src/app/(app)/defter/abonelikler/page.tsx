@@ -9,11 +9,10 @@ import type { AppLocale } from "@/lib/locale";
 
 export default async function AbonelikPage() {
   const supabase = await createClient();
-  const initialData = await getEntries(supabase);
-  const { data } = await supabase
-    .from("v_monthly_surplus")
-    .select("subscription_total")
-    .maybeSingle();
+  const [initialData, { data }] = await Promise.all([
+    getEntries(supabase),
+    supabase.from("v_monthly_surplus").select("subscription_total").maybeSingle(),
+  ]);
   const monthlyTotal = Number((data as { subscription_total: number } | null)?.subscription_total ?? 0);
   const yearlyTotal = monthlyTotal * 12;
   const locale = (await getLocale()) as AppLocale;

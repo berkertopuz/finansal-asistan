@@ -15,7 +15,7 @@ type TemplateRow = Pick<
   | "recurrence"
   | "next_due_date"
   | "occurred_at"
->;
+> & { skip_dates: string[] };
 
 // A "template" is just an entries row with recurrence <> 'none' — this
 // generates the real, independent per-period rows it's due for (kind='kira'
@@ -43,7 +43,7 @@ export const materializeDueOccurrences = cache(async (userId: string): Promise<v
   const { data: templates } = await supabase
     .from("entries")
     .select(
-      "id, kind, amount, currency, category, description, recurrence, next_due_date, occurred_at",
+      "id, kind, amount, currency, category, description, recurrence, next_due_date, occurred_at, skip_dates",
     )
     .neq("recurrence", "none");
 
@@ -70,7 +70,13 @@ export const materializeDueOccurrences = cache(async (userId: string): Promise<v
     const occurredAt = new Date(`${tpl.occurred_at}T00:00:00`);
     const rangeStart = new Date(occurredAt.getFullYear(), occurredAt.getMonth(), 1);
     const occurrences = occurrencesInRange(tpl.next_due_date, tpl.recurrence, rangeStart, rangeEnd);
+    const skipDates = new Set(tpl.skip_dates ?? []);
     for (const occurrence of occurrences) {
+      // The user explicitly deleted this occurrence before (deleteEntry
+      // records it here) — without this check, the next materialize pass
+      // would see the (template_id, occurred_at) slot empty again and
+      // silently recreate the very row they deleted.
+      if (skipDates.has(toDateString(occurrence))) continue;
       rows.push({
         user_id: userId,
         kind: tpl.kind,
