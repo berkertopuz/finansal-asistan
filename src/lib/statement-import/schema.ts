@@ -10,8 +10,22 @@ import { ENTRY_CATEGORIES } from "@/lib/ledger";
 // Next.js/Node tarafında çalıştığı için "kategori" için Deno tarafındaki
 // gibi ayrı bir kopya yerine doğrudan ENTRY_CATEGORIES'i (src/lib/ledger.ts)
 // kullanıyor — tek kaynak, aynı taksonomi.
+// LLM'e "DD/MM/YYYY -> YYYY-MM-DD çevir" talimatı verilse de (bkz.
+// supabase/functions/_shared/statements/prompts.ts kural 6) bu bir talimata
+// uyum meselesi, garanti değil — gerçek bir QNB ekstresinde model bazı
+// satırlarda tarihi DD/MM/YYYY olarak bıraktı, ISO regex'i HİÇ eşleşmedi ve
+// filterValidStatementRows tüm satırları sessizce eledi (kullanıcıya "bu
+// ekstrede işlem bulunamadı" olarak göründü). Deterministik bir düzeltme —
+// zaten ISO ise dokunma, DD/MM/YYYY ise çevir — LLM'in bu tek, mekanik
+// dönüşümde tutarlı olmasına güvenmekten daha güvenilir.
+function normalizeDate(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  const ddmmyyyy = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return ddmmyyyy ? `${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}` : value;
+}
+
 export const statementRowSchema = z.object({
-  tarih: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  tarih: z.preprocess(normalizeDate, z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
   aciklama: z.string(),
   tutar: z.number().positive(),
   tur: z.enum(["harcama", "odeme", "ucret"]),

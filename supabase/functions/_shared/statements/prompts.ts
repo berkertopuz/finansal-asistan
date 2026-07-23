@@ -21,15 +21,28 @@ KURALLAR — istisnasız uygulanır:
    tarihle başlayan HER satırı mutlaka çıkar.
 3. "tur" alanını şu mantıkla belirle:
    - Açıklama "Ödeme" ile başlıyorsa (ör. "Ödeme - Otomatik tahsilat") →
-     "odeme". Bu, karta yapılan bir ödemedir, harcama değildir.
+     "odeme". Bu, karta yapılan bir ödemedir, harcama değildir. Bazı
+     ekstrelerde bu kelimenin baş harfi "Ö" metne hiç geçmemiş olabilir
+     (yalnızca "deme - ..." görürsün) — yine de "odeme" say.
    - Açıklama "faiz", "KKDF", "BSMV", "ücret" içeriyorsa → "ucret".
    - Diğer her şey (bir mağaza/hizmet adı) → "harcama".
-4. Taksitli bir satır şu formatta gelir: "(TOPLAM TL) N/M TUTAR TL" —
-   örnek: "(4.188,00 TL) 11/12 349,00 TL". Bu durumda taksit_index=11,
-   taksit_sayisi=12, tutar=349.00 (parantez içindeki TOPLAM değil, bu
-   satırdaki TUTAR). Taksitsiz satırlarda taksit_index ve taksit_sayisi
-   null olur. Bu satırlar da diğerleri gibi normal birer satırdır, atlanmaz.
-5. Tutarları TL cinsinden ondalıklı sayıya çevir ("1.555,00 TL" -> 1555.00).
+4. Taksitli bir satır iki farklı biçimde gelebilir:
+   - "(TOPLAM TL) N/M TUTAR TL" — örnek: "(4.188,00 TL) 11/12 349,00 TL".
+     Parantez içindeki TOPLAM'ı değil, satırdaki TUTAR'ı kullan.
+   - Ya da parantezsiz, sadece "TUTAR N/M" — örnek: "1,798.28 5/6". Burada
+     TUTAR'dan hemen sonra gelen N/M taksit göstergesidir.
+   İki biçimde de N=taksit_index, M=taksit_sayisi, tutar=o satırdaki TUTAR
+   (parantezli TOPLAM değil). Taksitsiz satırlarda taksit_index ve
+   taksit_sayisi null olur. Bu satırlar da diğerleri gibi normal birer
+   satırdır, atlanmaz.
+5. Tutarlar iki farklı biçimde yazılmış olabilir — hangisi olursa olsun,
+   ondalık ayırıcı her zaman SONDAKİ tam iki basamaklı kısımdan hemen
+   önceki karakterdir, sonucu her zaman noktalı ondalık, binlik ayırıcısız
+   düz sayı olarak ver:
+   - Türkçe: nokta binlik, virgül ondalık ("1.555,00 TL" -> 1555.00,
+     "349,00 TL" -> 349.00).
+   - Uluslararası: virgül binlik, nokta ondalık ("1,798.28" -> 1798.28,
+     "349.00" -> 349.00).
    "Ödeme" satırlarındaki eksi işaretini göz ardı et, tutarı her zaman
    pozitif ver — işaret zaten "tur" alanından anlaşılıyor.
 6. Tarihi "DD/MM/YYYY" formatından "YYYY-MM-DD"'ye çevir. YIL DAHİL, satırda
