@@ -40,8 +40,17 @@ const entriesFetcher = (url: string) => fetch(url).then((res) => res.json());
 
 function toReviewRows(rows: StatementRow[], existing: Entry[]): ReviewRow[] {
   return rows.map((row) => {
+    // kind === "expense" only would miss a row that started as an import
+    // (kind="expense") and was later converted into a real subscription
+    // rule (kind="subscription" — src/components/ledger/QuickEntryForm.tsx's
+    // "kart harcamalarından abonelik" edit flow) or was already tracked as
+    // one: re-uploading the same statement would silently offer it again as
+    // a "new" charge instead of flagging it.
     const possibleDuplicate = existing.some(
-      (e) => e.kind === "expense" && e.occurred_at === row.tarih && Math.abs(e.amount - row.tutar) < 0.01,
+      (e) =>
+        (e.kind === "expense" || e.kind === "subscription") &&
+        e.occurred_at === row.tarih &&
+        Math.abs(e.amount - row.tutar) < 0.01,
     );
     // "ucret" (faiz/KKDF/BSMV) gerçek bir masraf — varsayılan olarak seçili
     // gelir. "odeme" (kartın kendisine yapılan ödeme) ise yeni bir harcama
