@@ -214,6 +214,16 @@ export async function updateEntry(
   // than silently picking one (src/components/ledger/QuickEntryForm.tsx).
   const applyToAllOccurrences = formData.get("applyToAllOccurrences") === "true";
 
+  // Read before the update below, which nulls this row's own template_id
+  // once it turns recurring — need the *previous* value to know whether
+  // it's currently a materialized occurrence of some other template.
+  const { data: rowBeforeUpdate } = await supabase
+    .from("entries")
+    .select("template_id")
+    .eq("id", id)
+    .maybeSingle();
+  const previousTemplateId = rowBeforeUpdate?.template_id ?? null;
+
   // No explicit .eq("user_id", ...) needed beyond RLS (entries_update_own)
   // scoping the update to the caller's own rows — matching this codebase's
   // established pattern (see deleteEntry below).
@@ -253,6 +263,25 @@ export async function updateEntry(
 
   if (error) {
     return { error: t("saveFailed") };
+  }
+
+  // This row was a materialized occurrence of some other template and just
+  // turned into a recurring rule of its own (the "kart harcamalarından"
+  // charge → real subscription conversion, src/components/ledger/QuickEntryForm.tsx) —
+  // the original template must stop generating too, or the same real-world
+  // charge stays tracked twice forever (once via the old rule, once via
+  // this new one). Deleted outright rather than left running: past rows it
+  // already produced keep their own data regardless (ON DELETE SET NULL on
+  // template_id), only future generation stops — the same effect as the
+  // delete dialog's "Sadece gelecekte durdur" option.
+  if (isRecurring && previousTemplateId) {
+    const { error: stopError } = await supabase
+      .from("entries")
+      .delete()
+      .eq("id", previousTemplateId);
+    if (stopError) {
+      console.error("updateEntry: failed to stop original template after conversion", stopError);
+    }
   }
 
   // Propagate to every row this template already generated (each keeps its
