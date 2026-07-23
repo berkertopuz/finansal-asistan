@@ -9,7 +9,6 @@ import {
   Sheet,
   SheetContent,
   SheetDescription,
-  SheetFooter,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
@@ -219,10 +218,28 @@ export function StatementUploadSheet({
                 </div>
               )}
 
+              {reviewRows.length > 0 && (
+                <Button type="button" size="touch" disabled={importing} onClick={handleImport}>
+                  {importing
+                    ? tCommon("saving")
+                    : t("importSelected", { count: reviewRows.filter((r) => r.selected).length })}
+                </Button>
+              )}
+
               {reviewRows.length === 0 ? (
                 <p className="text-sm text-muted-foreground">{t("noTransactionsFound")}</p>
               ) : (
-                <div className="flex flex-col gap-2">
+                // Bir gerçek ekstre 100'e yakın satır getirebiliyor (bkz.
+                // QNB testi) — "Ekle" butonu artık listenin ÜSTÜNde
+                // (kullanıcı testinde: butonu SheetFooter'da altta tutmak
+                // + listeyi kendi scroll'una sahip yapmak iki iç içe
+                // scrollbar'a yol açtı, biri portalı biri listeyi
+                // kaydırıyordu — kafa karıştırıcıydı). Buton hiç
+                // kaydırmadan her zaman görünür olduğu için liste burada
+                // hâlâ kendi max-h/overflow-y-auto'sunu koruyor, ama artık
+                // sadece "sheet sonsuz uzamasın" içindir, butona erişmek
+                // için değil.
+                <div className="flex max-h-[50vh] flex-col gap-2 overflow-y-auto pr-1">
                   {reviewRows.map((row, i) => (
                     <label
                       key={i}
@@ -277,16 +294,6 @@ export function StatementUploadSheet({
             </div>
           )}
         </div>
-
-        {reviewRows && reviewRows.length > 0 && (
-          <SheetFooter>
-            <Button type="button" size="touch" disabled={importing} onClick={handleImport}>
-              {importing
-                ? tCommon("saving")
-                : t("importSelected", { count: reviewRows.filter((r) => r.selected).length })}
-            </Button>
-          </SheetFooter>
-        )}
       </SheetContent>
     </Sheet>
   );
