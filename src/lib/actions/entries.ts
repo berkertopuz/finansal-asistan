@@ -232,6 +232,22 @@ export async function updateEntry(
       description: parsed.data.description ?? null,
       recurrence: parsed.data.recurrence,
       next_due_date: isRecurring ? parsed.data.next_due_date! : null,
+      // A row turning recurring becomes a template in its own right, which
+      // can't also be a generated occurrence of another template — the DB
+      // enforces this (entries_template_id_only_when_concrete: recurrence
+      // <> 'none' requires template_id null). Without this, converting e.g.
+      // a materialized "abonelik"-category charge (template_id already set
+      // from whatever recurring rule produced it) into a new subscription
+      // rule fails outright.
+      ...(isRecurring ? { template_id: null } : {}),
+      // Same idea for entries_installment_requires_expense_and_concrete:
+      // a taksit row must stay kind='expense' and recurrence='none' as long
+      // as it carries installment_group_id — converting it to another kind
+      // or into a recurring rule has to detach it from that series first,
+      // or the same constraint rejects the update.
+      ...(parsed.data.kind !== "expense" || isRecurring
+        ? { installment_group_id: null, installment_index: null, installment_count: null }
+        : {}),
     })
     .eq("id", id);
 

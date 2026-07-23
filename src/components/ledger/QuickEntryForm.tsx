@@ -104,6 +104,15 @@ export function QuickEntryForm({
   const [amountValue, setAmountValue] = useState<string>(
     editingEntry ? String(editingEntry.amount) : "",
   );
+  // Editing one of the "kart harcamalarından abonelik kategorili işlemler"
+  // rows (src/app/(app)/defter/abonelikler/page.tsx's second section) — the
+  // only thing worth doing to a row already sitting there is turning it into
+  // a real subscription rule, so the kind toggle drops Gider/Gelir entirely
+  // and offers just the one relevant option instead of three.
+  const onlyOfferSubscriptionKind =
+    editingEntry?.kind === "expense" &&
+    editingEntry?.category === "abonelik" &&
+    editingEntry?.recurrence === "none";
   const recurrenceTouched = useRef(Boolean(editingEntry));
   const formRef = useRef<HTMLFormElement>(null);
   const applyToAllRef = useRef<HTMLInputElement>(null);
@@ -224,17 +233,24 @@ export function QuickEntryForm({
           subscription — a pressed toggle would have nothing to show as
           active otherwise. A brand-new entry never offers "Abonelik" here
           (subscriptions only ever start from the Abonelikler page's own
-          FAB, which skips this toggle entirely via defaultKind) — but
-          editing an existing row does, so a one-off card charge can be
-          turned into a real recurring subscription rule just by picking
-          this and Aylık/Yıllık below, then Güncelle. */}
+          FAB, which skips this toggle entirely via defaultKind). Editing an
+          existing "kart harcamalarından abonelik" row narrows the toggle
+          down to just "Abonelik" (see onlyOfferSubscriptionKind above) —
+          Gider/Gelir don't apply there, the only reason to open this sheet
+          is to turn the charge into a real subscription rule. Any other
+          edit (a normal expense/income row) still offers all three. */}
       {kind !== "subscription" && (
         <ToggleGroup
           value={[kind]}
           onValueChange={(next) => next[0] && handleKindChange(next[0] as EntryKind)}
           className="w-full flex-nowrap"
         >
-          {(editingEntry ? [...ENTRY_KINDS, "subscription" as const] : ENTRY_KINDS).map((value) => (
+          {(onlyOfferSubscriptionKind
+            ? (["subscription"] as const)
+            : editingEntry
+              ? [...ENTRY_KINDS, "subscription" as const]
+              : ENTRY_KINDS
+          ).map((value) => (
             <ToggleGroupItem
               key={value}
               value={value}
