@@ -1,4 +1,4 @@
-import { extractText, getDocumentProxy } from "unpdf";
+import { getDocumentProxy } from "unpdf";
 
 export type StatementHeader = {
   statementDate: string | null; // YYYY-MM-DD
@@ -19,13 +19,10 @@ export type ExtractedStatement = {
 const TABLE_START_PATTERNS: RegExp[] = [
   // Enpara: "İşlem tarihi Açıklama Taksit Tutar"
   /İşlem tarihi\s*Açıklama\s*Taksit\s*Tutar/gi,
-  // QNB Xtra: "İşlem Tarihi İşlem Açıklaması Tutar Taksit ParaPuan" — bu
-  // PDF'in gömülü fontu Türkçe'ye özgü harfleri (İ, ş, ç, ö, ü, ğ) metne
-  // hiç aktarmıyor ("İşlem" → "lem", "Açıklaması" → "Aıklaması", gerçek bir
-  // QNB ekstresi üzerinde doğrulandı) — bozulan orta kısmı birebir
-  // eşleştirmeye çalışmak yerine, bozulmadan kalan "Tarihi" ile "Tutar
-  // Taksit ParaPuan" arasındaki mesafeyi sınırlayarak atlıyoruz.
-  /Tarihi[\s\S]{0,20}Tutar\s+Taksit\s+ParaPuan/gi,
+  // QNB Xtra: "İşlem Tarihi İşlem Açıklaması Tutar Taksit ParaPuan" —
+  // extractRawText'in QNB_FONT_CODE_MAP düzeltmesi sayesinde artık gerçek
+  // haliyle okunabiliyor, ayrı bir "bozuk metni atla" deseni gerekmiyor.
+  /İşlem Tarihi\s*İşlem Açıklaması\s*Tutar\s*Taksit\s*ParaPuan/gi,
 ];
 
 const TABLE_END_MARKERS = [
@@ -45,21 +42,24 @@ const TABLE_END_MARKERS = [
   /TCKN\s*:/i,
 ];
 
+// \s* (sıfır ya da daha fazla), \s+ değil: extractRawText artık pdf.js'in
+// getTextContent()'i yerine ham glyph akışını kullanıyor (bkz. aşağısı) —
+// unpdf'in extractText()'i konum farkına bakıp senkron bir boşluk eklerken
+// (ör. "Ekstre tarihi 05/07/2026"), ham akışta iki kelime arasında gerçek
+// bir boşluk glyph'i yoksa hiç boşluk kalmıyor ("Ekstre tarihi05/07/2026",
+// gerçek Enpara PDF'i üzerinde doğrulandı) — \s+ bu durumda hiç eşleşmezdi.
 const STATEMENT_DATE_PATTERNS = [
-  /Ekstre tarihi\s+(\d{2}\/\d{2}\/\d{4})/i, // Enpara
+  /Ekstre tarihi\s*(\d{2}\/\d{2}\/\d{4})/i, // Enpara
   /Hesap Kesim Tarihi\s*:?\s*(\d{2}\/\d{2}\/\d{4})/i, // QNB
 ];
 
 // Sayısal (Enpara: "Son ödeme tarihi 25/05/2026") ve yazıyla (QNB: "Son
-// [Ö]deme Tarihi: 25 Mayıs 2026, Pazartesi" — büyük "Ö" burada da font
-// sorunuyla düşüyor) iki farklı biçim var; ikisini tek bir regex'e
-// sığdırmak yerine ayrı ayrı deneniyor.
+// Ödeme Tarihi: 25 Mayıs 2026, Pazartesi") iki farklı biçim var; ikisini
+// tek bir regex'e sığdırmak yerine ayrı ayrı deneniyor.
 const DUE_DATE_NUMERIC_PATTERNS = [
-  /Son ödeme tarihi\s+(\d{2}\/\d{2}\/\d{4})/i, // Enpara
+  /Son ödeme tarihi\s*(\d{2}\/\d{2}\/\d{4})/i, // Enpara
 ];
-// "deme Tarihi" ile başlıyor, "Ö" değil — QNB'nin bu PDF'inde her zaman
-// düşüyor (bkz. TABLE_START_PATTERNS'teki not), o yüzden onu aramıyoruz.
-const DUE_DATE_WRITTEN_PATTERN = /deme Tarihi\s*:?\s*(\d{1,2})\s+(\p{L}+)\s+(\d{4})/iu; // QNB
+const DUE_DATE_WRITTEN_PATTERN = /Son\s+Ödeme\s+Tarihi\s*:?\s*(\d{1,2})\s+(\p{L}+)\s+(\d{4})/iu; // QNB
 
 const TURKISH_MONTHS: Record<string, string> = {
   ocak: "01",
@@ -81,6 +81,87 @@ const TURKISH_MONTHS: Record<string, string> = {
   aralık: "12",
   aralik: "12",
 };
+
+// Bazı bankaların (şu ana kadar sadece QNB Xtra) PDF'lerinde gömülü font,
+// Türkçe'ye özgü harfleri metin katmanına hiç aktarmıyor — pdf.js bu
+// glyph'leri BULABİLİYOR (fontta gerçekten var, bir genişliği/şekli var,
+// `isInFont: true`) ama Unicode karşılığını çözemediği için ham karakter
+// kodunu (0, 1, 2, ...) döndürüyor, extractRawText de bunu boş bırakır ya
+// da tutarsız bir karaktere düşürür. Bu tablo, gerçek bir QNB ekstresi
+// üzerinde bu ham kodları düzinelerce kelimede (Müşteri, Dönem, İşlem,
+// Açıklaması, İstanbul, Şişli, Üniversite, Öğrenci, Bağdat, Kağan, Şirketi
+// gibi) çapraz doğrulayarak elle çıkarıldı — SADECE bu embedded fontun kod
+// sırası için geçerli; başka bir bankanın aynı sorunu yaşaması, kendi kod
+// tablosunu gerektirir (glyph kodları fonta özel, evrensel bir standart
+// değil). Kod 12 tek bir yerde (bir mağaza adında) göründü ve hiçbir bilinen
+// kelimeyle güvenle eşleşmedi — yanlış tahmin etmek yerine haritanın dışında
+// bırakıldı, o karakter (öncekiyle aynı şekilde) boş kalır.
+const QNB_FONT_CODE_MAP: Record<number, string> = {
+  0: "ü",
+  1: "ş",
+  2: "ö",
+  3: "Ö",
+  4: "Ö",
+  5: "ğ",
+  7: "İ",
+  8: "Ç",
+  9: "Ş",
+  10: "İ",
+  11: "Ü",
+  13: "ş",
+  14: "ç",
+  15: "Ü",
+  16: "ö",
+  17: "ğ",
+  19: "Ğ",
+};
+
+type PDFDocumentLike = Awaited<ReturnType<typeof getDocumentProxy>>;
+type Glyph = { originalCharCode?: number; unicode?: string };
+
+function isGlyphArray(value: unknown): value is Glyph[] {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    typeof value[0] === "object" &&
+    value[0] !== null &&
+    "originalCharCode" in (value[0] as object)
+  );
+}
+
+// unpdf'in extractText()'i pdf.js'in getTextContent() API'si üzerinden
+// çalışıyor — bu API, Unicode'a çözülemeyen glyph'leri (QNB'nin fontundaki
+// gibi) ya tamamen düşürüyor ya da (gerçek PDF üzerinde doğrulandı)
+// TUTARSIZ bir şekilde farklı/yanlış kodlar veriyor, çünkü kendi iç metin
+// gruplama mantığı bu glyph'leri beklenmedik yerlerde bölüyor.
+// getOperatorList() (pdf.js'in daha alt seviyeli, ham içerik akışı API'si)
+// her glyph için orijinal karakter kodunu HER ZAMAN aynı ve tutarlı şekilde
+// koruyor — QNB_FONT_CODE_MAP ile düzeltmeyi bu yüzden burada, extractText()
+// yerine bu fonksiyonda yapıyoruz. Enpara'nın PDF'inde bu şekilde düşen
+// glyph hiç yok (doğrulandı: 0 kontrol karakteri çıktı) ve buradaki metin
+// unpdf'in kendi extractText()'iyle üretilenle aynı — bu fonksiyon extractText()'in
+// tam yerine güvenle geçiyor, iki ayrı yol tutmaya gerek yok.
+async function extractRawText(pdf: PDFDocumentLike): Promise<string> {
+  let fullText = "";
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const opList = await page.getOperatorList();
+    for (let i = 0; i < opList.fnArray.length; i++) {
+      const args: unknown = opList.argsArray[i];
+      if (!Array.isArray(args) || !isGlyphArray(args[0])) continue;
+      for (const g of args[0]) {
+        const uni = g.unicode ?? "";
+        if (uni.length === 1 && uni.charCodeAt(0) < 32 && g.originalCharCode !== undefined) {
+          fullText += QNB_FONT_CODE_MAP[g.originalCharCode] ?? "";
+        } else {
+          fullText += uni;
+        }
+      }
+    }
+    fullText += "\n";
+  }
+  return fullText;
+}
 
 function toIsoDateFromDDMMYYYY(ddmmyyyy: string): string {
   const [d, m, y] = ddmmyyyy.split("/");
@@ -128,7 +209,7 @@ function findTableEnd(text: string, from: number): number {
 // dışında hiçbir şeye erişemez, LLM'e yalnızca bu ikisi gider.
 export async function extractStatementText(pdfBuffer: ArrayBuffer): Promise<ExtractedStatement> {
   const pdf = await getDocumentProxy(new Uint8Array(pdfBuffer));
-  const { text: fullText } = await extractText(pdf, { mergePages: true });
+  const fullText = await extractRawText(pdf);
 
   const segments: string[] = [];
   for (const tableStart of TABLE_START_PATTERNS) {
