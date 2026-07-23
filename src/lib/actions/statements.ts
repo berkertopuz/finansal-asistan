@@ -17,6 +17,12 @@ const importRowSchema = z.object({
   taksit_sayisi: z.number().int().min(2).nullable(),
 });
 
+const paymentDueDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .nullable()
+  .optional();
+
 // Kullanıcının inceleme ekranında işaretleyip onayladığı satırlar — hangi
 // satırların "harcama" mı "ödeme/ücret" mi olduğu, mükerrer olup olmadığı
 // zaten StatementUploadSheet.tsx'te (client) elenmiş; buraya gelen her satır
@@ -31,10 +37,23 @@ const importRowSchema = z.object({
 // ENTRY_CATEGORIES'ten, kart adı DEĞİL). Kullanıcı ileride kategoriye göre
 // harcama grafikleri planladığı için sabit bir taksonomi kullanmak
 // kasıtlı — serbest metin kart adı bu amaca uymazdı.
-export async function importStatementEntries(rows: unknown[]): Promise<ImportStatementState> {
+//
+// paymentDueDate = bu ekstrenin ayrıştırılan son ödeme tarihi
+// (StatementUploadSheet.tsx'in /api/statements/parse'tan aldığı
+// header.paymentDueDate) — her satıra cash_out_at olarak yazılıyor. Kart
+// harcaması, ekstre ödenene kadar bir borç: para hesaptan satın alma
+// gününde değil, bu tarihte çıkıyor. Ayrıştırma bir sebeple bu tarihi
+// bulamadıysa (null) cash_out_at da null kalır — src/lib/cashflow.ts bu
+// durumda occurred_at'e düşer, yani eskisi gibi davranır (uydurma tarih
+// yazmaktansa daha güvenli).
+export async function importStatementEntries(
+  rows: unknown[],
+  paymentDueDate?: string | null,
+): Promise<ImportStatementState> {
   const t = await getTranslations("statements.errors");
   const parsed = z.array(importRowSchema).min(1).safeParse(rows);
-  if (!parsed.success) {
+  const parsedDueDate = paymentDueDateSchema.safeParse(paymentDueDate);
+  if (!parsed.success || !parsedDueDate.success) {
     return { error: t("genericInvalid") };
   }
 
@@ -47,6 +66,7 @@ export async function importStatementEntries(rows: unknown[]): Promise<ImportSta
     return { error: t("noSession") };
   }
 
+  const cashOutAt = parsedDueDate.data ?? null;
   const insertRows = parsed.data.map((row) => {
     const hasInstallment = row.taksit_index !== null && row.taksit_sayisi !== null;
     return {
@@ -55,6 +75,7 @@ export async function importStatementEntries(rows: unknown[]): Promise<ImportSta
       amount: row.tutar,
       category: row.kategori,
       occurred_at: row.tarih,
+      cash_out_at: cashOutAt,
       description: row.aciklama || null,
       recurrence: "none" as const,
       installment_group_id: hasInstallment ? crypto.randomUUID() : null,

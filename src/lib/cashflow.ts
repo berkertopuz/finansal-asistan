@@ -11,6 +11,17 @@ const DAY_MS = 86_400_000;
 // gross rate.
 export const WITHHOLDING_TAX_RATE = 0.175;
 
+// The date the balance actually moves for this entry — a card-statement
+// import's cash_out_at (the statement's son ödeme tarihi) if set, else
+// occurred_at. A card purchase is a debt until the bill is paid; the bank
+// balance doesn't drop on the purchase date, so cash flow math needs the
+// payment date, not the transaction date. occurred_at itself stays
+// untouched (Defter list, v_monthly_surplus) — those answer "when did I
+// spend this", a different question from "when does my balance move".
+function cashDate(entry: Pick<Entry, "occurred_at" | "cash_out_at">): string {
+  return entry.cash_out_at ?? entry.occurred_at;
+}
+
 function isSameDay(a: Date, b: Date): boolean {
   return (
     a.getFullYear() === b.getFullYear() &&
@@ -63,7 +74,7 @@ export function occurrencesInRange(
 export function currentBalance(entries: Entry[], from: Date = new Date()): number {
   const today = toDateString(new Date(from.getFullYear(), from.getMonth(), from.getDate()));
   return entries.reduce((sum, e) => {
-    if (e.recurrence !== "none" || e.occurred_at > today) return sum;
+    if (e.recurrence !== "none" || cashDate(e) > today) return sum;
     return sum + (e.kind === "income" ? e.amount : -e.amount);
   }, 0);
 }
@@ -92,12 +103,14 @@ export function projectBalance(
   for (const entry of entries) {
     if (entry.recurrence === "none") {
       // A concrete row dated ahead of `from` (taksit's future installments,
-      // or any manually future-dated one-off entry) — currentBalance below
+      // a manually future-dated one-off entry, or a card-statement import
+      // whose cash_out_at is still ahead) — currentBalance below
       // deliberately excludes these from the starting balance, so they need
       // to land here instead, exactly like a recurring template's projected
       // occurrence, or they'd vanish from the projection entirely.
-      if (!entry.occurred_at || entry.occurred_at <= toDateString(today)) continue;
-      const occurrence = new Date(`${entry.occurred_at}T00:00:00`);
+      const effectiveDate = cashDate(entry);
+      if (!effectiveDate || effectiveDate <= toDateString(today)) continue;
+      const occurrence = new Date(`${effectiveDate}T00:00:00`);
       if (occurrence >= rangeStart && occurrence <= rangeEnd) {
         events.push({ entry, occurrence });
       }
@@ -149,7 +162,12 @@ export function projectOptimizedBalance(
   for (let i = 1; i < points.length; i++) {
     const eventDelta = points[i].balance - points[i - 1].balance;
     const previous = optimized[i - 1].balance;
-    optimized.push({ date: points[i].date, balance: previous + previous * dailyRate + eventDelta });
+    // Interest only accrues on a positive balance — there's no cash sitting
+    // idle to deposit when the account is already overdrawn, so a negative
+    // balance must carry forward unchanged (aside from that day's events),
+    // not compound further into the negative.
+    const interest = previous > 0 ? previous * dailyRate : 0;
+    optimized.push({ date: points[i].date, balance: previous + interest + eventDelta });
   }
 
   return optimized;

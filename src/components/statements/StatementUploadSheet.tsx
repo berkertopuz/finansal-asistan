@@ -78,6 +78,9 @@ export function StatementUploadSheet({
   const [suggestedDays, setSuggestedDays] = useState<{ statement_day: number; payment_day: number } | null>(
     null,
   );
+  // cash_out_at olarak importStatementEntries'e geçiriliyor — bkz.
+  // src/lib/actions/statements.ts'teki açıklama.
+  const [paymentDueDate, setPaymentDueDate] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { data: existingEntries } = useSWR<Entry[]>(ENTRIES_KEY, entriesFetcher);
@@ -113,6 +116,7 @@ export function StatementUploadSheet({
         return;
       }
       setReviewRows(toReviewRows(result.rows, existingEntries ?? []));
+      setPaymentDueDate(result.header?.paymentDueDate ?? null);
       const statementDay = result.header?.statementDate ? Number(result.header.statementDate.slice(8, 10)) : null;
       const paymentDay = result.header?.paymentDueDate ? Number(result.header.paymentDueDate.slice(8, 10)) : null;
       if (statementDay && paymentDay && (statementDay !== card.statement_day || paymentDay !== card.payment_day)) {
@@ -154,6 +158,7 @@ export function StatementUploadSheet({
         taksit_index: r.taksit_index,
         taksit_sayisi: r.taksit_sayisi,
       })),
+      paymentDueDate,
     );
     setImporting(false);
     if (result.success) {

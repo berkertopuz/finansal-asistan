@@ -17,6 +17,13 @@ export type Entry = {
   recurrence: EntryRecurrence;
   next_due_date: string | null;
   occurred_at: string;
+  // Set only on a row imported from a card statement (src/lib/actions/statements.ts)
+  // — that statement's parsed son ödeme tarihi (payment due date). Null for
+  // every other row. occurred_at stays the purchase date for display/monthly
+  // grouping; cash flow math (src/lib/cashflow.ts) uses cash_out_at instead
+  // when set, since a card purchase doesn't leave the bank account until the
+  // bill is paid, not on the day of the purchase itself.
+  cash_out_at: string | null;
   created_at: string;
   // Set only on a concrete row generated from a recurring template (see
   // src/lib/recurrence-materialize.ts) — null for both one-off entries and
