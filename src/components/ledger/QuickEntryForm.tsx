@@ -66,7 +66,11 @@ export function QuickEntryForm({
   editingEntry?: Entry;
   defaultKind?: EntryKind;
 }) {
-  const [kind, setKind] = useState<EntryKind>(editingEntry?.kind ?? defaultKind);
+  // The Gider/Gelir toggle's own state — deliberately NOT the same thing
+  // as the `kind` actually sent to the server (computed just below).
+  const [giderGelirKind, setGiderGelirKind] = useState<"expense" | "income">(
+    editingEntry?.kind === "income" ? "income" : "expense",
+  );
   // A fresh subscription defaults straight to the "abonelik" chip instead of
   // "diğer" — same reasoning as the recurrence default just below (kind's
   // toggle is hidden for subscriptions, so there's no user click to set this
@@ -74,7 +78,7 @@ export function QuickEntryForm({
   const [category, setCategory] = useState<string>(
     editingEntry?.category ?? (defaultKind === "subscription" ? "abonelik" : DEFAULT_CATEGORY),
   );
-  // Mirrors handleKindChange's same rule below — but that only fires on a
+  // Mirrors the `kind` rule just below — but that only fires on a
   // user-driven toggle switch, which never happens for a fresh subscription
   // (its kind toggle is hidden entirely, see below, so there's no click to
   // trigger it). Without this, a new subscription silently defaulted to
@@ -82,6 +86,20 @@ export function QuickEntryForm({
   const [recurrence, setRecurrence] = useState<EntryRecurrence>(
     editingEntry?.recurrence ?? (defaultKind === "subscription" ? "monthly" : "none"),
   );
+  // The actual kind sent to the server — always derived, never set
+  // directly. "Abonelik kategorisi + herhangi bir tekrar sıklığı = her
+  // zaman abonelik" kuralı burada tek bir yerde uygulanıyor, kullanıcının
+  // kategoriyi mi sıklığı mı önce değiştirdiğine bakılmaksızın. Önceki
+  // tasarım kind'ı ayrı bir state olarak tutup belirli düğme
+  // tıklamalarında (ve sadece belirli satırları düzenlerken) elle
+  // senkronize etmeye çalışıyordu — kullanıcı sıradan bir gideri kategoriyi
+  // "Abonelik" yapıp sıklığı "Aylık" seçerek "aboneliğe çevirmeye"
+  // çalıştığında, o satır bu özel senkronizasyonun kapsamında olmadığı için
+  // kind='expense' olarak kalıp Abonelikler'in "Kart harcamalarından"
+  // bölümünde sessizce birikiyordu. Tek kaynaktan türetmek bu sınıfın
+  // tamamını ortadan kaldırıyor — hangi satır, hangi sırayla düzenlenirse
+  // düzenlensin aynı kural geçerli.
+  const kind: EntryKind = category === "abonelik" && recurrence !== "none" ? "subscription" : giderGelirKind;
   // One shared field for occurred_at/next_due_date — they render as a
   // single input that just relabels itself depending on recurrence (see
   // below), so a date the user already typed carries over instead of
@@ -104,16 +122,6 @@ export function QuickEntryForm({
   const [amountValue, setAmountValue] = useState<string>(
     editingEntry ? String(editingEntry.amount) : "",
   );
-  // Editing one of the "kart harcamalarından abonelik kategorili işlemler"
-  // rows (src/app/(app)/defter/abonelikler/page.tsx's second section) — the
-  // only thing worth doing to a row already sitting there is turning it into
-  // a real subscription rule, so the kind toggle drops Gider/Gelir entirely
-  // and offers just the one relevant option instead of three.
-  const onlyOfferSubscriptionKind =
-    editingEntry?.kind === "expense" &&
-    editingEntry?.category === "abonelik" &&
-    editingEntry?.recurrence === "none";
-  const recurrenceTouched = useRef(Boolean(editingEntry));
   const formRef = useRef<HTMLFormElement>(null);
   const applyToAllRef = useRef<HTMLInputElement>(null);
   const [scopeDialogOpen, setScopeDialogOpen] = useState(false);
@@ -146,34 +154,19 @@ export function QuickEntryForm({
     }
   }
 
-  // nextKind is only ever "income" or "expense" here — this toggle no
-  // longer offers "Abonelik" as a kind (see the comment by its JSX below),
-  // so there's no subscription-specific branch to worry about anymore.
-  const handleKindChange = (nextKind: EntryKind) => {
-    setKind(nextKind);
-    if (!recurrenceTouched.current) {
-      setRecurrence("none");
-    }
+  const handleGiderGelirChange = (next: "expense" | "income") => {
+    setGiderGelirKind(next);
     // Taksit sadece gider için var — Gelir'e geçince checkbox'ın kendisi
     // gizlenir ama state kalırsa gizli input'lar yanlışlıkla "taksitli"
     // göndermeye devam eder.
-    if (nextKind !== "expense") setIsInstallment(false);
+    if (next !== "expense") setIsInstallment(false);
   };
 
   const handleRecurrenceChange = (next: EntryRecurrence) => {
-    recurrenceTouched.current = true;
     setRecurrence(next);
-    // Bu satırın düzenlenmesinin tek sebebi abonelik yapmak (bkz.
-    // onlyOfferSubscriptionKind) — kind'ı ayrı bir düğmeye değil, doğrudan
-    // sıklık seçimine bağlamak, kullanıcının "Yıllık" seçip ayrı duran
-    // "Abonelik" düğmesine hiç basmadan kaydettiği (kind='expense' kalıp
-    // Abonelikler'in hiçbir bölümünde görünmeyen bir tekrarlayan gider
-    // şablonu oluşan) gerçek bir hatayı düzeltiyor.
-    if (onlyOfferSubscriptionKind) {
-      setKind(next === "none" ? "expense" : "subscription");
-    }
     // Taksit ve tekrarlayan kayıt birbirini dışlar — biri açılınca öbürünün
-    // state'i temizlenir (bkz. yukarıdaki handleKindChange'in aynı mantığı).
+    // state'i temizlenir (bkz. yukarıdaki handleGiderGelirChange'in aynı
+    // mantığı).
     if (next !== "none") setIsInstallment(false);
   };
 
@@ -199,13 +192,12 @@ export function QuickEntryForm({
       if (result.success) {
         if (!editingEntry) {
           formRef.current?.reset();
-          setKind(defaultKind);
+          setGiderGelirKind(defaultKind === "income" ? "income" : "expense");
           setCategory(DEFAULT_CATEGORY);
           setRecurrence("none");
           setDateValue(todayDateInputValue());
           setIsInstallment(false);
           setInstallmentCount(2);
-          recurrenceTouched.current = false;
         }
         mutate("/api/entries");
         router.refresh();
@@ -229,25 +221,22 @@ export function QuickEntryForm({
           right before requestSubmit, never via React state (see there). */}
       <input ref={applyToAllRef} type="hidden" name="applyToAllOccurrences" defaultValue="false" />
 
-      {/* Hidden, not just left unselected, when editing/adding a
-          subscription — a pressed toggle would have nothing to show as
-          active otherwise. "Abonelik" never appears as a pickable option
-          here at all — only editing a "kart harcamalarından abonelik" row
-          converts to one, and that skips this toggle entirely (see
-          onlyOfferSubscriptionKind above): kind there is driven directly by
-          the Sıklık choice below (handleRecurrenceChange), not a separate
-          click here. An earlier version added "Abonelik" as a third option
-          on THIS toggle for any edited row, sitting right next to the
-          unrelated "Abonelik" category chip further down — indistinguishable
-          at a glance, and editing an ordinary expense (say, changing its
-          category to "Abonelik" and giving it a Sıklık) could silently
-          leave it as a recurring EXPENSE tagged abonelik instead of
-          converting it, or the reverse. Keeping this toggle to just
-          Gider/Gelir removes that ambiguity entirely. */}
-      {kind !== "subscription" && !onlyOfferSubscriptionKind && (
+      {/* Hidden, not just left unselected, when kind (computed above) is
+          "subscription" — a pressed toggle would have nothing to show as
+          active otherwise, and category="Abonelik" + a Sıklık already
+          means subscription regardless of what this toggle says. "Abonelik"
+          itself never appears as a pickable option here — an earlier
+          version added it as a third option, sitting right next to the
+          unrelated "Abonelik" category chip further down (same label, two
+          different controls) — clicking the wrong one, or changing category
+          to "Abonelik" without touching this toggle at all, could leave a
+          row as a recurring EXPENSE tagged abonelik instead of a real
+          subscription. Deriving kind from category+recurrence instead of a
+          dedicated control removes that ambiguity entirely. */}
+      {kind !== "subscription" && (
         <ToggleGroup
-          value={[kind]}
-          onValueChange={(next) => next[0] && handleKindChange(next[0] as EntryKind)}
+          value={[giderGelirKind]}
+          onValueChange={(next) => next[0] && handleGiderGelirChange(next[0] as "expense" | "income")}
           className="w-full flex-nowrap"
         >
           {ENTRY_KINDS.map((value) => (
@@ -336,7 +325,7 @@ export function QuickEntryForm({
 
       <div className="flex flex-col gap-1.5">
         <Label>{t("form.recurrenceLabel")}</Label>
-        {onlyOfferSubscriptionKind && (
+        {category === "abonelik" && (
           <p className="text-xs text-muted-foreground">{t("form.convertToSubscriptionHint")}</p>
         )}
         <ToggleGroup
@@ -361,7 +350,7 @@ export function QuickEntryForm({
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
-        {recurrence !== "none" && !onlyOfferSubscriptionKind && (
+        {recurrence !== "none" && category !== "abonelik" && (
           <p className="text-xs text-muted-foreground">{t("form.recurrenceNote")}</p>
         )}
       </div>
