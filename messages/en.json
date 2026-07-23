@@ -268,7 +268,10 @@
       "monthlyTotal": "Monthly total",
       "yearlyTotal": "Yearly total",
       "viewAll": "View all subscriptions",
-      "add": "Add subscription"
+      "add": "Add subscription",
+      "recurringSectionTitle": "Recurring rules",
+      "categoryTaggedSectionTitle": "Subscription-tagged card charges",
+      "categoryTaggedSectionHint": "One-off expenses imported from a statement and classified as \"Subscription\" — these aren't an automatic recurring rule."
     },
     "categories": {
       "addLabel": "+ Tag",

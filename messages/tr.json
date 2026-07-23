@@ -268,7 +268,10 @@
       "monthlyTotal": "Aylık toplam",
       "yearlyTotal": "Yıllık toplam",
       "viewAll": "Tüm abonelikleri gör",
-      "add": "Abonelik ekle"
+      "add": "Abonelik ekle",
+      "recurringSectionTitle": "Tekrarlayan kurallar",
+      "categoryTaggedSectionTitle": "Kart harcamalarından abonelik kategorili işlemler",
+      "categoryTaggedSectionHint": "Ekstre içe aktarmadan gelen, \"Abonelik\" olarak sınıflandırılmış tek seferlik harcamalar — otomatik tekrarlayan bir kural değiller."
     },
     "categories": {
       "addLabel": "+ Etiket",

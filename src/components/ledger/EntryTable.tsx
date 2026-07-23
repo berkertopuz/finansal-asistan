@@ -107,6 +107,7 @@ function kindBadgeClassName(kind: EntryKind): string {
 
 export function EntryTable({
   kind,
+  category,
   initialData,
   showKindColumn = true,
   monthFilter = true,
@@ -116,6 +117,11 @@ export function EntryTable({
   templatesOnly = false,
 }: {
   kind?: EntryKind | EntryKind[];
+  // Exact category match (e.g. "abonelik") — Abonelikler uses this for a
+  // second list of one-off/expense rows tagged that category (mostly from
+  // ekstre içe aktarma) that aren't recurring subscription templates, so
+  // they'd otherwise never show up anywhere in this page.
+  category?: string;
   initialData?: Entry[];
   showKindColumn?: boolean;
   // Subscriptions are standing recurring items, not month-scoped
@@ -214,12 +220,14 @@ export function EntryTable({
     const real = data.filter(
       (e) =>
         (kinds ? kinds.includes(e.kind) : true) &&
+        (!category || e.category === category) &&
         (templatesOnly ? e.recurrence !== "none" : e.recurrence === "none") &&
         (!monthFilter || monthMatches(e)),
     );
-    const planned = kinds ? plannedRows.filter((e) => kinds.includes(e.kind)) : plannedRows;
+    let planned = kinds ? plannedRows.filter((e) => kinds.includes(e.kind)) : plannedRows;
+    if (category) planned = planned.filter((e) => e.category === category);
     return [...real, ...planned];
-  }, [data, kinds, month, monthFilter, templatesOnly, plannedRows]);
+  }, [data, kinds, category, month, monthFilter, templatesOnly, plannedRows]);
 
   // Kalan taksit borcu — grup başına, henüz olmamış (occurred_at bugünden
   // ileri) satırların toplamı. `data` (SWR'ın ham, ay/kind filtresiz listesi)

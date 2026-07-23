@@ -44,6 +44,9 @@ export default async function AbonelikPage() {
         </Card>
       </div>
 
+      <h2 className="px-4 text-sm font-medium text-foreground md:px-0">
+        {t("recurringSectionTitle")}
+      </h2>
       <EntryTable
         kind="subscription"
         initialData={initialData}
@@ -51,6 +54,26 @@ export default async function AbonelikPage() {
         monthFilter={false}
         templatesOnly
       />
+
+      {/* Ekstre içe aktarmadan gelen "abonelik" kategorili tek seferlik
+          harcamalar (src/lib/actions/statements.ts) her zaman kind="expense",
+          recurrence="none" — yukarıdaki tekrarlayan-kural listesine hiç
+          girmezler (templatesOnly=true orada), o yüzden ayrı bir bölüm:
+          kullanıcı tek bir ekstre satırından "bu her ay tekrar edecek" diye
+          otomatik bir kural uydurmadan, kart harcamalarındaki abonelik
+          benzeri işlemleri yine de görebilsin. */}
+      <h2 className="px-4 text-sm font-medium text-foreground md:px-0">
+        {t("categoryTaggedSectionTitle")}
+      </h2>
+      <p className="px-4 text-xs text-muted-foreground md:px-0">{t("categoryTaggedSectionHint")}</p>
+      <EntryTable
+        kind="expense"
+        category="abonelik"
+        initialData={initialData}
+        showKindColumn={false}
+        monthFilter={false}
+      />
+
       <QuickAddFAB defaultKind="subscription" />
     </div>
   );
