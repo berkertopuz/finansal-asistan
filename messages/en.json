@@ -166,7 +166,8 @@
       "income": "Income",
       "expense": "Expense",
       "subscription": "Subscription",
-      "investment": "Investment"
+      "investment": "Investment",
+      "card_payment": "Card payment"
     },
     "recurrence": {
       "none": "One-off",

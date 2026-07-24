@@ -244,8 +244,13 @@ export function projectBalance(
       // charged again since today (like a single coffee bought this morning)
       // would never show up leaving cash at all — only the *next* charge
       // would, understating every near-term dip.
+      // Half a kuruş, not a strict > 0 — charges and payments entered as
+      // separate rows over time don't always net to exactly 0 in floating
+      // point (e.g. paying a card down to zero can leave a residue like
+      // 1.4e-14), and that dust was showing up as a spurious "−₺0,00 ·
+      // tahmini" event.
       const debtSoFar = creditCardDebtBalance(entries, card.id, today);
-      if (debtSoFar > 0) {
+      if (debtSoFar > 0.005) {
         const nextPaymentDate = nextCardPaymentDate(today, card.statement_day, card.payment_day);
         const key = `${card.id}:${toDateString(nextPaymentDate)}`;
         const bucket = cycleTotals.get(key);
@@ -254,7 +259,7 @@ export function projectBalance(
       }
     }
     for (const { cardId, paymentDate, total } of cycleTotals.values()) {
-      if (paymentDate < rangeStart || paymentDate > rangeEnd) continue;
+      if (paymentDate < rangeStart || paymentDate > rangeEnd || total <= 0.005) continue;
       events.push({
         entry: projectedCardPaymentEntry(cardId, paymentDate, total),
         occurrence: paymentDate,

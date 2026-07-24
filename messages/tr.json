@@ -166,7 +166,8 @@
       "income": "Gelir",
       "expense": "Gider",
       "subscription": "Abonelik",
-      "investment": "Yatırım"
+      "investment": "Yatırım",
+      "card_payment": "Kart ödemesi"
     },
     "recurrence": {
       "none": "Tek seferlik",
