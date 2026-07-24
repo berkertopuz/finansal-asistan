@@ -159,6 +159,7 @@ export function StatementUploadSheet({
         taksit_sayisi: r.taksit_sayisi,
       })),
       paymentDueDate,
+      card.id,
     );
     setImporting(false);
     if (result.success) {

@@ -1,6 +1,6 @@
 import type { Entry, EntryRecurrence } from "@/lib/ledger";
 import { toDateString } from "@/lib/ledger";
-import { nextOccurrenceOnOrAfter } from "@/lib/recurrence";
+import { clampMonthDay, nextOccurrenceOnOrAfter } from "@/lib/recurrence";
 
 const DAY_MS = 86_400_000;
 
@@ -20,6 +20,26 @@ export const WITHHOLDING_TAX_RATE = 0.175;
 // spend this", a different question from "when does my balance move".
 function cashDate(entry: Pick<Entry, "occurred_at" | "cash_out_at">): string {
   return entry.cash_out_at ?? entry.occurred_at;
+}
+
+// A card's billing cycle, generalized: charges cut off on statement_day and
+// bill together on payment_day. A charge dated after this month's cutoff
+// belongs to *next* month's statement, not this one — without that check, a
+// subscription drawing on (say) the 18th with a card that cuts on the 13th
+// and pays on the 23rd would compute a cash_out_at of the 23rd in the same
+// month as the charge, which is only 5 days after the charge but actually
+// belongs to the cutoff a month later (charges the 14th-13th of next month
+// pay on next month's 23rd). payment_day < statement_day (a cutoff late in
+// the month, paid early next month, e.g. cuts the 25th, pays the 5th) is
+// handled the same way: the payment itself always lands in the month after
+// whichever month the statement cut in.
+export function nextCardPaymentDate(chargeDate: Date, statementDay: number, paymentDay: number): Date {
+  const monthOffset =
+    (chargeDate.getDate() > statementDay ? 1 : 0) + (paymentDay < statementDay ? 1 : 0);
+  const totalMonthIndex = chargeDate.getMonth() + monthOffset;
+  const year = chargeDate.getFullYear() + Math.floor(totalMonthIndex / 12);
+  const month = ((totalMonthIndex % 12) + 12) % 12;
+  return clampMonthDay(year, month, paymentDay);
 }
 
 function isSameDay(a: Date, b: Date): boolean {
@@ -99,6 +119,17 @@ export function projectBalance(
   const rangeStart = new Date(today.getTime() + DAY_MS);
   const rangeEnd = new Date(today.getTime() + days * DAY_MS);
 
+  // (template_id, occurred_at) pairs that already have a real materialized
+  // row — materializeDueOccurrences' 2-year horizon means every occurrence
+  // within any projection range here already exists as one of these by the
+  // time this data is fetched (see src/lib/entries-data.ts). Without this,
+  // the template branch below would project the exact same occurrence a
+  // second time, doubling that day's impact on the balance (same dedup
+  // EntryTable.tsx's plannedRows already does, for the same reason).
+  const existingOccurrences = new Set(
+    entries.filter((e) => e.template_id).map((e) => `${e.template_id}:${e.occurred_at}`),
+  );
+
   const events: CashFlowEvent[] = [];
   for (const entry of entries) {
     if (entry.recurrence === "none") {
@@ -118,6 +149,7 @@ export function projectBalance(
     }
     if (!entry.next_due_date) continue;
     for (const occurrence of occurrencesInRange(entry.next_due_date, entry.recurrence, rangeStart, rangeEnd)) {
+      if (existingOccurrences.has(`${entry.id}:${toDateString(occurrence)}`)) continue;
       events.push({ entry, occurrence });
     }
   }
@@ -173,45 +205,9 @@ export function projectOptimizedBalance(
   return optimized;
 }
 
-// How many days "this cycle" actually ran for a given occurrence — the
-// window the user could realistically have held the payment amount in
-// interest before it was due. The assumption (confirmed against a real
-// daily-interest-account quote): the money becomes available at the start
-// of the period — payday, effectively — and sits there until the due date
-// within that same period. So a bill due on the 7th has a 7-day window
-// (since the 1st), not "the ~31 days in the whole month" (that was the bug:
-// it overstated a 1-week-scale gain by ~4-5x). Bounded to one cycle no
-// matter how far the occurrence itself is from today — a bill 3 months out
-// isn't 3 months of held cash, it's next month's bill, same window as
-// every other month.
-export function periodLengthDays(recurrence: EntryRecurrence, occurrence: Date): number {
-  if (recurrence === "weekly") return 7;
-  if (recurrence === "yearly") {
-    const startOfYear = new Date(occurrence.getFullYear(), 0, 1);
-    return Math.round((occurrence.getTime() - startOfYear.getTime()) / DAY_MS) + 1;
-  }
-  // monthly: days since the 1st of the occurrence's own month.
-  return occurrence.getDate();
-}
-
 function netSimpleInterest(amount: number, days: number, annualRatePercent: number): number {
   const gross = amount * (annualRatePercent / 100) * (days / 365);
   return gross * (1 - WITHHOLDING_TAX_RATE);
-}
-
-// Simple-interest estimate, net of withholding tax, for holding `amount`
-// for one recurrence cycle (see periodLengthDays) instead of paying it out
-// as soon as it's available — deliberately not compounded, this is a
-// back-of-envelope estimate the UI labels as such, not a precise yield.
-// Checked against a real "günlük faiz" account quote: ₺40,000 held 7 days
-// at 30%/yr nets ~₺189 after 17.5% stopaj, which this formula reproduces.
-export function periodFloatGain(
-  amount: number,
-  recurrence: EntryRecurrence,
-  occurrence: Date,
-  annualRatePercent: number,
-): number {
-  return netSimpleInterest(amount, periodLengthDays(recurrence, occurrence), annualRatePercent);
 }
 
 // The "vadeye yatırsaydın" scenario: a lump sum locked for the whole term,

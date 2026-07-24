@@ -12,7 +12,6 @@ import { updateAssumedRate, type UpdateAssumedRateState } from "@/lib/actions/pr
 import {
   EMERGENCY_FUND_MONTHS,
   estimateMonthlyExpenseBurn,
-  periodFloatGain,
   projectBalance,
   projectOptimizedBalance,
   safeToLockAmount,
@@ -397,27 +396,33 @@ export function CashFlowTimeline({
                   </div>
                   {hoverEvents.map((ev, i) => {
                     const isIncome = ev.entry.kind === "income";
-                    const gain = isIncome
-                      ? null
-                      : periodFloatGain(ev.entry.amount, ev.entry.recurrence, ev.occurrence, assumedRate);
                     return (
-                      <div key={i} className="flex flex-col">
-                        <span
-                          className={
-                            isIncome ? "text-signal-buy-foreground" : "text-signal-caution-foreground"
-                          }
-                        >
-                          {isIncome ? "+" : "−"}
-                          {formatCurrency(ev.entry.amount, locale)}
-                        </span>
-                        {gain !== null && gain > 0 && (
-                          <span className="text-foreground/70">
-                            {t("eventGainSentence", { gain: formatCurrency(gain, locale) })}
-                          </span>
+                      <span
+                        key={i}
+                        className={cn(
+                          "block",
+                          isIncome ? "text-signal-buy-foreground" : "text-signal-caution-foreground",
                         )}
-                      </div>
+                      >
+                        {isIncome ? "+" : "−"}
+                        {formatCurrency(ev.entry.amount, locale)}
+                      </span>
                     );
                   })}
+                  {/* The actual/optimized balances above already say "as of
+                      this day" — their difference (not a per-event guess
+                      based on that event's own amount, which broke down the
+                      moment the real balance was larger or smaller than any
+                      single transaction) is the real, compounded gain from
+                      having followed the daily-account line the whole way
+                      here. */}
+                  {hoverOptimizedPoint.balance - hoverPoint.balance > 0 && (
+                    <div className="text-foreground/70">
+                      {t("cumulativeGainSentence", {
+                        gain: formatCurrency(hoverOptimizedPoint.balance - hoverPoint.balance, locale),
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </>

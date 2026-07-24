@@ -308,7 +308,7 @@
     "chartAriaLabel": "Önümüzdeki günler için projeksiyon edilen nakit bakiyesi grafiği",
     "legendActual": "Gerçek bakiye",
     "legendOptimized": "Günlük faizde tutulsaydı",
-    "eventGainSentence": "Bu tutarı ödeme gününe kadar günlük faiz işleyen bir hesapta bekletirsen ~{gain} ek kazanç sağlayabilirsin.",
+    "cumulativeGainSentence": "Bu tarihe kadar günlük faiz işleyen bir hesapta tutsaydın ~{gain} daha fazla birikmiş olurdun.",
     "evdsContext": "TLREF gecelik referans faiz oranı, günlük hesap yaklaşımının temeli ({asOf} itibarıyla): {rate}",
     "evdsUnavailable": "TCMB EVDS'e şu an ulaşılamıyor.",
     "rateDetailsToggle": "Faiz varsayımı ve kaynağı",

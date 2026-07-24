@@ -24,6 +24,13 @@ export type Entry = {
   // when set, since a card purchase doesn't leave the bank account until the
   // bill is paid, not on the day of the purchase itself.
   cash_out_at: string | null;
+  // Which card (if any) this was charged to — set at statement import time
+  // (src/lib/actions/statements.ts). Carried forward automatically when a
+  // card-imported expense is later converted into a recurring subscription
+  // (updateEntry never touches this field), so materializeDueOccurrences
+  // (src/lib/recurrence-materialize.ts) can still compute the right
+  // cash_out_at for every future month's row from it.
+  credit_card_id: string | null;
   created_at: string;
   // Set only on a concrete row generated from a recurring template (see
   // src/lib/recurrence-materialize.ts) — null for both one-off entries and

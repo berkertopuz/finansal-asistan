@@ -308,7 +308,7 @@
     "chartAriaLabel": "Projected cash balance chart for the coming days",
     "legendActual": "Actual balance",
     "legendOptimized": "If kept in daily interest",
-    "eventGainSentence": "Holding this in a daily-interest account until its due date could earn ~{gain}.",
+    "cumulativeGainSentence": "Keeping this in a daily-interest account up to this date would have earned ~{gain} more.",
     "evdsContext": "TLREF overnight reference rate, the basis for the daily-account estimate (as of {asOf}): {rate}",
     "evdsUnavailable": "TCMB EVDS is currently unreachable.",
     "rateDetailsToggle": "Interest assumption & source",

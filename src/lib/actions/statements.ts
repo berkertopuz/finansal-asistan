@@ -46,14 +46,25 @@ const paymentDueDateSchema = z
 // bulamadıysa (null) cash_out_at da null kalır — src/lib/cashflow.ts bu
 // durumda occurred_at'e düşer, yani eskisi gibi davranır (uydurma tarih
 // yazmaktansa daha güvenli).
+//
+// cardId = bu ekstrenin ait olduğu kart (StatementUploadSheet.tsx zaten
+// hangi kart için yüklendiğini biliyor, card.id). Satıra credit_card_id
+// olarak yazılıyor ki satır daha sonra bir aboneliğe çevrilirse
+// (updateEntry bu alana hiç dokunmuyor, olduğu gibi kalıyor)
+// materializeDueOccurrences (src/lib/recurrence-materialize.ts) gelecek her
+// ayın satırı için doğru cash_out_at'i (kartın ödeme gününe göre) yeniden
+// hesaplayabilsin — tek seferlik bu içe aktarımın paymentDueDate'i o zaman
+// artık geçerli olmayacak (her ay farklı bir son ödeme tarihi olur).
 export async function importStatementEntries(
   rows: unknown[],
   paymentDueDate?: string | null,
+  cardId?: string | null,
 ): Promise<ImportStatementState> {
   const t = await getTranslations("statements.errors");
   const parsed = z.array(importRowSchema).min(1).safeParse(rows);
   const parsedDueDate = paymentDueDateSchema.safeParse(paymentDueDate);
-  if (!parsed.success || !parsedDueDate.success) {
+  const parsedCardId = z.string().uuid().nullable().optional().safeParse(cardId);
+  if (!parsed.success || !parsedDueDate.success || !parsedCardId.success) {
     return { error: t("genericInvalid") };
   }
 
@@ -67,6 +78,7 @@ export async function importStatementEntries(
   }
 
   const cashOutAt = parsedDueDate.data ?? null;
+  const creditCardId = parsedCardId.data ?? null;
   const insertRows = parsed.data.map((row) => {
     const hasInstallment = row.taksit_index !== null && row.taksit_sayisi !== null;
     return {
@@ -76,6 +88,7 @@ export async function importStatementEntries(
       category: row.kategori,
       occurred_at: row.tarih,
       cash_out_at: cashOutAt,
+      credit_card_id: creditCardId,
       description: row.aciklama || null,
       recurrence: "none" as const,
       installment_group_id: hasInstallment ? crypto.randomUUID() : null,

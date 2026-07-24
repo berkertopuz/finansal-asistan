@@ -1,7 +1,7 @@
 import { cache } from "react";
 import type { Entry } from "@/lib/ledger";
 import { toDateString } from "@/lib/ledger";
-import { occurrencesInRange } from "@/lib/cashflow";
+import { nextCardPaymentDate, occurrencesInRange } from "@/lib/cashflow";
 import { createClient } from "@/lib/supabase/server";
 
 type TemplateRow = Pick<
@@ -15,6 +15,7 @@ type TemplateRow = Pick<
   | "recurrence"
   | "next_due_date"
   | "occurred_at"
+  | "credit_card_id"
 > & { skip_dates: string[] };
 
 // How far ahead a template's occurrences get pre-generated as real rows —
@@ -49,11 +50,30 @@ export const materializeDueOccurrences = cache(async (userId: string): Promise<v
   const { data: templates } = await supabase
     .from("entries")
     .select(
-      "id, kind, amount, currency, category, description, recurrence, next_due_date, occurred_at, skip_dates",
+      "id, kind, amount, currency, category, description, recurrence, next_due_date, occurred_at, credit_card_id, skip_dates",
     )
     .neq("recurrence", "none");
 
   if (!templates || templates.length === 0) return;
+
+  // A template that started as a card-statement import (converted to a
+  // subscription — src/components/ledger/QuickEntryForm.tsx) keeps
+  // credit_card_id set even though it no longer has a per-import
+  // cash_out_at of its own (that was only ever the *one* statement it was
+  // first imported from). Each newly generated month's row below gets its
+  // own cash_out_at computed from the card's payment_day instead — the
+  // charge itself is dated whatever day it recurs on, but the money only
+  // actually leaves the account when that month's card bill is paid,
+  // together with every other charge on the same card.
+  const cardIds = [...new Set((templates as TemplateRow[]).map((t) => t.credit_card_id).filter((id) => id !== null))];
+  const cardById = new Map<string, { statement_day: number; payment_day: number }>();
+  if (cardIds.length > 0) {
+    const { data: cards } = await supabase
+      .from("credit_cards")
+      .select("id, statement_day, payment_day")
+      .in("id", cardIds);
+    for (const card of cards ?? []) cardById.set(card.id, card);
+  }
 
   const today = new Date();
   // The lower bound is always the *start of the current* month, never the
@@ -74,12 +94,16 @@ export const materializeDueOccurrences = cache(async (userId: string): Promise<v
     if (!tpl.next_due_date) continue;
     const occurrences = occurrencesInRange(tpl.next_due_date, tpl.recurrence, rangeStart, rangeEnd);
     const skipDates = new Set(tpl.skip_dates ?? []);
+    const card = tpl.credit_card_id ? cardById.get(tpl.credit_card_id) : undefined;
     for (const occurrence of occurrences) {
       // The user explicitly deleted this occurrence before (deleteEntry
       // records it here) — without this check, the next materialize pass
       // would see the (template_id, occurred_at) slot empty again and
       // silently recreate the very row they deleted.
       if (skipDates.has(toDateString(occurrence))) continue;
+      const cashOutAt = card
+        ? toDateString(nextCardPaymentDate(occurrence, card.statement_day, card.payment_day))
+        : null;
       rows.push({
         user_id: userId,
         kind: tpl.kind,
@@ -90,6 +114,8 @@ export const materializeDueOccurrences = cache(async (userId: string): Promise<v
         recurrence: "none",
         next_due_date: null,
         occurred_at: toDateString(occurrence),
+        cash_out_at: cashOutAt,
+        credit_card_id: tpl.credit_card_id,
         template_id: tpl.id,
       });
     }
