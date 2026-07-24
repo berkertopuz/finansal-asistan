@@ -17,9 +17,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { recordStatementConsent, importStatementEntries } from "@/lib/actions/statements";
 import { payCreditCardDebt, updateCreditCard } from "@/lib/actions/credit-cards";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatDate, formatMonthYear } from "@/lib/format";
 import type { AppLocale } from "@/lib/locale";
 import type { CreditCard } from "@/lib/credit-cards-data";
+import type { StatementImport } from "@/lib/statement-imports-data";
 import { ENTRY_CATEGORIES, toDateString, type Entry } from "@/lib/ledger";
 
 type StatementRow = {
@@ -36,6 +37,9 @@ type ReviewRow = StatementRow & { selected: boolean; possibleDuplicate: boolean 
 
 const ENTRIES_KEY = "/api/entries";
 const entriesFetcher = (url: string) => fetch(url).then((res) => res.json());
+
+const STATEMENT_IMPORTS_KEY = "/api/statement-imports";
+const statementImportsFetcher = (url: string) => fetch(url).then((res) => res.json());
 
 function toReviewRows(rows: StatementRow[], existing: Entry[]): ReviewRow[] {
   return rows.map((row) => {
@@ -78,10 +82,14 @@ export function StatementUploadSheet({
   const [suggestedDays, setSuggestedDays] = useState<{ statement_day: number; payment_day: number } | null>(
     null,
   );
-  // Yalnızca bilgi amaçlı gösteriliyor (içe aktarma sonrası isteğe bağlı
-  // ödeme adımında "Son ödeme tarihi: ...") — artık importStatementEntries'e
-  // geçirilmiyor, cash_out_at kavramı card_payment modeliyle yer değiştirdi
-  // (bkz. src/lib/actions/statements.ts, src/lib/actions/credit-cards.ts).
+  // statementDate = bu ekstrenin dönem kimliği (Hesap Kesim Tarihi) —
+  // importStatementEntries'e geçiriliyor, statement_imports geçmiş
+  // kaydının anahtarı (src/lib/actions/statements.ts). paymentDueDate ise
+  // yalnızca bilgi amaçlı gösteriliyor (içe aktarma sonrası isteğe bağlı
+  // ödeme adımında "Son ödeme tarihi: ...") — cash_out_at kavramı
+  // card_payment modeliyle yer değiştirdiği için artık nakit akışı
+  // hesaplarına girmiyor.
+  const [statementDate, setStatementDate] = useState<string | null>(null);
   const [paymentDueDate, setPaymentDueDate] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   // İçe aktarma başarılı olduktan sonra gösterilen isteğe bağlı adım —
@@ -95,6 +103,10 @@ export function StatementUploadSheet({
   const [payPending, setPayPending] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { data: existingEntries } = useSWR<Entry[]>(ENTRIES_KEY, entriesFetcher);
+  const { data: statementImports } = useSWR<StatementImport[]>(
+    STATEMENT_IMPORTS_KEY,
+    statementImportsFetcher,
+  );
   const router = useRouter();
   const locale = useLocale() as AppLocale;
   const t = useTranslations("statements");
@@ -127,6 +139,7 @@ export function StatementUploadSheet({
         return;
       }
       setReviewRows(toReviewRows(result.rows, existingEntries ?? []));
+      setStatementDate(result.header?.statementDate ?? null);
       setPaymentDueDate(result.header?.paymentDueDate ?? null);
       const statementDay = result.header?.statementDate ? Number(result.header.statementDate.slice(8, 10)) : null;
       const paymentDay = result.header?.paymentDueDate ? Number(result.header.paymentDueDate.slice(8, 10)) : null;
@@ -155,8 +168,20 @@ export function StatementUploadSheet({
     setReviewRows((rows) => rows?.map((r, i) => (i === index ? { ...r, kategori } : r)) ?? null);
   }
 
+  // Bu ekstre (bu kart + bu Hesap Kesim Tarihi) daha önce yüklenmiş mi? —
+  // engellemiyor (banka düzeltilmiş bir ekstre yeniden göndermiş olabilir),
+  // sadece inceleme ekranında net bir uyarı gösteriyor. Kullanıcı yine de
+  // devam ederse ve gerçekten aynı dönemse statement_imports'taki
+  // unique(credit_card_id, statement_date) constraint'i sert bir dur işareti
+  // koyuyor (errors.alreadyImported).
+  const matchingImport = statementDate
+    ? statementImports?.find(
+        (imp) => imp.credit_card_id === card.id && imp.statement_date === statementDate,
+      )
+    : undefined;
+
   async function handleImport() {
-    if (!reviewRows) return;
+    if (!reviewRows || !statementDate) return;
     const selected = reviewRows.filter((r) => r.selected);
     if (selected.length === 0) return;
     setImporting(true);
@@ -170,10 +195,13 @@ export function StatementUploadSheet({
         taksit_sayisi: r.taksit_sayisi,
       })),
       card.id,
+      statementDate,
+      paymentDueDate,
     );
     setImporting(false);
     if (result.success) {
       mutate(ENTRIES_KEY);
+      mutate(STATEMENT_IMPORTS_KEY);
       router.refresh();
       // Her seçili satır bir gider olarak (kind='expense', bu karta borç)
       // eklendi — ödeme önerisinin varsayılanı bunların toplamı, "tam
@@ -286,6 +314,31 @@ export function StatementUploadSheet({
             </div>
           ) : (
             <div className="flex flex-col gap-3">
+              {/* Kullanıcı "hangi ayı yüklüyorum" sorusuna içe aktarmadan
+                  önce net cevap alsın diye — ayrıştırılan kesim tarihinden
+                  türetiliyor, elle bir ay seçtirmek yerine (ayrıştırma
+                  güvenilir, göstermek yeterli). */}
+              {statementDate && (
+                <p className="text-sm text-muted-foreground">
+                  {t("periodLabel", {
+                    month: formatMonthYear(statementDate, locale),
+                    statementDate: formatDate(statementDate, locale),
+                    paymentDate: paymentDueDate ? formatDate(paymentDueDate, locale) : "—",
+                  })}
+                </p>
+              )}
+              {matchingImport && (
+                <div className="flex items-start gap-2 rounded-lg border border-signal-caution-foreground/30 bg-signal-caution-bg p-3 text-sm text-signal-caution-foreground">
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                  <span>
+                    {t("alreadyImportedWarning", {
+                      date: formatDate(matchingImport.created_at, locale),
+                      count: matchingImport.imported_count,
+                      total: formatCurrency(matchingImport.imported_total, locale),
+                    })}
+                  </span>
+                </div>
+              )}
               {suggestedDays && (
                 <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 p-3 text-sm">
                   <span className="text-foreground">

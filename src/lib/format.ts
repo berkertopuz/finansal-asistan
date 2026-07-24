@@ -71,6 +71,14 @@ export function formatDate(date: Date | string, locale: AppLocale = "tr"): strin
   }).format(new Date(date));
 }
 
+// "Temmuz 2026" (tr) / "July 2026" (en) — a statement's period, not its
+// exact cut date (see the statement_imports history list).
+export function formatMonthYear(date: Date | string, locale: AppLocale = "tr"): string {
+  return new Intl.DateTimeFormat(toIntlTag(locale), { month: "long", year: "numeric" }).format(
+    new Date(date),
+  );
+}
+
 // "18 Tem" (tr) / "Jul 18" (en) — compact enough for chart axis ticks.
 export function formatShortDate(date: Date | string, locale: AppLocale = "tr"): string {
   return new Intl.DateTimeFormat(toIntlTag(locale), { day: "numeric", month: "short" }).format(

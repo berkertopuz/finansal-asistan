@@ -351,6 +351,8 @@
     "noTransactionsFound": "Bu ekstrede işlem bulunamadı.",
     "possibleDuplicate": "Mükerrer olabilir",
     "importSelected": "{count} kaydı ekle",
+    "periodLabel": "{month} ekstresi — kesim {statementDate}, son ödeme {paymentDate}",
+    "alreadyImportedWarning": "Bu ekstre daha önce {date} tarihinde yüklenmişti — {count} işlem, {total}.",
     "rowType": {
       "harcama": "Harcama",
       "odeme": "Ödeme",
@@ -375,7 +377,8 @@
       "parseFailed": "Ekstre ayrıştırılamadı, tekrar dene.",
       "connectionError": "Bağlantı sorunu, tekrar dene.",
       "genericInvalid": "Geçersiz bilgiler.",
-      "saveFailed": "Kaydedilemedi, tekrar dene."
+      "saveFailed": "Kaydedilemedi, tekrar dene.",
+      "alreadyImported": "Bu ekstre zaten yüklenmiş."
     }
   },
   "creditCards": {
@@ -404,6 +407,15 @@
       "errors": {
         "amountInvalid": "Geçerli bir tutar gir."
       }
+    },
+    "history": {
+      "button": "Geçmiş",
+      "dialogTitle": "{name} — ekstre geçmişi",
+      "empty": "Henüz ekstre yüklenmedi.",
+      "item": "{date} tarihinde yüklendi, {count} işlem, {total}",
+      "undoButton": "Geri al",
+      "undoConfirmTitle": "Bu ekstreyi geri al",
+      "undoConfirmDescription": "{period} dönemine ait {count} işlem kalıcı olarak silinecek. Bu işlem geri alınamaz."
     },
     "notificationsTitle": "Bildirimler",
     "notificationsDescription": "Ekstre ve ödeme günlerinde bildirim almak için izin ver.",

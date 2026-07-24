@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 import useSWR, { mutate } from "swr";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import { CreditCard as CardIcon, Plus, Trash2, Upload } from "lucide-react";
+import { CreditCard as CardIcon, History, Plus, Trash2, Upload } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,10 +25,12 @@ import {
   updateCreditCard,
   type CreditCardState,
 } from "@/lib/actions/credit-cards";
+import { undoStatementImport } from "@/lib/actions/statements";
 import { subscribeToPush } from "@/lib/actions/push";
 import type { CreditCard } from "@/lib/credit-cards-data";
+import type { StatementImport } from "@/lib/statement-imports-data";
 import { creditCardDebtBalance } from "@/lib/cashflow";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatDate, formatMonthYear } from "@/lib/format";
 import { toDateString, type Entry } from "@/lib/ledger";
 import type { AppLocale } from "@/lib/locale";
 import { StatementUploadSheet } from "@/components/statements/StatementUploadSheet";
@@ -44,6 +46,13 @@ const ENTRIES_KEY = "/api/entries";
 const entriesFetcher = (url: string) =>
   fetch(url).then((res) => {
     if (!res.ok) throw new Error("failed to fetch entries");
+    return res.json();
+  });
+
+const STATEMENT_IMPORTS_KEY = "/api/statement-imports";
+const statementImportsFetcher = (url: string) =>
+  fetch(url).then((res) => {
+    if (!res.ok) throw new Error("failed to fetch statement imports");
     return res.json();
   });
 
@@ -68,6 +77,10 @@ export function CreditCardsManager({
 }) {
   const { data: cards } = useSWR<CreditCard[]>(CARDS_KEY, fetcher, { fallbackData: initialCards });
   const { data: entries } = useSWR<Entry[]>(ENTRIES_KEY, entriesFetcher);
+  const { data: statementImports } = useSWR<StatementImport[]>(
+    STATEMENT_IMPORTS_KEY,
+    statementImportsFetcher,
+  );
   const [hasConsent, setHasConsent] = useState(initialHasConsent);
   const [addOpen, setAddOpen] = useState(false);
   const [uploadCard, setUploadCard] = useState<CreditCard | null>(null);
@@ -76,6 +89,10 @@ export function CreditCardsManager({
   const [payDebtDate, setPayDebtDate] = useState(() => toDateString(new Date()));
   const [payDebtError, setPayDebtError] = useState<string | undefined>();
   const [payDebtPending, setPayDebtPending] = useState(false);
+  const [historyCard, setHistoryCard] = useState<CreditCard | null>(null);
+  const [undoTarget, setUndoTarget] = useState<StatementImport | null>(null);
+  const [undoPending, setUndoPending] = useState(false);
+  const [undoError, setUndoError] = useState<string | undefined>();
   const [notifState, setNotifState] = useState<NotificationPermission | "unsupported">(
     typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported",
   );
@@ -154,6 +171,25 @@ export function CreditCardsManager({
       setPayDebtCard(null);
     } else {
       setPayDebtError(result.error);
+    }
+  }
+
+  async function handleUndo() {
+    if (!undoTarget) return;
+    setUndoPending(true);
+    setUndoError(undefined);
+    const result = await undoStatementImport(undoTarget.id);
+    setUndoPending(false);
+    if (result.success) {
+      // ON DELETE CASCADE bu ekstreden gelen tüm entries satırlarını da
+      // sildi (bkz. migration) — hem geçmiş listesi hem borç bakiyesi hem
+      // Defter değişti, üçünü de tazele.
+      mutate(STATEMENT_IMPORTS_KEY);
+      mutate(ENTRIES_KEY);
+      router.refresh();
+      setUndoTarget(null);
+    } else {
+      setUndoError(result.error);
     }
   }
 
@@ -241,9 +277,13 @@ export function CreditCardsManager({
                       />
                       {t("remindersLabel")}
                     </label>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <Button type="button" variant="outline" size="sm" onClick={() => openPayDebt(card, debt)}>
                         {t("payDebt.button")}
+                      </Button>
+                      <Button type="button" variant="outline" size="sm" onClick={() => setHistoryCard(card)}>
+                        <History className="size-4" />
+                        {t("history.button")}
                       </Button>
                       <Button type="button" variant="outline" size="sm" onClick={() => setUploadCard(card)}>
                         <Upload className="size-4" />
@@ -356,6 +396,78 @@ export function CreditCardsManager({
             </Button>
             <Button type="button" disabled={payDebtPending} onClick={handlePayDebt}>
               {payDebtPending ? tCommon("saving") : tCommon("save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={historyCard !== null} onOpenChange={(open) => !open && setHistoryCard(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("history.dialogTitle", { name: historyCard?.name ?? "" })}</DialogTitle>
+            <DialogDescription className="sr-only">{t("history.dialogTitle", { name: historyCard?.name ?? "" })}</DialogDescription>
+          </DialogHeader>
+          {(() => {
+            const cardHistory = statementImports?.filter((imp) => imp.credit_card_id === historyCard?.id);
+            if (!cardHistory || cardHistory.length === 0) {
+              return <p className="text-sm text-muted-foreground">{t("history.empty")}</p>;
+            }
+            return (
+              <div className="flex max-h-[50vh] flex-col gap-2 overflow-y-auto">
+                {cardHistory.map((imp) => (
+                  <div
+                    key={imp.id}
+                    className="flex items-center justify-between gap-2 rounded-lg border border-border p-3 text-sm"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-foreground">{formatMonthYear(imp.statement_date, locale)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {t("history.item", {
+                          date: formatDate(imp.created_at, locale),
+                          count: imp.imported_count,
+                          total: formatCurrency(imp.imported_total, locale),
+                        })}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="shrink-0 text-foreground/70 hover:text-destructive"
+                      onClick={() => {
+                        setUndoError(undefined);
+                        setUndoTarget(imp);
+                      }}
+                    >
+                      {t("history.undoButton")}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={undoTarget !== null} onOpenChange={(open) => !open && setUndoTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("history.undoConfirmTitle")}</DialogTitle>
+            <DialogDescription>
+              {undoTarget &&
+                t("history.undoConfirmDescription", {
+                  period: formatMonthYear(undoTarget.statement_date, locale),
+                  count: undoTarget.imported_count,
+                })}
+            </DialogDescription>
+          </DialogHeader>
+          {undoError && <p className="text-sm text-signal-caution-foreground">{undoError}</p>}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setUndoTarget(null)}>
+              {tCommon("cancel")}
+            </Button>
+            <Button type="button" variant="destructive" disabled={undoPending} onClick={handleUndo}>
+              {undoPending ? tCommon("saving") : t("history.undoButton")}
             </Button>
           </DialogFooter>
         </DialogContent>

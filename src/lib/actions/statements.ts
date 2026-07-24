@@ -42,14 +42,42 @@ const importRowSchema = z.object({
 // dokunmuyor) credit_card_id olduğu gibi kalır, materializeDueOccurrences
 // (src/lib/recurrence-materialize.ts) gelecek her ayın satırına aynı kartı
 // kopyalamaya devam eder.
+//
+// statementDate/paymentDueDate = bu ekstrenin ayrıştırılan Hesap Kesim ve
+// Son Ödeme tarihleri (StatementUploadSheet.tsx'in /api/statements/parse'tan
+// aldığı header). Önce statement_imports'a bir kayıt yazılıyor (bu ekstrenin
+// "hangi dönem, ne zaman, kaç işlem" izini bırakan kalıcı kaydı — Kartlar
+// sayfasındaki geçmiş listesi buradan geliyor), sonra entries bu kaydın
+// id'sine (statement_import_id) bağlanarak ekleniyor. entries insert'i
+// başarısız olursa statement_imports satırı geri siliniyor (compensating
+// delete) — src/lib/actions/positions.ts'teki "insert A, insert B, B
+// başarısız olursa sessizce logla" deseninden BİLEREK farklı: oradaki B
+// (entries) sadece bir maliyet kaydı, burada statement_imports'un TEK
+// VAROLUŞ SEBEBİ "ne yüklendiğini doğru hatırlamak" — satırsız bir kayıt tam
+// da çözmeye çalıştığımız kafa karışıklığını yaratırdı. (credit_card_id,
+// statement_date) üzerindeki unique constraint aynı ekstrenin ikinci kez
+// yüklenmesini Postgres seviyesinde reddeder (23505) — StatementUploadSheet.tsx
+// zaten yüklemeden önce de bunu uyarıyor, bu son güvenlik ağı.
 export async function importStatementEntries(
   rows: unknown[],
-  cardId?: string | null,
+  cardId: string,
+  statementDate: string,
+  paymentDueDate?: string | null,
 ): Promise<ImportStatementState> {
   const t = await getTranslations("statements.errors");
   const parsed = z.array(importRowSchema).min(1).safeParse(rows);
-  const parsedCardId = z.string().uuid().nullable().optional().safeParse(cardId);
-  if (!parsed.success || !parsedCardId.success) {
+  const parsedCardId = z.string().uuid().safeParse(cardId);
+  const parsedStatementDate = z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .safeParse(statementDate);
+  const parsedDueDate = z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable()
+    .optional()
+    .safeParse(paymentDueDate);
+  if (!parsed.success || !parsedCardId.success || !parsedStatementDate.success || !parsedDueDate.success) {
     return { error: t("genericInvalid") };
   }
 
@@ -62,7 +90,28 @@ export async function importStatementEntries(
     return { error: t("noSession") };
   }
 
-  const creditCardId = parsedCardId.data ?? null;
+  const importedTotal = parsed.data.reduce((sum, row) => sum + row.tutar, 0);
+  const { data: statementImport, error: importError } = await supabase
+    .from("statement_imports")
+    .insert({
+      user_id: user.id,
+      credit_card_id: parsedCardId.data,
+      statement_date: parsedStatementDate.data,
+      payment_due_date: parsedDueDate.data ?? null,
+      imported_count: parsed.data.length,
+      imported_total: importedTotal,
+    })
+    .select("id")
+    .single();
+
+  if (importError || !statementImport) {
+    // 23505 = unique_violation — aynı kart için aynı statement_date zaten var.
+    if (importError?.code === "23505") {
+      return { error: t("alreadyImported") };
+    }
+    return { error: t("saveFailed") };
+  }
+
   const insertRows = parsed.data.map((row) => {
     const hasInstallment = row.taksit_index !== null && row.taksit_sayisi !== null;
     return {
@@ -71,7 +120,8 @@ export async function importStatementEntries(
       amount: row.tutar,
       category: row.kategori,
       occurred_at: row.tarih,
-      credit_card_id: creditCardId,
+      credit_card_id: parsedCardId.data,
+      statement_import_id: statementImport.id,
       description: row.aciklama || null,
       recurrence: "none" as const,
       installment_group_id: hasInstallment ? crypto.randomUUID() : null,
@@ -82,12 +132,32 @@ export async function importStatementEntries(
 
   const { error } = await supabase.from("entries").insert(insertRows);
   if (error) {
+    await supabase.from("statement_imports").delete().eq("id", statementImport.id);
     return { error: t("saveFailed") };
   }
 
   revalidatePath("/defter");
+  revalidatePath("/defter/giderler/kartlar");
   revalidatePath("/");
   return { success: true, imported: insertRows.length };
+}
+
+// Bir ekstre yüklemesini tamamen geri alır — Kartlar sayfasındaki geçmiş
+// listesinden ("Geri al", ayrı bir onay adımından sonra) çağrılır. RLS
+// (statement_imports_delete_own) zaten sahiplik kontrolü yapıyor;
+// entries.statement_import_id'nin ON DELETE CASCADE'i bu ekstreden gelen
+// TÜM satırları otomatik temizliyor (bkz. migration).
+export async function undoStatementImport(id: string): Promise<{ error?: string; success?: boolean }> {
+  const t = await getTranslations("statements.errors");
+  const supabase = await createClient();
+  const { error } = await supabase.from("statement_imports").delete().eq("id", id);
+  if (error) {
+    return { error: t("saveFailed") };
+  }
+  revalidatePath("/defter");
+  revalidatePath("/defter/giderler/kartlar");
+  revalidatePath("/");
+  return { success: true };
 }
 
 // İlk ekstre yüklemesinden önce ayrı ve spesifik açık rıza — bkz. plan
