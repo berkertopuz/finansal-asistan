@@ -166,12 +166,13 @@ function projectedCardPaymentEntry(cardId: string, paymentDate: Date, amount: nu
 // expense/subscription never appears as a cash event on its own (see
 // isCardDebt above — it's a debt, not a payment) — without this, the chart
 // would never show that debt leaving cash at all, understating every future
-// dip. This can only ever be an estimate (we don't know if/how much the
-// user will actually pay), so it's scoped to cycles that are *entirely* in
-// the future — every charge in the cycle, and the cycle's own payment day,
-// still ahead of today — where the user genuinely couldn't have paid
-// anything yet, so there's no risk of double-counting against a real
-// card_payment they already logged.
+// dip, including the near-term one (a charge added *today* still needs to
+// show up — see the debtSoFar step below). This can only ever be an
+// estimate (we don't know if/how much the user will actually pay), and it
+// can never double-count against a real card_payment already logged: every
+// future charge is bucketed by its own cycle (nextCardPaymentDate), and
+// whatever's still owed as of today is computed via creditCardDebtBalance,
+// which already nets out any payment the user made.
 export function projectBalance(
   entries: Entry[],
   days: number,
@@ -217,23 +218,43 @@ export function projectBalance(
   }
 
   if (cards.length > 0) {
-    const cardById = new Map(cards.map((c) => [c.id, c]));
-    // (cardId, paymentDate) -> accumulated charge total for that cycle.
+    // (cardId:paymentDate) -> accumulated total for that cycle.
     const cycleTotals = new Map<string, { cardId: string; paymentDate: Date; total: number }>();
-    for (const entry of entries) {
-      if (entry.recurrence !== "none" || !isCardDebt(entry)) continue;
-      const card = cardById.get(entry.credit_card_id!);
-      if (!card) continue;
-      const chargeDate = new Date(`${entry.occurred_at}T00:00:00`);
-      if (chargeDate <= today) continue; // could already be (partly) paid — leave to creditCardDebtBalance instead
-      const paymentDate = nextCardPaymentDate(chargeDate, card.statement_day, card.payment_day);
-      if (paymentDate < rangeStart || paymentDate > rangeEnd) continue;
-      const key = `${card.id}:${toDateString(paymentDate)}`;
-      const bucket = cycleTotals.get(key);
-      if (bucket) bucket.total += entry.amount;
-      else cycleTotals.set(key, { cardId: card.id, paymentDate, total: entry.amount });
+    for (const card of cards) {
+      // Every future charge on this card, bucketed by which payment cycle
+      // it belongs to (nextCardPaymentDate already handles a charge landing
+      // after this month's statement cutoff, rolling it to the following
+      // cycle).
+      for (const entry of entries) {
+        if (entry.recurrence !== "none" || !isCardDebt(entry) || entry.credit_card_id !== card.id) continue;
+        const chargeDate = new Date(`${entry.occurred_at}T00:00:00`);
+        if (chargeDate <= today) continue; // already folded into debtSoFar below
+        const paymentDate = nextCardPaymentDate(chargeDate, card.statement_day, card.payment_day);
+        const key = `${card.id}:${toDateString(paymentDate)}`;
+        const bucket = cycleTotals.get(key);
+        if (bucket) bucket.total += entry.amount;
+        else cycleTotals.set(key, { cardId: card.id, paymentDate, total: entry.amount });
+      }
+
+      // Whatever's already charged-and-unpaid as of today — creditCardDebtBalance
+      // nets out any card_payment the user already logged, so this can never
+      // double-count a payment they made early. It belongs to the same cycle
+      // a charge made *today* would fall into (nextCardPaymentDate applied to
+      // `today` itself): without folding it in here, a card the user hasn't
+      // charged again since today (like a single coffee bought this morning)
+      // would never show up leaving cash at all — only the *next* charge
+      // would, understating every near-term dip.
+      const debtSoFar = creditCardDebtBalance(entries, card.id, today);
+      if (debtSoFar > 0) {
+        const nextPaymentDate = nextCardPaymentDate(today, card.statement_day, card.payment_day);
+        const key = `${card.id}:${toDateString(nextPaymentDate)}`;
+        const bucket = cycleTotals.get(key);
+        if (bucket) bucket.total += debtSoFar;
+        else cycleTotals.set(key, { cardId: card.id, paymentDate: nextPaymentDate, total: debtSoFar });
+      }
     }
     for (const { cardId, paymentDate, total } of cycleTotals.values()) {
+      if (paymentDate < rangeStart || paymentDate > rangeEnd) continue;
       events.push({
         entry: projectedCardPaymentEntry(cardId, paymentDate, total),
         occurrence: paymentDate,
