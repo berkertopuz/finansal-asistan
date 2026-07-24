@@ -78,3 +78,70 @@ export async function deleteCreditCard(id: string): Promise<void> {
   revalidatePath("/defter/giderler/kartlar");
   revalidatePath("/defter/giderler");
 }
+
+const payDebtSchema = z.object({
+  cardId: z.string().uuid(),
+  // Aynı üst sınır entries.ts'teki amount ile aynı — DB CHECK (amount > 0)
+  // asıl güvenlik ağı, bu sadece daha erken/dostane bir hata.
+  amount: z.coerce.number().positive().max(10_000_000),
+  occurred_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
+// Kullanıcının bir karta yaptığı gerçek ödemeyi kaydeder — tam ya da kısmi,
+// asgari ya da toplam borç, fark etmiyor: bu formun kendisi ne kadar
+// ödendiğini elle sorduğu için (src/components/statements/CreditCardsManager.tsx'teki
+// "Borç öde" dialoğu, StatementUploadSheet.tsx'teki ekstre sonrası
+// isteğe bağlı adım) miktar tamamen kullanıcının beyanı. entries'e
+// kind='card_payment' olarak yazılır — bir gider değil, nakitten kart
+// borcuna bir transfer (src/lib/cashflow.ts bunu doğrudan nakitten düşer,
+// creditCardDebtBalance ise aynı satırı o kartın borcundan düşer).
+// credit_cards'ın kendi RLS'i (yalnızca sahibi seçebilir) zaten kartı
+// başkasına ait bir id ile sorgulamayı sessizce boş döndürür — burada ayrıca
+// var olduğunu doğrulayıp yoksa net bir hata mesajı veriyoruz.
+export async function payCreditCardDebt(
+  cardId: string,
+  amount: number,
+  occurredAt: string,
+): Promise<CreditCardState> {
+  const t = await getTranslations("creditCards.errors");
+  const parsed = payDebtSchema.safeParse({ cardId, amount, occurred_at: occurredAt });
+  if (!parsed.success) {
+    return { error: t("genericInvalid") };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: t("noSession") };
+  }
+
+  const { data: card } = await supabase
+    .from("credit_cards")
+    .select("id")
+    .eq("id", parsed.data.cardId)
+    .maybeSingle();
+  if (!card) {
+    return { error: t("cardNotFound") };
+  }
+
+  const { error } = await supabase.from("entries").insert({
+    user_id: user.id,
+    kind: "card_payment" as const,
+    amount: parsed.data.amount,
+    occurred_at: parsed.data.occurred_at,
+    credit_card_id: parsed.data.cardId,
+    recurrence: "none" as const,
+  });
+
+  if (error) {
+    return { error: t("saveFailed") };
+  }
+
+  revalidatePath("/defter/giderler/kartlar");
+  revalidatePath("/defter");
+  revalidatePath("/");
+  return { success: true };
+}

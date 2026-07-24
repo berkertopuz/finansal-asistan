@@ -11,15 +11,36 @@ const DAY_MS = 86_400_000;
 // gross rate.
 export const WITHHOLDING_TAX_RATE = 0.175;
 
-// The date the balance actually moves for this entry — a card-statement
-// import's cash_out_at (the statement's son ödeme tarihi) if set, else
-// occurred_at. A card purchase is a debt until the bill is paid; the bank
-// balance doesn't drop on the purchase date, so cash flow math needs the
-// payment date, not the transaction date. occurred_at itself stays
-// untouched (Defter list, v_monthly_surplus) — those answer "when did I
-// spend this", a different question from "when does my balance move".
-function cashDate(entry: Pick<Entry, "occurred_at" | "cash_out_at">): string {
-  return entry.cash_out_at ?? entry.occurred_at;
+// A charge on a card is a debt, not a cash event — the bank balance
+// doesn't drop when the purchase happens, only when the card bill is
+// actually paid (a separate kind='card_payment' entry, created by
+// src/lib/actions/credit-cards.ts's payCreditCardDebt). currentBalance and
+// projectBalance both skip these entirely when computing cash; they only
+// count toward creditCardDebtBalance below. income/investment can never
+// carry a credit_card_id (DB CHECK), so this only ever matters for
+// expense/subscription.
+function isCardDebt(entry: Pick<Entry, "kind" | "credit_card_id">): boolean {
+  return (entry.kind === "expense" || entry.kind === "subscription") && entry.credit_card_id !== null;
+}
+
+// A card's running debt as of `asOf`: everything charged to it minus
+// everything paid toward it, both only counting what's already happened
+// (occurred_at <= asOf) — mirrors currentBalance's own cutoff logic below.
+// Shown on the Kartlar page (src/components/statements/CreditCardsManager.tsx)
+// so the user always knows what they actually owe, independent of the cash
+// flow chart (which only ever shows a *projection* of a future payment, see
+// projectBalance — this is the real, current number).
+export function creditCardDebtBalance(entries: Entry[], cardId: string, asOf: Date = new Date()): number {
+  const cutoff = toDateString(new Date(asOf.getFullYear(), asOf.getMonth(), asOf.getDate()));
+  return entries.reduce((sum, e) => {
+    // Recurring templates aren't transactions themselves (same reasoning as
+    // currentBalance below) — their materialized concrete rows are what
+    // actually carry a real occurred_at and credit_card_id to count here.
+    if (e.recurrence !== "none" || e.credit_card_id !== cardId || e.occurred_at > cutoff) return sum;
+    if (isCardDebt(e)) return sum + e.amount;
+    if (e.kind === "card_payment") return sum - e.amount;
+    return sum;
+  }, 0);
 }
 
 // A card's billing cycle, generalized: charges cut off on statement_day and
@@ -94,13 +115,41 @@ export function occurrencesInRange(
 export function currentBalance(entries: Entry[], from: Date = new Date()): number {
   const today = toDateString(new Date(from.getFullYear(), from.getMonth(), from.getDate()));
   return entries.reduce((sum, e) => {
-    if (e.recurrence !== "none" || cashDate(e) > today) return sum;
+    if (e.recurrence !== "none" || e.occurred_at > today) return sum;
+    if (isCardDebt(e)) return sum; // debt, not cash — see isCardDebt above
     return sum + (e.kind === "income" ? e.amount : -e.amount);
   }, 0);
 }
 
-export type CashFlowEvent = { entry: Entry; occurrence: Date };
+export type CashFlowEvent = { entry: Entry; occurrence: Date; isProjected?: boolean };
 export type CashFlowPoint = { date: Date; balance: number };
+export type CreditCardCycleInfo = { id: string; statement_day: number; payment_day: number };
+
+// Builds the synthetic Entry a projected card-payment event is displayed
+// as — every field beyond kind/amount/credit_card_id/occurred_at is inert
+// (never read for a projected event), but the type is shared with real rows
+// so the chart/tooltip code in CashFlowTimeline.tsx doesn't need a second
+// shape to handle.
+function projectedCardPaymentEntry(cardId: string, paymentDate: Date, amount: number): Entry {
+  return {
+    id: `projected-card-payment-${cardId}-${toDateString(paymentDate)}`,
+    kind: "expense",
+    amount,
+    currency: "TRY",
+    category: null,
+    description: null,
+    recurrence: "none",
+    next_due_date: null,
+    occurred_at: toDateString(paymentDate),
+    credit_card_id: cardId,
+    created_at: "",
+    template_id: null,
+    portfolio_position_id: null,
+    installment_group_id: null,
+    installment_index: null,
+    installment_count: null,
+  };
+}
 
 // Day-by-day running balance from today through `days` days out. Recurring
 // entries project forward from their next_due_date anchor (same
@@ -110,10 +159,24 @@ export type CashFlowPoint = { date: Date; balance: number };
 // (already folded into the starting balance, nothing to project), but a
 // taksit installment's is a real future month, so it needs the same
 // treatment as a recurring occurrence.
+//
+// `cards` (optional — pass [] or omit if the caller doesn't have credit
+// card data handy, e.g. a unit test) drives one more thing: a *projected*
+// cash-out event for card debt that hasn't been paid yet. A card-tagged
+// expense/subscription never appears as a cash event on its own (see
+// isCardDebt above — it's a debt, not a payment) — without this, the chart
+// would never show that debt leaving cash at all, understating every future
+// dip. This can only ever be an estimate (we don't know if/how much the
+// user will actually pay), so it's scoped to cycles that are *entirely* in
+// the future — every charge in the cycle, and the cycle's own payment day,
+// still ahead of today — where the user genuinely couldn't have paid
+// anything yet, so there's no risk of double-counting against a real
+// card_payment they already logged.
 export function projectBalance(
   entries: Entry[],
   days: number,
   from: Date = new Date(),
+  cards: CreditCardCycleInfo[] = [],
 ): { points: CashFlowPoint[]; events: CashFlowEvent[] } {
   const today = new Date(from.getFullYear(), from.getMonth(), from.getDate());
   const rangeStart = new Date(today.getTime() + DAY_MS);
@@ -132,16 +195,15 @@ export function projectBalance(
 
   const events: CashFlowEvent[] = [];
   for (const entry of entries) {
+    if (isCardDebt(entry)) continue; // debt, not cash — projected separately below
     if (entry.recurrence === "none") {
       // A concrete row dated ahead of `from` (taksit's future installments,
-      // a manually future-dated one-off entry, or a card-statement import
-      // whose cash_out_at is still ahead) — currentBalance below
+      // or any manually future-dated one-off entry) — currentBalance above
       // deliberately excludes these from the starting balance, so they need
       // to land here instead, exactly like a recurring template's projected
       // occurrence, or they'd vanish from the projection entirely.
-      const effectiveDate = cashDate(entry);
-      if (!effectiveDate || effectiveDate <= toDateString(today)) continue;
-      const occurrence = new Date(`${effectiveDate}T00:00:00`);
+      if (!entry.occurred_at || entry.occurred_at <= toDateString(today)) continue;
+      const occurrence = new Date(`${entry.occurred_at}T00:00:00`);
       if (occurrence >= rangeStart && occurrence <= rangeEnd) {
         events.push({ entry, occurrence });
       }
@@ -153,6 +215,33 @@ export function projectBalance(
       events.push({ entry, occurrence });
     }
   }
+
+  if (cards.length > 0) {
+    const cardById = new Map(cards.map((c) => [c.id, c]));
+    // (cardId, paymentDate) -> accumulated charge total for that cycle.
+    const cycleTotals = new Map<string, { cardId: string; paymentDate: Date; total: number }>();
+    for (const entry of entries) {
+      if (entry.recurrence !== "none" || !isCardDebt(entry)) continue;
+      const card = cardById.get(entry.credit_card_id!);
+      if (!card) continue;
+      const chargeDate = new Date(`${entry.occurred_at}T00:00:00`);
+      if (chargeDate <= today) continue; // could already be (partly) paid — leave to creditCardDebtBalance instead
+      const paymentDate = nextCardPaymentDate(chargeDate, card.statement_day, card.payment_day);
+      if (paymentDate < rangeStart || paymentDate > rangeEnd) continue;
+      const key = `${card.id}:${toDateString(paymentDate)}`;
+      const bucket = cycleTotals.get(key);
+      if (bucket) bucket.total += entry.amount;
+      else cycleTotals.set(key, { cardId: card.id, paymentDate, total: entry.amount });
+    }
+    for (const { cardId, paymentDate, total } of cycleTotals.values()) {
+      events.push({
+        entry: projectedCardPaymentEntry(cardId, paymentDate, total),
+        occurrence: paymentDate,
+        isProjected: true,
+      });
+    }
+  }
+
   events.sort((a, b) => a.occurrence.getTime() - b.occurrence.getTime());
 
   const startingBalance = currentBalance(entries, from);

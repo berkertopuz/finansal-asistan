@@ -16,11 +16,11 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { recordStatementConsent, importStatementEntries } from "@/lib/actions/statements";
-import { updateCreditCard } from "@/lib/actions/credit-cards";
+import { payCreditCardDebt, updateCreditCard } from "@/lib/actions/credit-cards";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { AppLocale } from "@/lib/locale";
 import type { CreditCard } from "@/lib/credit-cards-data";
-import { ENTRY_CATEGORIES, type Entry } from "@/lib/ledger";
+import { ENTRY_CATEGORIES, toDateString, type Entry } from "@/lib/ledger";
 
 type StatementRow = {
   tarih: string;
@@ -78,10 +78,21 @@ export function StatementUploadSheet({
   const [suggestedDays, setSuggestedDays] = useState<{ statement_day: number; payment_day: number } | null>(
     null,
   );
-  // cash_out_at olarak importStatementEntries'e geçiriliyor — bkz.
-  // src/lib/actions/statements.ts'teki açıklama.
+  // Yalnızca bilgi amaçlı gösteriliyor (içe aktarma sonrası isteğe bağlı
+  // ödeme adımında "Son ödeme tarihi: ...") — artık importStatementEntries'e
+  // geçirilmiyor, cash_out_at kavramı card_payment modeliyle yer değiştirdi
+  // (bkz. src/lib/actions/statements.ts, src/lib/actions/credit-cards.ts).
   const [paymentDueDate, setPaymentDueDate] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+  // İçe aktarma başarılı olduktan sonra gösterilen isteğe bağlı adım —
+  // kullanıcı bu ekstre için ne kadar ödediğini (tam/kısmi/asgari) burada
+  // bildirir; "Atla" da tamamen geçerli bir seçim (borç Kartlar sayfasında
+  // creditCardDebtBalance ile zaten görünür kalır, sonra da ödenebilir).
+  const [postImportTotal, setPostImportTotal] = useState<number | null>(null);
+  const [payAmount, setPayAmount] = useState("");
+  const [payDate, setPayDate] = useState(() => toDateString(new Date()));
+  const [payError, setPayError] = useState<string | undefined>();
+  const [payPending, setPayPending] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { data: existingEntries } = useSWR<Entry[]>(ENTRIES_KEY, entriesFetcher);
   const router = useRouter();
@@ -158,16 +169,40 @@ export function StatementUploadSheet({
         taksit_index: r.taksit_index,
         taksit_sayisi: r.taksit_sayisi,
       })),
-      paymentDueDate,
       card.id,
     );
     setImporting(false);
     if (result.success) {
       mutate(ENTRIES_KEY);
       router.refresh();
-      onClose();
+      // Her seçili satır bir gider olarak (kind='expense', bu karta borç)
+      // eklendi — ödeme önerisinin varsayılanı bunların toplamı, "tam
+      // ödedim" tek dokunuşla onaylanabilsin diye. Kullanıcı isterse
+      // (asgari/kısmi ödeme) düzenler ya da adımı tamamen atlar.
+      setPostImportTotal(selected.reduce((sum, r) => sum + r.tutar, 0));
+      setPayAmount(selected.reduce((sum, r) => sum + r.tutar, 0).toFixed(2));
+      setPayDate(toDateString(new Date()));
     } else {
       setError(result.error);
+    }
+  }
+
+  async function handleSavePayment() {
+    const amount = Number(payAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setPayError(t("errors.genericInvalid"));
+      return;
+    }
+    setPayPending(true);
+    setPayError(undefined);
+    const result = await payCreditCardDebt(card.id, amount, payDate);
+    setPayPending(false);
+    if (result.success) {
+      mutate(ENTRIES_KEY);
+      router.refresh();
+      onClose();
+    } else {
+      setPayError(result.error);
     }
   }
 
@@ -180,7 +215,48 @@ export function StatementUploadSheet({
         </SheetHeader>
 
         <div className="flex flex-col gap-4 px-4 pb-6">
-          {!hasConsent ? (
+          {postImportTotal !== null ? (
+            <div className="flex flex-col gap-3">
+              <p className="text-sm text-foreground">{t("postImportPayment.prompt")}</p>
+              {paymentDueDate && (
+                <p className="text-xs text-muted-foreground">
+                  {t("postImportPayment.dueDate", { date: formatDate(paymentDueDate, locale) })}
+                </p>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs text-muted-foreground">{t("postImportPayment.amountLabel")}</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min="0"
+                    value={payAmount}
+                    onChange={(e) => setPayAmount(e.target.value)}
+                    className="min-h-touch rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs text-muted-foreground">{t("postImportPayment.dateLabel")}</span>
+                  <input
+                    type="date"
+                    value={payDate}
+                    onChange={(e) => setPayDate(e.target.value)}
+                    className="min-h-touch rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+              {payError && <p className="text-sm text-signal-caution-foreground">{payError}</p>}
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
+                  {t("postImportPayment.skip")}
+                </Button>
+                <Button type="button" className="flex-1" disabled={payPending} onClick={handleSavePayment}>
+                  {payPending ? tCommon("saving") : t("postImportPayment.save")}
+                </Button>
+              </div>
+            </div>
+          ) : !hasConsent ? (
             <div className="flex flex-col gap-3">
               <p className="text-sm text-foreground">{t("consentText")}</p>
               {error && <p className="text-sm text-signal-caution-foreground">{error}</p>}

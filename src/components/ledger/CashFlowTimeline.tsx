@@ -26,12 +26,20 @@ import {
 } from "@/lib/format";
 import type { Entry } from "@/lib/ledger";
 import type { AppLocale } from "@/lib/locale";
+import type { CreditCard } from "@/lib/credit-cards-data";
 import { cn } from "@/lib/utils";
 
 const ENTRIES_KEY = "/api/entries";
 const fetcher = (url: string) =>
   fetch(url).then((res) => {
     if (!res.ok) throw new Error("failed to fetch entries");
+    return res.json();
+  });
+
+const CREDIT_CARDS_KEY = "/api/credit-cards";
+const creditCardsFetcher = (url: string) =>
+  fetch(url).then((res) => {
+    if (!res.ok) throw new Error("failed to fetch credit cards");
     return res.json();
   });
 
@@ -62,6 +70,8 @@ export function CashFlowTimeline({
 }) {
   const { data } = useSWR<Entry[]>(ENTRIES_KEY, fetcher, { fallbackData: initialData });
   const entries = useMemo(() => data ?? [], [data]);
+  const { data: creditCards } = useSWR<CreditCard[]>(CREDIT_CARDS_KEY, creditCardsFetcher);
+  const cards = useMemo(() => creditCards ?? [], [creditCards]);
   const locale = useLocale() as AppLocale;
   const t = useTranslations("cashflow");
   const tLedger = useTranslations("ledger");
@@ -100,7 +110,10 @@ export function CashFlowTimeline({
     return () => observer.disconnect();
   }, []);
 
-  const { points, events } = useMemo(() => projectBalance(entries, days), [entries, days]);
+  const { points, events } = useMemo(
+    () => projectBalance(entries, days, new Date(), cards),
+    [entries, days, cards],
+  );
   const optimizedPoints = useMemo(
     () => projectOptimizedBalance(points, assumedRate),
     [points, assumedRate],
@@ -339,6 +352,9 @@ export function CashFlowTimeline({
                         isIncome ? "fill-signal-buy-foreground" : "fill-signal-caution-foreground",
                         "stroke-background",
                       )}
+                      // Tahmini kart ödemesi olayları soluk çizilir — kesinleşmiş
+                      // bir işlem değil, bir tahmin olduğunu görsel olarak da ayırt eder.
+                      opacity={ev.isProjected ? 0.5 : 1}
                       strokeWidth={2}
                     />
                   );
@@ -406,6 +422,12 @@ export function CashFlowTimeline({
                       >
                         {isIncome ? "+" : "−"}
                         {formatCurrency(ev.entry.amount, locale)}
+                        {/* Bir kartın henüz ödenmemiş, tamamen gelecekteki
+                            döngüsü için tahmini bir olay — gerçek bir işlem
+                            değil, bkz. src/lib/cashflow.ts'teki projectBalance. */}
+                        {ev.isProjected && (
+                          <span className="text-foreground/60"> · {t("projectedEventLabel")}</span>
+                        )}
                       </span>
                     );
                   })}

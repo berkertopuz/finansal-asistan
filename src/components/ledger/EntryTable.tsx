@@ -285,8 +285,11 @@ export function EntryTable({
       if (e.recurrence !== "none") continue;
       // Money moved into an investment, not spent — it reduces cash
       // (currentBalance in src/lib/cashflow.ts already accounts for that)
-      // but isn't a "gider" and shouldn't skew net fazla.
-      if (e.kind === "investment") continue;
+      // but isn't a "gider" and shouldn't skew net fazla. A card_payment is
+      // the same idea from the other side — a transfer from cash to a
+      // card's debt, not new spending (the spending itself was already
+      // counted when the card-tagged expense/subscription row was added).
+      if (e.kind === "investment" || e.kind === "card_payment") continue;
       if (!monthMatches(e)) continue;
       totals[e.kind] += e.amount;
     }
@@ -294,10 +297,11 @@ export function EntryTable({
     // above) — without adding these in, browsing ahead to a month with a
     // standing bill due would show a flat ₺0 summary right next to the row
     // that says otherwise. plannedRows only ever come from templates, which
-    // can never be kind="investment" (that kind is always a one-off cash-out
-    // row, never recurring) — the guard just keeps this indexable by type.
+    // can never be kind="investment"/"card_payment" (both are always a
+    // one-off row, never recurring) — the guard just keeps this indexable
+    // by type.
     for (const e of plannedRows) {
-      if (e.kind === "investment") continue;
+      if (e.kind === "investment" || e.kind === "card_payment") continue;
       totals[e.kind] += e.amount;
     }
     return { ...totals, net: totals.income - totals.expense - totals.subscription };

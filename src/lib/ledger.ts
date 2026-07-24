@@ -1,10 +1,17 @@
 import { nextOccurrenceOnOrAfter } from "@/lib/recurrence";
 
-// "investment" is never user-selectable (not in ENTRY_KINDS below, not in
-// the addEntry/updateEntry zod schema) — it only ever exists on a row
-// created server-side by src/lib/actions/positions.ts alongside a
-// portfolio_positions row, when that purchase is marked as funded from cash.
-export type EntryKind = "income" | "expense" | "subscription" | "investment";
+// "investment" and "card_payment" are never user-selectable (not in
+// ENTRY_KINDS below, not in the addEntry/updateEntry zod schema):
+// - "investment" only ever exists on a row created server-side by
+//   src/lib/actions/positions.ts alongside a portfolio_positions row, when
+//   that purchase is marked as funded from cash.
+// - "card_payment" only ever exists on a row created server-side by
+//   src/lib/actions/credit-cards.ts's payCreditCardDebt, when the user
+//   declares they paid (fully or partially) toward a specific card's debt.
+//   It's a transfer (cash -> card debt), not spending — v_monthly_surplus's
+//   income/expense CTEs only match kind='income'/'expense', so it never
+//   inflates a month's spending total.
+export type EntryKind = "income" | "expense" | "subscription" | "investment" | "card_payment";
 export type EntryRecurrence = "none" | "weekly" | "monthly" | "yearly";
 
 export type Entry = {
@@ -17,19 +24,19 @@ export type Entry = {
   recurrence: EntryRecurrence;
   next_due_date: string | null;
   occurred_at: string;
-  // Set only on a row imported from a card statement (src/lib/actions/statements.ts)
-  // — that statement's parsed son ödeme tarihi (payment due date). Null for
-  // every other row. occurred_at stays the purchase date for display/monthly
-  // grouping; cash flow math (src/lib/cashflow.ts) uses cash_out_at instead
-  // when set, since a card purchase doesn't leave the bank account until the
-  // bill is paid, not on the day of the purchase itself.
-  cash_out_at: string | null;
-  // Which card (if any) this was charged to — set at statement import time
-  // (src/lib/actions/statements.ts). Carried forward automatically when a
-  // card-imported expense is later converted into a recurring subscription
-  // (updateEntry never touches this field), so materializeDueOccurrences
-  // (src/lib/recurrence-materialize.ts) can still compute the right
-  // cash_out_at for every future month's row from it.
+  // Which card this row concerns:
+  // - kind='expense'/'subscription': null means cash/debit (reduces cash
+  //   immediately, today's default behavior); set means charged to that
+  //   card — a debt, not a cash event, until a card_payment pays it down
+  //   (src/lib/cashflow.ts never counts these directly against the
+  //   balance, only against creditCardDebtBalance).
+  // - kind='card_payment': required — which card's debt this reduces.
+  // Carried forward automatically when a card-imported expense is later
+  // converted into a recurring subscription (updateEntry never touches this
+  // field on its own row; its cascade to already-materialized future rows
+  // does, see updateEntry), so materializeDueOccurrences
+  // (src/lib/recurrence-materialize.ts) keeps tagging every future month's
+  // row with the right card.
   credit_card_id: string | null;
   created_at: string;
   // Set only on a concrete row generated from a recurring template (see

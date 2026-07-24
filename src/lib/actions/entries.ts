@@ -56,6 +56,14 @@ async function buildEntrySchema() {
       // çünkü z.coerce.boolean() "false" string'ini de truthy sayar. Bu alan
       // sadece isInstallment true iken addEntry içinde elle doğrulanır.
       installmentCount: z.coerce.number().int().min(2).max(36).optional(),
+      // Ödeme yöntemi — boş değer "Nakit/Banka" demek (nakit çıkışı hemen
+      // olur, bugünkü davranış); bir kart id'si ise o karta borç yazılır
+      // (src/lib/cashflow.ts bunu nakitten hemen düşmez, bkz. isCardDebt).
+      // "income" için formda hiç gösterilmiyor, boş geçilir.
+      credit_card_id: z
+        .string()
+        .optional()
+        .transform((v) => (v ? v : undefined)),
     })
     .superRefine((data, ctx) => {
       if (data.recurrence === "none" && !data.occurred_at) {
@@ -89,6 +97,7 @@ export async function addEntry(
     recurrence: formData.get("recurrence") || "none",
     next_due_date: formData.get("next_due_date") || undefined,
     installmentCount: formData.get("installmentCount") || undefined,
+    credit_card_id: formData.get("credit_card_id") || undefined,
   });
 
   if (!parsed.success) {
@@ -106,6 +115,10 @@ export async function addEntry(
 
   const isRecurring = parsed.data.recurrence !== "none";
   const isInstallment = formData.get("isInstallment") === "true";
+  // income can never carry a card (DB CHECK) — the form never shows the
+  // selector for it, this is just the same server-side backstop pattern
+  // already used elsewhere in this file.
+  const creditCardId = parsed.data.kind === "income" ? null : (parsed.data.credit_card_id ?? null);
 
   // Taksit: bir şablon değil, toplamı ve sayısı baştan belli sabit bir seri —
   // tüm satırlar kayıt anında toplu insert edilir (src/lib/installments.ts),
@@ -137,6 +150,7 @@ export async function addEntry(
         installment_group_id: installmentGroupId,
         installment_index: row.index,
         installment_count: row.count,
+        credit_card_id: creditCardId,
       })),
     );
 
@@ -163,6 +177,7 @@ export async function addEntry(
     description: parsed.data.description ?? null,
     recurrence: parsed.data.recurrence,
     next_due_date: isRecurring ? parsed.data.next_due_date! : null,
+    credit_card_id: creditCardId,
   });
 
   if (error) {
@@ -193,6 +208,7 @@ export async function updateEntry(
     description: formData.get("description") || undefined,
     recurrence: formData.get("recurrence") || "none",
     next_due_date: formData.get("next_due_date") || undefined,
+    credit_card_id: formData.get("credit_card_id") || undefined,
   });
 
   if (!parsed.success) {
@@ -213,6 +229,8 @@ export async function updateEntry(
   // sheet asks the user to choose this via a confirmation dialog rather
   // than silently picking one (src/components/ledger/QuickEntryForm.tsx).
   const applyToAllOccurrences = formData.get("applyToAllOccurrences") === "true";
+  // Same backstop as addEntry — income can never carry a card (DB CHECK).
+  const creditCardId = parsed.data.kind === "income" ? null : (parsed.data.credit_card_id ?? null);
 
   // Read before the update below, which nulls this row's own template_id
   // once it turns recurring — need the *previous* value to know whether
@@ -242,6 +260,7 @@ export async function updateEntry(
       description: parsed.data.description ?? null,
       recurrence: parsed.data.recurrence,
       next_due_date: isRecurring ? parsed.data.next_due_date! : null,
+      credit_card_id: creditCardId,
       // A row turning recurring becomes a template in its own right, which
       // can't also be a generated occurrence of another template — the DB
       // enforces this (entries_template_id_only_when_concrete: recurrence
@@ -305,6 +324,12 @@ export async function updateEntry(
         amount: parsed.data.amount,
         category: parsed.data.category,
         description: parsed.data.description ?? null,
+        // A card-tagged subscription's already-materialized future rows
+        // need to follow if the user changes which card it's charged to
+        // (or clears it back to nakit/banka) — otherwise src/lib/cashflow.ts's
+        // creditCardDebtBalance and future-cycle projection would keep
+        // reading the old card for months already generated before the edit.
+        credit_card_id: creditCardId,
       })
       .eq("template_id", id);
     if (!applyToAllOccurrences) {

@@ -224,6 +224,8 @@
     },
     "form": {
       "amountLabel": "Amount",
+      "paymentMethodLabel": "Payment method",
+      "paymentMethodCash": "Cash/Debit",
       "dateLabel": "Date",
       "descriptionLabel": "Description (optional)",
       "descriptionPlaceholder": "e.g. July rent",
@@ -309,6 +311,7 @@
     "legendActual": "Actual balance",
     "legendOptimized": "If kept in daily interest",
     "cumulativeGainSentence": "Keeping this in a daily-interest account up to this date would have earned ~{gain} more.",
+    "projectedEventLabel": "projected",
     "evdsContext": "TLREF overnight reference rate, the basis for the daily-account estimate (as of {asOf}): {rate}",
     "evdsUnavailable": "TCMB EVDS is currently unreachable.",
     "rateDetailsToggle": "Interest assumption & source",
@@ -352,6 +355,14 @@
       "odeme": "Payment",
       "ucret": "Fee"
     },
+    "postImportPayment": {
+      "prompt": "Want to log a payment for this statement?",
+      "dueDate": "Due date: {date}",
+      "amountLabel": "Amount paid",
+      "dateLabel": "Payment date",
+      "skip": "Skip",
+      "save": "Save"
+    },
     "errors": {
       "noSession": "No session found, please log in again.",
       "consentRequired": "You need to give consent before continuing.",
@@ -382,6 +393,17 @@
     "paymentDayShort": "Payment: {day} of each month",
     "remindersLabel": "Reminders on",
     "uploadStatement": "Upload statement",
+    "currentDebtLabel": "Current debt",
+    "payDebt": {
+      "button": "Pay debt",
+      "dialogTitle": "{name} — pay debt",
+      "dialogDescription": "Log how much you paid toward this card — full balance or a partial/minimum payment, either way.",
+      "amountLabel": "Amount paid",
+      "dateLabel": "Payment date",
+      "errors": {
+        "amountInvalid": "Enter a valid amount."
+      }
+    },
     "notificationsTitle": "Notifications",
     "notificationsDescription": "Allow notifications to get reminders on statement and payment days.",
     "notificationsEnable": "Enable notifications",
@@ -392,7 +414,8 @@
       "dayInvalid": "Day must be between 1 and 31.",
       "noSession": "No session found, please log in again.",
       "saveFailed": "Could not save, please try again.",
-      "genericInvalid": "Invalid details."
+      "genericInvalid": "Invalid details.",
+      "cardNotFound": "Card not found."
     }
   },
   "offline": {

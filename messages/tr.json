@@ -225,6 +225,8 @@
     "form": {
       "amountLabel": "Tutar",
       "dateLabel": "Tarih",
+      "paymentMethodLabel": "Ödeme yöntemi",
+      "paymentMethodCash": "Nakit/Banka",
       "descriptionLabel": "Açıklama (opsiyonel)",
       "descriptionPlaceholder": "örn. Temmuz kirası",
       "subscriptionNameLabel": "Abonelik adı",
@@ -309,6 +311,7 @@
     "legendActual": "Gerçek bakiye",
     "legendOptimized": "Günlük faizde tutulsaydı",
     "cumulativeGainSentence": "Bu tarihe kadar günlük faiz işleyen bir hesapta tutsaydın ~{gain} daha fazla birikmiş olurdun.",
+    "projectedEventLabel": "tahmini",
     "evdsContext": "TLREF gecelik referans faiz oranı, günlük hesap yaklaşımının temeli ({asOf} itibarıyla): {rate}",
     "evdsUnavailable": "TCMB EVDS'e şu an ulaşılamıyor.",
     "rateDetailsToggle": "Faiz varsayımı ve kaynağı",
@@ -352,6 +355,14 @@
       "odeme": "Ödeme",
       "ucret": "Ücret"
     },
+    "postImportPayment": {
+      "prompt": "Bu ekstre için ödeme kaydetmek ister misin?",
+      "dueDate": "Son ödeme tarihi: {date}",
+      "amountLabel": "Ödenen tutar",
+      "dateLabel": "Ödeme tarihi",
+      "skip": "Atla",
+      "save": "Kaydet"
+    },
     "errors": {
       "noSession": "Oturum bulunamadı, tekrar giriş yap.",
       "consentRequired": "Devam etmeden önce onay vermen gerekiyor.",
@@ -382,6 +393,17 @@
     "paymentDayShort": "Ödeme: her ayın {day}'i",
     "remindersLabel": "Hatırlatmalar açık",
     "uploadStatement": "Ekstre yükle",
+    "currentDebtLabel": "Güncel borç",
+    "payDebt": {
+      "button": "Borç öde",
+      "dialogTitle": "{name} — borç öde",
+      "dialogDescription": "Bu karta ne kadar ödediğini kaydet — tam borç ya da kısmi/asgari ödeme fark etmez.",
+      "amountLabel": "Ödenen tutar",
+      "dateLabel": "Ödeme tarihi",
+      "errors": {
+        "amountInvalid": "Geçerli bir tutar gir."
+      }
+    },
     "notificationsTitle": "Bildirimler",
     "notificationsDescription": "Ekstre ve ödeme günlerinde bildirim almak için izin ver.",
     "notificationsEnable": "Bildirimleri aç",
@@ -392,7 +414,8 @@
       "dayInvalid": "Gün 1 ile 31 arasında olmalı.",
       "noSession": "Oturum bulunamadı, tekrar giriş yap.",
       "saveFailed": "Kaydedilemedi, tekrar dene.",
-      "genericInvalid": "Geçersiz bilgiler."
+      "genericInvalid": "Geçersiz bilgiler.",
+      "cardNotFound": "Kart bulunamadı."
     }
   },
   "offline": {

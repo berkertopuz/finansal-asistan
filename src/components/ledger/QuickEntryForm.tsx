@@ -8,6 +8,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { addEntry, updateEntry, type AddEntryState } from "@/lib/actions/entries";
 import { addCategory } from "@/lib/actions/categories";
 import type { Category } from "@/lib/categories-data";
+import type { CreditCard } from "@/lib/credit-cards-data";
 import {
   DEFAULT_CATEGORY,
   ENTRY_CATEGORIES,
@@ -37,6 +38,13 @@ const CATEGORIES_KEY = "/api/categories";
 const categoriesFetcher = (url: string) =>
   fetch(url).then((res) => {
     if (!res.ok) throw new Error("failed to fetch categories");
+    return res.json();
+  });
+
+const CREDIT_CARDS_KEY = "/api/credit-cards";
+const creditCardsFetcher = (url: string) =>
+  fetch(url).then((res) => {
+    if (!res.ok) throw new Error("failed to fetch credit cards");
     return res.json();
   });
 
@@ -116,6 +124,11 @@ export function QuickEntryForm({
   // bir düzenleme, "seriyi" düzenlemek diye ayrı bir kavram yok.
   const [isInstallment, setIsInstallment] = useState(false);
   const [installmentCount, setInstallmentCount] = useState(2);
+  // "" = Nakit/Banka (bakiyeyi hemen düşürür, varsayılan — 3-dokunuşluk
+  // akışı bozmamak için kart seçmek isteğe bağlı bir dokunuş daha). Dolu bir
+  // değer, o karta borç yazar (src/lib/cashflow.ts bunu bakiyeden hemen
+  // düşmez, bkz. isCardDebt).
+  const [creditCardId, setCreditCardId] = useState<string>(editingEntry?.credit_card_id ?? "");
   // Controlled only so the taksit preview below can read it live — every
   // other field stays uncontrolled (defaultValue) on purpose, this is the
   // one exception.
@@ -134,6 +147,7 @@ export function QuickEntryForm({
   const t = useTranslations("ledger");
   const tCommon = useTranslations("common");
   const { data: customCategories } = useSWR<Category[]>(CATEGORIES_KEY, categoriesFetcher);
+  const { data: creditCards } = useSWR<CreditCard[]>(CREDIT_CARDS_KEY, creditCardsFetcher);
 
   async function handleAddCategory() {
     const name = newCategoryName.trim();
@@ -198,6 +212,7 @@ export function QuickEntryForm({
           setDateValue(todayDateInputValue());
           setIsInstallment(false);
           setInstallmentCount(2);
+          setCreditCardId("");
         }
         mutate("/api/entries");
         router.refresh();
@@ -216,6 +231,7 @@ export function QuickEntryForm({
       <input type="hidden" name="recurrence" value={recurrence} />
       <input type="hidden" name="isInstallment" value={isInstallment ? "true" : "false"} />
       <input type="hidden" name="installmentCount" value={installmentCount} />
+      <input type="hidden" name="credit_card_id" value={giderGelirKind === "income" ? "" : creditCardId} />
       {/* Only ever read by updateEntry, and only when the row being edited
           is itself a recurring rule — set imperatively by submitWithScope
           right before requestSubmit, never via React state (see there). */}
@@ -354,6 +370,29 @@ export function QuickEntryForm({
           <p className="text-xs text-muted-foreground">{t("form.recurrenceNote")}</p>
         )}
       </div>
+
+      {/* Gelir hiçbir zaman bir karta bağlanamaz (DB CHECK) — yalnızca
+          gider/abonelik için gösteriliyor. Varsayılan hep "Nakit/Banka"
+          (boş değer): kart seçmek isteğe bağlı bir dokunuş daha, 3-dokunuşluk
+          akışı bozmuyor. */}
+      {giderGelirKind !== "income" && creditCards && creditCards.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="payment-method">{t("form.paymentMethodLabel")}</Label>
+          <select
+            id="payment-method"
+            value={creditCardId}
+            onChange={(e) => setCreditCardId(e.target.value)}
+            className="min-h-touch rounded-md border border-input bg-background px-3 py-2 text-sm"
+          >
+            <option value="">{t("form.paymentMethodCash")}</option>
+            {creditCards.map((card) => (
+              <option key={card.id} value={card.id}>
+                {card.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Taksit yalnızca yeni, tek seferlik bir gider için anlamlı —
           tekrarlayan bir kuralın (recurrence !== "none") ya da zaten var

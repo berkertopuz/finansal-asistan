@@ -17,12 +17,6 @@ const importRowSchema = z.object({
   taksit_sayisi: z.number().int().min(2).nullable(),
 });
 
-const paymentDueDateSchema = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/)
-  .nullable()
-  .optional();
-
 // Kullanıcının inceleme ekranında işaretleyip onayladığı satırlar — hangi
 // satırların "harcama" mı "ödeme/ücret" mi olduğu, mükerrer olup olmadığı
 // zaten StatementUploadSheet.tsx'te (client) elenmiş; buraya gelen her satır
@@ -38,33 +32,24 @@ const paymentDueDateSchema = z
 // harcama grafikleri planladığı için sabit bir taksonomi kullanmak
 // kasıtlı — serbest metin kart adı bu amaca uymazdı.
 //
-// paymentDueDate = bu ekstrenin ayrıştırılan son ödeme tarihi
-// (StatementUploadSheet.tsx'in /api/statements/parse'tan aldığı
-// header.paymentDueDate) — her satıra cash_out_at olarak yazılıyor. Kart
-// harcaması, ekstre ödenene kadar bir borç: para hesaptan satın alma
-// gününde değil, bu tarihte çıkıyor. Ayrıştırma bir sebeple bu tarihi
-// bulamadıysa (null) cash_out_at da null kalır — src/lib/cashflow.ts bu
-// durumda occurred_at'e düşer, yani eskisi gibi davranır (uydurma tarih
-// yazmaktansa daha güvenli).
-//
 // cardId = bu ekstrenin ait olduğu kart (StatementUploadSheet.tsx zaten
 // hangi kart için yüklendiğini biliyor, card.id). Satıra credit_card_id
-// olarak yazılıyor ki satır daha sonra bir aboneliğe çevrilirse
-// (updateEntry bu alana hiç dokunmuyor, olduğu gibi kalıyor)
-// materializeDueOccurrences (src/lib/recurrence-materialize.ts) gelecek her
-// ayın satırı için doğru cash_out_at'i (kartın ödeme gününe göre) yeniden
-// hesaplayabilsin — tek seferlik bu içe aktarımın paymentDueDate'i o zaman
-// artık geçerli olmayacak (her ay farklı bir son ödeme tarihi olur).
+// olarak yazılıyor — bu artık "borç bu karta ait" demek, "şu tarihte
+// ödenecek" değil: gerçek nakit çıkışı yalnızca kullanıcının kendi bildirdiği
+// bir card_payment satırıyla (payCreditCardDebt, src/lib/actions/credit-cards.ts)
+// olur, src/lib/cashflow.ts bu satırları asla doğrudan bakiyeden düşmez.
+// Satır daha sonra bir aboneliğe çevrilirse de (updateEntry bu alana hiç
+// dokunmuyor) credit_card_id olduğu gibi kalır, materializeDueOccurrences
+// (src/lib/recurrence-materialize.ts) gelecek her ayın satırına aynı kartı
+// kopyalamaya devam eder.
 export async function importStatementEntries(
   rows: unknown[],
-  paymentDueDate?: string | null,
   cardId?: string | null,
 ): Promise<ImportStatementState> {
   const t = await getTranslations("statements.errors");
   const parsed = z.array(importRowSchema).min(1).safeParse(rows);
-  const parsedDueDate = paymentDueDateSchema.safeParse(paymentDueDate);
   const parsedCardId = z.string().uuid().nullable().optional().safeParse(cardId);
-  if (!parsed.success || !parsedDueDate.success || !parsedCardId.success) {
+  if (!parsed.success || !parsedCardId.success) {
     return { error: t("genericInvalid") };
   }
 
@@ -77,7 +62,6 @@ export async function importStatementEntries(
     return { error: t("noSession") };
   }
 
-  const cashOutAt = parsedDueDate.data ?? null;
   const creditCardId = parsedCardId.data ?? null;
   const insertRows = parsed.data.map((row) => {
     const hasInstallment = row.taksit_index !== null && row.taksit_sayisi !== null;
@@ -87,7 +71,6 @@ export async function importStatementEntries(
       amount: row.tutar,
       category: row.kategori,
       occurred_at: row.tarih,
-      cash_out_at: cashOutAt,
       credit_card_id: creditCardId,
       description: row.aciklama || null,
       recurrence: "none" as const,
