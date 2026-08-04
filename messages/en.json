@@ -235,6 +235,7 @@
       "convertToSubscriptionHint": "Picking a frequency turns this into a recurring subscription rule.",
       "recurrenceLabel": "Recurrence",
       "recurrenceNote": "This entry is automatically included in the surplus every month — no need to add it again.",
+      "singleOccurrenceNote": "You're only editing this one record for {month}. To change the recurring rule itself (amount, date, frequency), edit it from the Fixed Income/Expenses page instead.",
       "editScopeTitle": "How should this change apply?",
       "editScopeDescription": "Should past months' entries update too, or only months that haven't happened yet?",
       "editScopeFutureOnly": "Only future entries",

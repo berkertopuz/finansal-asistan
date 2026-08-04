@@ -235,12 +235,19 @@ export async function updateEntry(
   // Read before the update below, which nulls this row's own template_id
   // once it turns recurring — need the *previous* value to know whether
   // it's currently a materialized occurrence of some other template.
+  // next_due_date/recurrence are read too, to detect a schedule change on
+  // a template edit (see the cleanup after the update below).
   const { data: rowBeforeUpdate } = await supabase
     .from("entries")
-    .select("template_id")
+    .select("template_id, next_due_date, recurrence")
     .eq("id", id)
     .maybeSingle();
   const previousTemplateId = rowBeforeUpdate?.template_id ?? null;
+  const scheduleChanged =
+    isRecurring &&
+    rowBeforeUpdate !== null &&
+    (rowBeforeUpdate.next_due_date !== (parsed.data.next_due_date ?? null) ||
+      rowBeforeUpdate.recurrence !== parsed.data.recurrence);
 
   // No explicit .eq("user_id", ...) needed beyond RLS (entries_update_own)
   // scoping the update to the caller's own rows — matching this codebase's
@@ -300,6 +307,29 @@ export async function updateEntry(
       .eq("id", previousTemplateId);
     if (stopError) {
       console.error("updateEntry: failed to stop original template after conversion", stopError);
+    }
+  }
+
+  // Bug: editing a template's own schedule (next_due_date and/or recurrence)
+  // used to leave every already-materialized future row exactly where it
+  // was — materializeDueOccurrences (src/lib/recurrence-materialize.ts)
+  // then computed the NEW occurrence dates from the changed anchor and
+  // inserted those too (its (template_id, occurred_at) unique constraint
+  // only blocks re-inserting the *same* date, not the old ones), so the
+  // rule ended up with two full sets of future rows — the stale old-pattern
+  // ones and the fresh new-pattern ones. A schedule change is inherently
+  // forward-looking (past rows already happened on their real dates, that
+  // shouldn't get rewritten), so this always deletes future rows regardless
+  // of applyToAllOccurrences — materializeDueOccurrences regenerates them
+  // on the next fetch, already carrying this request's new field values too.
+  if (scheduleChanged) {
+    const { error: rescheduleError } = await supabase
+      .from("entries")
+      .delete()
+      .eq("template_id", id)
+      .gte("occurred_at", todayDateString());
+    if (rescheduleError) {
+      console.error("updateEntry: failed to clear stale occurrences after schedule change", rescheduleError);
     }
   }
 

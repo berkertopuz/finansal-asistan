@@ -18,7 +18,7 @@ import {
   type EntryKind,
   type EntryRecurrence,
 } from "@/lib/ledger";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatMonthYear } from "@/lib/format";
 import type { AppLocale } from "@/lib/locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -108,6 +108,19 @@ export function QuickEntryForm({
   // tamamını ortadan kaldırıyor — hangi satır, hangi sırayla düzenlenirse
   // düzenlensin aynı kural geçerli.
   const kind: EntryKind = category === "abonelik" && recurrence !== "none" ? "subscription" : giderGelirKind;
+  // template_id set means this row was generated FROM a recurring rule
+  // (src/lib/recurrence-materialize.ts) — editing it is only ever editing
+  // that one month's occurrence, never the rule itself (the rule is a
+  // separate row, edited from its own template listing — Sabit
+  // Gelirler/Giderler). Showing a fully live recurrence toggle here was
+  // actively dangerous: picking anything but "Tek seferlik" made
+  // updateEntry treat this single row as becoming a brand-new recurring
+  // rule of its own and DELETE the real template it came from (bkz.
+  // src/lib/actions/entries.ts'teki previousTemplateId temizliği) — a
+  // confusing UI turning into silent data loss. A materialized row's own
+  // recurrence is always "none" already, so hiding the toggle costs
+  // nothing real.
+  const isMaterializedOccurrence = Boolean(editingEntry?.template_id);
   // One shared field for occurred_at/next_due_date — they render as a
   // single input that just relabels itself depending on recurrence (see
   // below), so a date the user already typed carries over instead of
@@ -339,37 +352,47 @@ export function QuickEntryForm({
         />
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <Label>{t("form.recurrenceLabel")}</Label>
-        {category === "abonelik" && (
-          <p className="text-xs text-muted-foreground">{t("form.convertToSubscriptionHint")}</p>
-        )}
-        <ToggleGroup
-          value={[recurrence]}
-          onValueChange={(next) =>
-            next[0] && handleRecurrenceChange(next[0] as EntryRecurrence)
-          }
-          className="w-full flex-wrap gap-2"
-        >
-          {ENTRY_RECURRENCES.map((value) => (
-            <ToggleGroupItem
-              key={value}
-              value={value}
-              variant="outline"
-              // Neutral, not the same green accent/primary the kind toggle
-              // above already uses — every active control sharing one
-              // green tone was the "doesn't look pleasant" complaint this
-              // is fixing.
-              className="h-touch aria-pressed:border-foreground/30 aria-pressed:bg-foreground/10 aria-pressed:text-foreground"
-            >
-              {t(`recurrence.${value}`)}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
-        {recurrence !== "none" && category !== "abonelik" && (
-          <p className="text-xs text-muted-foreground">{t("form.recurrenceNote")}</p>
-        )}
-      </div>
+      {isMaterializedOccurrence ? (
+        // Belirsizliği ortadan kaldırıyor: bu satırın tekrarlayan kuralın
+        // KENDİSİ olmadığını, sadece bu ayki tek kaydı düzenlediğini açıkça
+        // söylüyor — kullanıcı isteği: "kullanıcıya sadece o ay için olan
+        // kaydı değiştirdiğini bildirmeliyiz".
+        <p className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+          {t("form.singleOccurrenceNote", { month: formatMonthYear(editingEntry!.occurred_at, locale) })}
+        </p>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          <Label>{t("form.recurrenceLabel")}</Label>
+          {category === "abonelik" && (
+            <p className="text-xs text-muted-foreground">{t("form.convertToSubscriptionHint")}</p>
+          )}
+          <ToggleGroup
+            value={[recurrence]}
+            onValueChange={(next) =>
+              next[0] && handleRecurrenceChange(next[0] as EntryRecurrence)
+            }
+            className="w-full flex-wrap gap-2"
+          >
+            {ENTRY_RECURRENCES.map((value) => (
+              <ToggleGroupItem
+                key={value}
+                value={value}
+                variant="outline"
+                // Neutral, not the same green accent/primary the kind toggle
+                // above already uses — every active control sharing one
+                // green tone was the "doesn't look pleasant" complaint this
+                // is fixing.
+                className="h-touch aria-pressed:border-foreground/30 aria-pressed:bg-foreground/10 aria-pressed:text-foreground"
+              >
+                {t(`recurrence.${value}`)}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+          {recurrence !== "none" && category !== "abonelik" && (
+            <p className="text-xs text-muted-foreground">{t("form.recurrenceNote")}</p>
+          )}
+        </div>
+      )}
 
       {/* Gelir hiçbir zaman bir karta bağlanamaz (DB CHECK) — yalnızca
           gider/abonelik için gösteriliyor. Varsayılan hep "Nakit/Banka"
