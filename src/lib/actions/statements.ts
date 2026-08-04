@@ -90,7 +90,12 @@ export async function importStatementEntries(
     return { error: t("noSession") };
   }
 
-  const importedTotal = parsed.data.reduce((sum, row) => sum + row.tutar, 0);
+  // Kuruş-hassasiyetli toplama: art arda onlarca ondalık tutarı JS float
+  // toplama ile eklemek gerçek bir ekstrede kalıntı bırakıyor (ör.
+  // 15767.300000000001) — numeric kolona öyle yazılıyordu, sadece kozmetik
+  // (formatCurrency 2 ondalığa yuvarlıyor) ama gerçek bir kayıt tutarsızlığı.
+  const importedTotal =
+    Math.round(parsed.data.reduce((sum, row) => sum + row.tutar, 0) * 100) / 100;
   const { data: statementImport, error: importError } = await supabase
     .from("statement_imports")
     .insert({
@@ -109,10 +114,23 @@ export async function importStatementEntries(
     if (importError?.code === "23505") {
       return { error: t("alreadyImported") };
     }
+    console.error("importStatementEntries: statement_imports insert failed", importError);
     return { error: t("saveFailed") };
   }
 
   const insertRows = parsed.data.map((row) => {
+    // entries_installment_fields_consistent (bkz.
+    // supabase/migrations/20260721130000_installments_and_categories.sql)
+    // ya üçünün de null ya da üçünün de dolu olmasını şart koşuyor. LLM
+    // ayrıştırması ara sıra taksit_index/taksit_sayisi çiftinden yalnızca
+    // birini üretebiliyor (gerçek bir 88 satırlık QNB ekstresinde
+    // gözlendi) — bu durumda hasInstallment false oluyor ama eski kod ham
+    // (kısmen null) değerleri yine de installment_index/count'a yazıyordu,
+    // bu da CHECK'i ihlal edip TÜM toplu insert'i (dolayısıyla ekstrenin
+    // tamamını) reddediyordu. hasInstallment false ise ikisini de null'a
+    // sabitlemek, tek bir bozuk satırın ekstrenin tamamını engellemesini
+    // önlüyor — o satır sadece taksit rozetsiz, normal bir gider olarak
+    // eklenir.
     const hasInstallment = row.taksit_index !== null && row.taksit_sayisi !== null;
     return {
       user_id: user.id,
@@ -125,13 +143,14 @@ export async function importStatementEntries(
       description: row.aciklama || null,
       recurrence: "none" as const,
       installment_group_id: hasInstallment ? crypto.randomUUID() : null,
-      installment_index: row.taksit_index,
-      installment_count: row.taksit_sayisi,
+      installment_index: hasInstallment ? row.taksit_index : null,
+      installment_count: hasInstallment ? row.taksit_sayisi : null,
     };
   });
 
   const { error } = await supabase.from("entries").insert(insertRows);
   if (error) {
+    console.error("importStatementEntries: entries insert failed, rolling back statement_imports", error);
     await supabase.from("statement_imports").delete().eq("id", statementImport.id);
     return { error: t("saveFailed") };
   }
