@@ -3,10 +3,26 @@ import { Input as InputPrimitive } from "@base-ui/react/input"
 
 import { cn } from "@/lib/utils"
 
-function Input({ className, type, ...props }: React.ComponentProps<"input">) {
+function Input({ className, type, onWheel, ...props }: React.ComponentProps<"input">) {
   return (
     <InputPrimitive
       type={type}
+      // Chrome/Firefox change a focused number input's value when the user
+      // scrolls over it (by `step`, silently, with no visual feedback) —
+      // a well-known browser footgun, not something anyone here ever
+      // wants. Confirmed as the real cause of a ₺30.000 tutar saving as
+      // ₺29.999,98 (autoFocus on the amount field in
+      // src/components/ledger/QuickEntryForm.tsx keeps it focused while
+      // the user scrolls the sheet — exactly step=0.01 × 2). Blurring on
+      // wheel makes the scroll act on the page normally instead.
+      onWheel={
+        type === "number"
+          ? (e) => {
+              (e.target as HTMLInputElement).blur();
+              onWheel?.(e);
+            }
+          : onWheel
+      }
       data-slot="input"
       className={cn(
         // h-touch, not h-8: every input in this app is a mobile tap target
