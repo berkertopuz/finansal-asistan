@@ -236,13 +236,16 @@ export async function updateEntry(
   // once it turns recurring — need the *previous* value to know whether
   // it's currently a materialized occurrence of some other template.
   // next_due_date/recurrence are read too, to detect a schedule change on
-  // a template edit (see the cleanup after the update below).
+  // a template edit (see the cleanup after the update below). occurred_at
+  // is read to detect a materialized row's own date moving (see the
+  // skip_dates backfill after the update below).
   const { data: rowBeforeUpdate } = await supabase
     .from("entries")
-    .select("template_id, next_due_date, recurrence")
+    .select("template_id, next_due_date, recurrence, occurred_at")
     .eq("id", id)
     .maybeSingle();
   const previousTemplateId = rowBeforeUpdate?.template_id ?? null;
+  const previousOccurredAt = rowBeforeUpdate?.occurred_at ?? null;
   const scheduleChanged =
     isRecurring &&
     rowBeforeUpdate !== null &&
@@ -307,6 +310,36 @@ export async function updateEntry(
       .eq("id", previousTemplateId);
     if (stopError) {
       console.error("updateEntry: failed to stop original template after conversion", stopError);
+    }
+  }
+
+  // Bug: editing a single materialized occurrence's own date (the
+  // QuickEntryForm "Tek seferlik" note path — template_id stays set,
+  // recurrence stays 'none', see isMaterializedOccurrence in
+  // QuickEntryForm.tsx) used to just move this row's occurred_at and leave
+  // it there. That freed up the (template_id, old occurred_at) slot without
+  // telling the template — the next materializeDueOccurrences pass
+  // (src/lib/recurrence-materialize.ts) saw that slot empty again and
+  // regenerated a fresh row on the original date, so the rule ended up with
+  // two rows: this one on its new (edited) date, plus a freshly regenerated
+  // one on the old date. Recording the old date on the template's
+  // skip_dates — the same mechanism deleteEntry already uses for a deleted
+  // single occurrence — stops that regeneration.
+  if (!isRecurring && previousTemplateId && previousOccurredAt && parsed.data.occurred_at !== previousOccurredAt) {
+    const { data: template } = await supabase
+      .from("entries")
+      .select("skip_dates")
+      .eq("id", previousTemplateId)
+      .maybeSingle();
+    const skipDates = (template as { skip_dates: string[] } | null)?.skip_dates ?? [];
+    if (!skipDates.includes(previousOccurredAt)) {
+      const { error: skipError } = await supabase
+        .from("entries")
+        .update({ skip_dates: [...skipDates, previousOccurredAt] })
+        .eq("id", previousTemplateId);
+      if (skipError) {
+        console.error("updateEntry: failed to record old date as skipped after moving occurrence", skipError);
+      }
     }
   }
 
