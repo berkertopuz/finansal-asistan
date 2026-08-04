@@ -151,14 +151,24 @@ function projectedCardPaymentEntry(cardId: string, paymentDate: Date, amount: nu
   };
 }
 
-// Day-by-day running balance from today through `days` days out. Recurring
-// entries project forward from their next_due_date anchor (same
-// precondition FixedItemsTimeline uses); concrete (recurrence='none')
-// entries project forward from their own occurred_at if that's still ahead
-// of `from` — a plain one-off entry's occurred_at is "today" in practice
-// (already folded into the starting balance, nothing to project), but a
-// taksit installment's is a real future month, so it needs the same
+// Day-by-day running balance from `windowStart` (today, or `pastDays` days
+// before it) through `days` days past today. Recurring entries project
+// forward from their next_due_date anchor (same precondition
+// FixedItemsTimeline uses); concrete (recurrence='none') entries project
+// forward from their own occurred_at if that's still ahead of `windowStart`
+// — a plain one-off entry's occurred_at is "today" in practice (already
+// folded into the starting balance when pastDays is 0, nothing to project),
+// but a taksit installment's is a real future month, so it needs the same
 // treatment as a recurring occurrence.
+//
+// `pastDays` (optional, default 0 — the original forward-only behavior,
+// exactly reproduced) extends the window backward using entries' own real
+// occurred_at, not a projection: uploading a past month's statement changes
+// today's starting balance retroactively (a backdated card_payment, say),
+// and without a way to look back, that jump had no visible explanation —
+// see CashFlowTimeline.tsx's "Geçmişi göster" toggle. currentBalance(entries,
+// windowStart) already answers "what was the real balance on any given day",
+// so no new calculation is needed here, just a different reference date.
 //
 // `cards` (optional — pass [] or omit if the caller doesn't have credit
 // card data handy, e.g. a unit test) drives one more thing: a *projected*
@@ -172,15 +182,19 @@ function projectedCardPaymentEntry(cardId: string, paymentDate: Date, amount: nu
 // can never double-count against a real card_payment already logged: every
 // future charge is bucketed by its own cycle (nextCardPaymentDate), and
 // whatever's still owed as of today is computed via creditCardDebtBalance,
-// which already nets out any payment the user made.
+// which already nets out any payment the user made. This block is always
+// anchored on `today`, never `windowStart` — projecting an *estimate* into
+// the past makes no sense, only real history belongs there.
 export function projectBalance(
   entries: Entry[],
   days: number,
   from: Date = new Date(),
   cards: CreditCardCycleInfo[] = [],
-): { points: CashFlowPoint[]; events: CashFlowEvent[] } {
+  pastDays = 0,
+): { points: CashFlowPoint[]; events: CashFlowEvent[]; todayIndex: number } {
   const today = new Date(from.getFullYear(), from.getMonth(), from.getDate());
-  const rangeStart = new Date(today.getTime() + DAY_MS);
+  const windowStart = new Date(today.getTime() - pastDays * DAY_MS);
+  const rangeStart = new Date(windowStart.getTime() + DAY_MS);
   const rangeEnd = new Date(today.getTime() + days * DAY_MS);
 
   // (template_id, occurred_at) pairs that already have a real materialized
@@ -198,12 +212,14 @@ export function projectBalance(
   for (const entry of entries) {
     if (isCardDebt(entry)) continue; // debt, not cash — projected separately below
     if (entry.recurrence === "none") {
-      // A concrete row dated ahead of `from` (taksit's future installments,
-      // or any manually future-dated one-off entry) — currentBalance above
-      // deliberately excludes these from the starting balance, so they need
-      // to land here instead, exactly like a recurring template's projected
-      // occurrence, or they'd vanish from the projection entirely.
-      if (!entry.occurred_at || entry.occurred_at <= toDateString(today)) continue;
+      // A concrete row dated ahead of `windowStart` (taksit's future
+      // installments, any manually future-dated one-off entry, or — when
+      // pastDays > 0 — a real past entry that's still after the starting
+      // balance snapshot) — currentBalance above deliberately excludes
+      // anything at or before windowStart from the starting balance, so it
+      // needs to land here instead, exactly like a recurring template's
+      // projected occurrence, or it'd vanish from the timeline entirely.
+      if (!entry.occurred_at || entry.occurred_at <= toDateString(windowStart)) continue;
       const occurrence = new Date(`${entry.occurred_at}T00:00:00`);
       if (occurrence >= rangeStart && occurrence <= rangeEnd) {
         events.push({ entry, occurrence });
@@ -270,13 +286,13 @@ export function projectBalance(
 
   events.sort((a, b) => a.occurrence.getTime() - b.occurrence.getTime());
 
-  const startingBalance = currentBalance(entries, from);
-  const points: CashFlowPoint[] = [{ date: today, balance: startingBalance }];
+  const startingBalance = currentBalance(entries, windowStart);
+  const points: CashFlowPoint[] = [{ date: windowStart, balance: startingBalance }];
   let running = startingBalance;
   let eventIndex = 0;
 
-  for (let d = 1; d <= days; d++) {
-    const date = new Date(today.getTime() + d * DAY_MS);
+  for (let d = 1; d <= pastDays + days; d++) {
+    const date = new Date(windowStart.getTime() + d * DAY_MS);
     while (eventIndex < events.length && isSameDay(events[eventIndex].occurrence, date)) {
       const { entry } = events[eventIndex];
       running += entry.kind === "income" ? entry.amount : -entry.amount;
@@ -285,7 +301,7 @@ export function projectBalance(
     points.push({ date, balance: running });
   }
 
-  return { points, events };
+  return { points, events, todayIndex: pastDays };
 }
 
 // A second trajectory over the same `points`: what the balance would look

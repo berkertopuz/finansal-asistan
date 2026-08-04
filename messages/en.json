@@ -301,6 +301,8 @@
   "cashflow": {
     "title": "Cash Flow",
     "rangeLabel": "Time range",
+    "showHistoryLabel": "Show history",
+    "todayLabel": "Today",
     "range": {
       "7": "7 days",
       "30": "30 days",

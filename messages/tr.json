@@ -301,6 +301,8 @@
   "cashflow": {
     "title": "Nakit Akışı",
     "rangeLabel": "Zaman aralığı",
+    "showHistoryLabel": "Geçmişi göster",
+    "todayLabel": "Bugün",
     "range": {
       "7": "7 gün",
       "30": "30 gün",

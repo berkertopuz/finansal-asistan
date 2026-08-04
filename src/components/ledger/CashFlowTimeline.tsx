@@ -6,6 +6,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { Check, ChevronDown, RotateCcw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { updateAssumedRate, type UpdateAssumedRateState } from "@/lib/actions/profile";
@@ -79,6 +80,12 @@ export function CashFlowTimeline({
   const tSettings = useTranslations("settings");
 
   const [days, setDays] = useState<Range>(30);
+  // Varsayılan açık: bu kontrolün asıl var oluş sebebi geçmişe tarihli bir
+  // ekstre/işlem eklendiğinde bugünün bakiyesinin NEDEN değiştiğini
+  // görebilmek — kapalı başlasaydı kullanıcı tam da şikayet ettiği "saçma
+  // sapan görüntü"yü yine görüp neden değiştiğini kontrol açmadan
+  // anlayamazdı. İstemeyen kapatabilir.
+  const [showHistory, setShowHistory] = useState(true);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const hitRectRef = useRef<SVGRectElement>(null);
@@ -110,15 +117,22 @@ export function CashFlowTimeline({
     return () => observer.disconnect();
   }, []);
 
-  const { points, events } = useMemo(
-    () => projectBalance(entries, days, new Date(), cards),
-    [entries, days, cards],
+  const { points, events, todayIndex } = useMemo(
+    () => projectBalance(entries, days, new Date(), cards, showHistory ? days : 0),
+    [entries, days, cards, showHistory],
   );
+  const totalDays = points.length - 1;
+  const windowStart = points[0].date;
+  // "Günlük faizde tutulsaydı" / vadeli mevduat önerisi hep ileriye dönük
+  // bir soru — geçmişte kalan bir bakiyeyi "faizde tutsaydın" diye öneri
+  // sunmanın anlamı yok, o yüzden bu ve aşağıdaki tüm planlama hesapları
+  // yalnızca bugünden itibaren olan dilimi (futurePoints) kullanıyor,
+  // points'in tamamını değil.
+  const futurePoints = useMemo(() => points.slice(todayIndex), [points, todayIndex]);
   const optimizedPoints = useMemo(
-    () => projectOptimizedBalance(points, assumedRate),
-    [points, assumedRate],
+    () => projectOptimizedBalance(futurePoints, assumedRate),
+    [futurePoints, assumedRate],
   );
-  const today = points[0].date;
 
   const balances = [...points, ...optimizedPoints].map((p) => p.balance);
   const minBalance = Math.min(...balances);
@@ -134,17 +148,24 @@ export function CashFlowTimeline({
   const plotH = chartH - PAD_TOP - PAD_BOTTOM;
   const baselineY = PAD_TOP + plotH;
 
-  const xForIndex = (i: number) => PAD_LEFT + (i / days) * plotW;
+  // totalDays (points.length - 1) yerine days'e göre ölçeklendirmek —
+  // showHistory açıkken pencere artık [windowStart, today+days] aralığını
+  // kaplıyor, x eksenini days yerine toplam pencere genişliğine göre
+  // ölçeklendirmek gerekiyor, yoksa geçmiş kısım grafiğin dışına taşardı.
+  const xForIndex = (i: number) => PAD_LEFT + (i / totalDays) * plotW;
   const yForBalance = (balance: number) =>
     PAD_TOP + (1 - (balance - paddedMin) / paddedRange) * plotH;
-  const dayIndexOf = (date: Date) => Math.round((date.getTime() - today.getTime()) / DAY_MS);
+  const dayIndexOf = (date: Date) => Math.round((date.getTime() - windowStart.getTime()) / DAY_MS);
 
   const linePath = points
     .map((p, i) => `${i === 0 ? "M" : "L"}${xForIndex(i)},${yForBalance(p.balance)}`)
     .join(" ");
   const areaPath = `${linePath} L${xForIndex(points.length - 1)},${baselineY} L${xForIndex(0)},${baselineY} Z`;
+  // optimizedPoints artık yalnızca bugünden itibaren (futurePoints) — çizim
+  // sırasında x koordinatını todayIndex kadar kaydırmak gerekiyor, yoksa
+  // gelecek çizgisi grafiğin en başından başlardı.
   const optimizedLinePath = optimizedPoints
-    .map((p, i) => `${i === 0 ? "M" : "L"}${xForIndex(i)},${yForBalance(p.balance)}`)
+    .map((p, i) => `${i === 0 ? "M" : "L"}${xForIndex(todayIndex + i)},${yForBalance(p.balance)}`)
     .join(" ");
 
   const gridCount = 3;
@@ -152,7 +173,9 @@ export function CashFlowTimeline({
     { length: gridCount + 1 },
     (_, i) => paddedMin + (paddedRange * i) / gridCount,
   );
-  const xLabelIndices = [0, Math.round(days / 2), days];
+  // Tekrarlıları eliyor — showHistory kapalıyken todayIndex 0'a eşit olduğu
+  // için [0, 0, totalDays] gibi bir çakışmayı önlüyor.
+  const xLabelIndices = [...new Set([0, todayIndex, totalDays])];
 
   // Measures against the invisible hit <rect> itself (the plot area, i.e.
   // excluding the axis-label padding) — measuring against the whole <svg>
@@ -163,7 +186,7 @@ export function CashFlowTimeline({
     if (!hitRect) return null;
     const rect = hitRect.getBoundingClientRect();
     const fraction = (clientX - rect.left) / rect.width;
-    return Math.min(days, Math.max(0, Math.round(fraction * days)));
+    return Math.min(totalDays, Math.max(0, Math.round(fraction * totalDays)));
   }
 
   // Mouse: live crosshair that follows the pointer and clears on leave.
@@ -186,14 +209,20 @@ export function CashFlowTimeline({
   }
 
   const hoverPoint = hoverIndex !== null ? points[hoverIndex] : null;
-  const hoverOptimizedPoint = hoverIndex !== null ? optimizedPoints[hoverIndex] : null;
+  // Geçmişteki bir günün üzerine gelince (hoverIndex < todayIndex) optimize
+  // satırı hiç anlamlı değil — o gün için "faizde tutsaydın" diye bir
+  // öneri sunulmuyor, null kalıyor ve tooltip'teki ilgili satırlar
+  // gösterilmiyor (bkz. aşağıdaki render).
+  const hoverOptimizedPoint =
+    hoverIndex !== null && hoverIndex >= todayIndex ? optimizedPoints[hoverIndex - todayIndex] : null;
   const hoverEvents =
     hoverIndex !== null ? events.filter((ev) => dayIndexOf(ev.occurrence) === hoverIndex) : [];
   const tooltipLeftPercent =
     hoverIndex !== null ? Math.min(88, Math.max(12, (xForIndex(hoverIndex) / chartW) * 100)) : 50;
 
   const endGain =
-    optimizedPoints[optimizedPoints.length - 1].balance - points[points.length - 1].balance;
+    optimizedPoints[optimizedPoints.length - 1].balance -
+    futurePoints[futurePoints.length - 1].balance;
 
   // Term-deposit ("vadeli") scenario — a distinct, simpler alternative to
   // the daily-account line above: no bank offers a vadeli shorter than
@@ -205,7 +234,7 @@ export function CashFlowTimeline({
   // stay liquid as a buffer for whatever the recurring schedule doesn't
   // predict. Only the amount above that buffer is what actually gets
   // suggested for the term deposit.
-  const minActualBalance = safeToLockAmount(points);
+  const minActualBalance = safeToLockAmount(futurePoints);
   const monthlyBurn = useMemo(() => estimateMonthlyExpenseBurn(entries), [entries]);
   const emergencyBuffer = monthlyBurn * EMERGENCY_FUND_MONTHS;
   const lockableAmount = Math.max(0, minActualBalance - emergencyBuffer);
@@ -223,8 +252,8 @@ export function CashFlowTimeline({
   // This is what makes termGain + remainderGain a fair total to set against
   // endGain (100% liquid) — same money, same events, just split differently.
   const remainderPoints = useMemo(
-    () => points.map((p) => ({ date: p.date, balance: p.balance - lockableAmount })),
-    [points, lockableAmount],
+    () => futurePoints.map((p) => ({ date: p.date, balance: p.balance - lockableAmount })),
+    [futurePoints, lockableAmount],
   );
   const optimizedRemainderPoints = useMemo(
     () => projectOptimizedBalance(remainderPoints, assumedRate),
@@ -257,18 +286,24 @@ export function CashFlowTimeline({
     <Card className="glass-card ring-0">
       <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
         <CardTitle className="text-base">{t("title")}</CardTitle>
-        <select
-          value={days}
-          onChange={(e) => setDays(Number(e.target.value) as Range)}
-          aria-label={t("rangeLabel")}
-          className="min-h-touch rounded-md border border-input bg-background px-2 py-1 text-sm"
-        >
-          {RANGE_OPTIONS.map((d) => (
-            <option key={d} value={d}>
-              {t(`range.${d}`)}
-            </option>
-          ))}
-        </select>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Checkbox checked={showHistory} onCheckedChange={(v) => setShowHistory(v === true)} />
+            {t("showHistoryLabel")}
+          </label>
+          <select
+            value={days}
+            onChange={(e) => setDays(Number(e.target.value) as Range)}
+            aria-label={t("rangeLabel")}
+            className="min-h-touch rounded-md border border-input bg-background px-2 py-1 text-sm"
+          >
+            {RANGE_OPTIONS.map((d) => (
+              <option key={d} value={d}>
+                {t(`range.${d}`)}
+              </option>
+            ))}
+          </select>
+        </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
@@ -360,6 +395,22 @@ export function CashFlowTimeline({
                   );
                 })}
 
+                {/* Geçmiş açıkken bugünü kalıcı olarak işaretler — hover
+                    crosshair'den (aşağıda, kesikli/soluk) ayırt edilsin diye
+                    düz ve biraz daha belirgin. todayIndex=0 iken (geçmiş
+                    kapalı) zaten pencerenin ilk noktası bugün, ayrıca
+                    işaretlemeye gerek yok. */}
+                {todayIndex > 0 && (
+                  <line
+                    x1={xForIndex(todayIndex)}
+                    x2={xForIndex(todayIndex)}
+                    y1={PAD_TOP}
+                    y2={baselineY}
+                    className="stroke-foreground/40"
+                    strokeWidth={1}
+                  />
+                )}
+
                 {hoverIndex !== null && (
                   <line
                     x1={xForIndex(hoverIndex)}
@@ -377,10 +428,17 @@ export function CashFlowTimeline({
                     key={i}
                     x={xForIndex(idx)}
                     y={chartH - 6}
-                    textAnchor={idx === 0 ? "start" : idx === days ? "end" : "middle"}
+                    textAnchor={idx === 0 ? "start" : idx === totalDays ? "end" : "middle"}
                     className="fill-muted-foreground text-[10px]"
                   >
-                    {formatShortDate(points[idx].date, locale)}
+                    {/* todayIndex her zaman xLabelIndices içinde — burada
+                        tarih yerine "Bugün" göstermek, üstteki kalıcı dikey
+                        çizgiyle birlikte ekstra bir etiket eklemeden
+                        (üst kısımda kırpılma riski olmadan) bugünü açıkça
+                        işaretliyor. */}
+                    {idx === todayIndex && todayIndex !== 0 && todayIndex !== totalDays
+                      ? t("todayLabel")
+                      : formatShortDate(points[idx].date, locale)}
                   </text>
                 ))}
 
@@ -398,18 +456,27 @@ export function CashFlowTimeline({
                 />
               </svg>
 
-              {hoverPoint && hoverOptimizedPoint && hoverIndex !== null && (
+              {hoverPoint && hoverIndex !== null && (
                 <div
                   className="pointer-events-none absolute top-0 max-w-[calc(100%-8px)] -translate-x-1/2 rounded-md border border-border bg-popover px-2 py-1.5 text-xs whitespace-nowrap shadow-md"
                   style={{ left: `${tooltipLeftPercent}%` }}
                 >
-                  <div className="text-foreground/70">{formatDate(hoverPoint.date, locale)}</div>
+                  <div className="text-foreground/70">
+                    {formatDate(hoverPoint.date, locale)}
+                    {hoverIndex === todayIndex && ` · ${t("todayLabel")}`}
+                  </div>
                   <div className="font-medium text-foreground">
                     {t("legendActual")}: {formatCurrency(hoverPoint.balance, locale)}
                   </div>
-                  <div className="font-medium text-foreground opacity-70">
-                    {t("legendOptimized")}: {formatCurrency(hoverOptimizedPoint.balance, locale)}
-                  </div>
+                  {/* Geçmişteki bir günde "faizde tutsaydın" diye bir
+                      öneri anlamsız (hoverOptimizedPoint null olur, bkz.
+                      yukarıdaki tanımı) — yalnızca bugün ve sonrası için
+                      gösteriliyor. */}
+                  {hoverOptimizedPoint && (
+                    <div className="font-medium text-foreground opacity-70">
+                      {t("legendOptimized")}: {formatCurrency(hoverOptimizedPoint.balance, locale)}
+                    </div>
+                  )}
                   {hoverEvents.map((ev, i) => {
                     const isIncome = ev.entry.kind === "income";
                     return (
@@ -438,7 +505,7 @@ export function CashFlowTimeline({
                       single transaction) is the real, compounded gain from
                       having followed the daily-account line the whole way
                       here. */}
-                  {hoverOptimizedPoint.balance - hoverPoint.balance > 0 && (
+                  {hoverOptimizedPoint && hoverOptimizedPoint.balance - hoverPoint.balance > 0 && (
                     <div className="text-foreground/70">
                       {t("cumulativeGainSentence", {
                         gain: formatCurrency(hoverOptimizedPoint.balance - hoverPoint.balance, locale),
