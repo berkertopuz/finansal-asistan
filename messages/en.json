@@ -315,7 +315,7 @@
     "legendActual": "Actual balance",
     "legendOptimized": "If kept in daily interest",
     "cumulativeGainSentence": "Keeping this in a daily-interest account up to this date would have earned ~{gain} more.",
-    "projectedEventLabel": "projected",
+    "projectedEventLabel": "projected (assumes full payoff)",
     "evdsContext": "TLREF overnight reference rate, the basis for the daily-account estimate (as of {asOf}): {rate}",
     "evdsUnavailable": "TCMB EVDS is currently unreachable.",
     "rateDetailsToggle": "Interest assumption & source",
@@ -401,10 +401,11 @@
     "remindersLabel": "Reminders on",
     "uploadStatement": "Upload statement",
     "currentDebtLabel": "Current debt",
+    "debtExplanation": "Your card charges minus the payments you've made. Cash flow assumes this debt gets paid off in full on the payment day unless you say otherwise — an early or partial payment you log adjusts that.",
     "payDebt": {
       "button": "Pay debt",
       "dialogTitle": "{name} — pay debt",
-      "dialogDescription": "Log how much you paid toward this card — full balance or a partial/minimum payment, either way.",
+      "dialogDescription": "Log how much you paid toward this card — full balance or a partial/minimum payment, either way. This affects your cash flow on this date; if you enter it wrong, you can delete it from History.",
       "amountLabel": "Amount paid",
       "dateLabel": "Payment date",
       "errors": {
@@ -413,12 +414,17 @@
     },
     "history": {
       "button": "History",
-      "dialogTitle": "{name} — statement history",
+      "dialogTitle": "{name} — history",
+      "statementsTitle": "Statements",
       "empty": "No statements uploaded yet.",
       "item": "Uploaded {date}, {count} entries, {total}",
       "undoButton": "Undo",
       "undoConfirmTitle": "Undo this statement",
-      "undoConfirmDescription": "{count} entries from {period} will be permanently deleted. This can't be undone."
+      "undoConfirmDescription": "{count} entries from {period} will be permanently deleted. This can't be undone.",
+      "paymentsTitle": "Payments",
+      "noPayments": "No payments recorded yet.",
+      "deletePaymentConfirmTitle": "Delete this payment",
+      "deletePaymentConfirmDescription": "The {amount} payment recorded on {date} will be permanently deleted, and the amount will be added back to the card's debt. This can't be undone."
     },
     "notificationsTitle": "Notifications",
     "notificationsDescription": "Allow notifications to get reminders on statement and payment days.",

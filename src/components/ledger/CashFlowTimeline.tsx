@@ -491,9 +491,17 @@ export function CashFlowTimeline({
                         {formatCurrency(ev.entry.amount, locale)}
                         {/* Bir kartın henüz ödenmemiş, tamamen gelecekteki
                             döngüsü için tahmini bir olay — gerçek bir işlem
-                            değil, bkz. src/lib/cashflow.ts'teki projectBalance. */}
+                            değil, bkz. src/lib/cashflow.ts'teki projectBalance.
+                            entry.description projectedCardPaymentEntry
+                            tarafından kart adına set ediliyor — hangi kartın
+                            borcu olduğu ve varsayımın ne olduğu (tamamı
+                            ödenecek) burada görünür olsun diye. */}
                         {ev.isProjected && (
-                          <span className="text-foreground/60"> · {t("projectedEventLabel")}</span>
+                          <span className="text-foreground/60">
+                            {" "}
+                            · {ev.entry.description ? `${ev.entry.description} — ` : ""}
+                            {t("projectedEventLabel")}
+                          </span>
                         )}
                       </span>
                     );

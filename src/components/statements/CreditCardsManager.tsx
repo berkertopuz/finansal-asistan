@@ -25,6 +25,7 @@ import {
   updateCreditCard,
   type CreditCardState,
 } from "@/lib/actions/credit-cards";
+import { deleteEntry } from "@/lib/actions/entries";
 import { undoStatementImport } from "@/lib/actions/statements";
 import { subscribeToPush } from "@/lib/actions/push";
 import type { CreditCard } from "@/lib/credit-cards-data";
@@ -93,6 +94,8 @@ export function CreditCardsManager({
   const [undoTarget, setUndoTarget] = useState<StatementImport | null>(null);
   const [undoPending, setUndoPending] = useState(false);
   const [undoError, setUndoError] = useState<string | undefined>();
+  const [deletePaymentTarget, setDeletePaymentTarget] = useState<Entry | null>(null);
+  const [deletePaymentPending, setDeletePaymentPending] = useState(false);
   const [notifState, setNotifState] = useState<NotificationPermission | "unsupported">(
     typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported",
   );
@@ -193,6 +196,31 @@ export function CreditCardsManager({
     }
   }
 
+  // deleteEntry itself never reports success/failure (see
+  // src/lib/actions/entries.ts — its own error paths are console.error-only,
+  // matching how every other delete flow in this codebase already treats it,
+  // e.g. EntryTable.tsx/FixedItemsTimeline.tsx) — a card_payment row is
+  // always a plain one-off entry (never a template, never an installment),
+  // so the extra deleteGeneratedRows/deleteFutureInstallments params default
+  // to false without needing to ask the user anything. Removing it here
+  // hands the amount back to the card's outstanding debt (creditCardDebtBalance
+  // just stops subtracting it), giving a real way to correct a fat-fingered
+  // "Borç öde" entry — until this, there was no path back from one at all.
+  async function handleDeletePayment() {
+    if (!deletePaymentTarget) return;
+    setDeletePaymentPending(true);
+    mutate(
+      ENTRIES_KEY,
+      (current: Entry[] | undefined) => current?.filter((e) => e.id !== deletePaymentTarget.id),
+      false,
+    );
+    await deleteEntry(deletePaymentTarget.id);
+    setDeletePaymentPending(false);
+    mutate(ENTRIES_KEY);
+    router.refresh();
+    setDeletePaymentTarget(null);
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {notifState !== "unsupported" && notifState !== "granted" && (
@@ -269,6 +297,15 @@ export function CreditCardsManager({
                       {formatCurrency(debt, locale)}
                     </span>
                   </div>
+                  {/* Ne bu borcun nereden geldiği, ne de nakit akışının bunu
+                      ödeme gününde nasıl ele aldığı başka hiçbir yerde
+                      açıklanmıyordu — kullanıcı "bu sayı doğru mu, ödersem ne
+                      olacak" sorusuna kartın kendisinden başka bir yere
+                      bakmadan cevap bulabilsin diye. debt > 0 iken gösterilir,
+                      borç yokken bu satırın açıklayacağı bir varsayım da yok. */}
+                  {debt > 0 && (
+                    <p className="text-xs text-muted-foreground">{t("debtExplanation")}</p>
+                  )}
                   <div className="flex items-center justify-between gap-2">
                     <label className="flex items-center gap-2 text-xs text-muted-foreground">
                       <Checkbox
@@ -407,45 +444,123 @@ export function CreditCardsManager({
             <DialogTitle>{t("history.dialogTitle", { name: historyCard?.name ?? "" })}</DialogTitle>
             <DialogDescription className="sr-only">{t("history.dialogTitle", { name: historyCard?.name ?? "" })}</DialogDescription>
           </DialogHeader>
-          {(() => {
-            const cardHistory = statementImports?.filter((imp) => imp.credit_card_id === historyCard?.id);
-            if (!cardHistory || cardHistory.length === 0) {
-              return <p className="text-sm text-muted-foreground">{t("history.empty")}</p>;
-            }
-            return (
-              <div className="flex max-h-[50vh] flex-col gap-2 overflow-y-auto">
-                {cardHistory.map((imp) => (
-                  <div
-                    key={imp.id}
-                    className="flex items-center justify-between gap-2 rounded-lg border border-border p-3 text-sm"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium text-foreground">{formatMonthYear(imp.statement_date, locale)}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {t("history.item", {
-                          date: formatDate(imp.created_at, locale),
-                          count: imp.imported_count,
-                          total: formatCurrency(imp.imported_total, locale),
-                        })}
-                      </p>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="shrink-0 text-foreground/70 hover:text-destructive"
-                      onClick={() => {
-                        setUndoError(undefined);
-                        setUndoTarget(imp);
-                      }}
-                    >
-                      {t("history.undoButton")}
-                    </Button>
+          <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto">
+            <div className="flex flex-col gap-2">
+              <h3 className="text-xs font-medium text-muted-foreground uppercase">{t("history.statementsTitle")}</h3>
+              {(() => {
+                const cardHistory = statementImports?.filter((imp) => imp.credit_card_id === historyCard?.id);
+                if (!cardHistory || cardHistory.length === 0) {
+                  return <p className="text-sm text-muted-foreground">{t("history.empty")}</p>;
+                }
+                return (
+                  <div className="flex flex-col gap-2">
+                    {cardHistory.map((imp) => (
+                      <div
+                        key={imp.id}
+                        className="flex items-center justify-between gap-2 rounded-lg border border-border p-3 text-sm"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-foreground">{formatMonthYear(imp.statement_date, locale)}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {t("history.item", {
+                              date: formatDate(imp.created_at, locale),
+                              count: imp.imported_count,
+                              total: formatCurrency(imp.imported_total, locale),
+                            })}
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="shrink-0 text-foreground/70 hover:text-destructive"
+                          onClick={() => {
+                            setUndoError(undefined);
+                            setUndoTarget(imp);
+                          }}
+                        >
+                          {t("history.undoButton")}
+                        </Button>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            );
-          })()}
+                );
+              })()}
+            </div>
+            {/* "Borç öde" (ya da ekstre sonrası ödeme adımı) ile kaydedilen
+                her ödeme buraya kadar hiçbir yerde listelenmiyordu — yanlış
+                bir tutar girildiğinde tek çıkış yolu veritabanına elle
+                dokunmaktı. Silme, deleteEntry üzerinden (bkz. yukarıdaki
+                handleDeletePayment) tutarı doğrudan kartın borcuna geri
+                ekliyor. */}
+            <div className="flex flex-col gap-2">
+              <h3 className="text-xs font-medium text-muted-foreground uppercase">{t("history.paymentsTitle")}</h3>
+              {(() => {
+                const cardPayments = entries
+                  ?.filter((e) => e.kind === "card_payment" && e.credit_card_id === historyCard?.id)
+                  .sort((a, b) => (a.occurred_at < b.occurred_at ? 1 : -1));
+                if (!cardPayments || cardPayments.length === 0) {
+                  return <p className="text-sm text-muted-foreground">{t("history.noPayments")}</p>;
+                }
+                return (
+                  <div className="flex flex-col gap-2">
+                    {cardPayments.map((payment) => (
+                      <div
+                        key={payment.id}
+                        className="flex items-center justify-between gap-2 rounded-lg border border-border p-3 text-sm"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-foreground">{formatCurrency(payment.amount, locale)}</p>
+                          <p className="text-xs text-muted-foreground">{formatDate(payment.occurred_at, locale)}</p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="shrink-0 text-foreground/70 hover:text-destructive"
+                          onClick={() => setDeletePaymentTarget(payment)}
+                        >
+                          <Trash2 className="size-4" />
+                          {tCommon("delete")}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={deletePaymentTarget !== null}
+        onOpenChange={(open) => !open && setDeletePaymentTarget(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("history.deletePaymentConfirmTitle")}</DialogTitle>
+            <DialogDescription>
+              {deletePaymentTarget &&
+                t("history.deletePaymentConfirmDescription", {
+                  amount: formatCurrency(deletePaymentTarget.amount, locale),
+                  date: formatDate(deletePaymentTarget.occurred_at, locale),
+                })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setDeletePaymentTarget(null)}>
+              {tCommon("cancel")}
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deletePaymentPending}
+              onClick={handleDeletePayment}
+            >
+              {deletePaymentPending ? tCommon("saving") : tCommon("delete")}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

@@ -17,6 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { recordStatementConsent, importStatementEntries } from "@/lib/actions/statements";
 import { payCreditCardDebt, updateCreditCard } from "@/lib/actions/credit-cards";
+import { creditCardDebtBalance } from "@/lib/cashflow";
 import { formatCurrency, formatDate, formatMonthYear } from "@/lib/format";
 import type { AppLocale } from "@/lib/locale";
 import type { CreditCard } from "@/lib/credit-cards-data";
@@ -203,12 +204,19 @@ export function StatementUploadSheet({
       mutate(ENTRIES_KEY);
       mutate(STATEMENT_IMPORTS_KEY);
       router.refresh();
-      // Her seçili satır bir gider olarak (kind='expense', bu karta borç)
-      // eklendi — ödeme önerisinin varsayılanı bunların toplamı, "tam
-      // ödedim" tek dokunuşla onaylanabilsin diye. Kullanıcı isterse
-      // (asgari/kısmi ödeme) düzenler ya da adımı tamamen atlar.
-      setPostImportTotal(selected.reduce((sum, r) => sum + r.tutar, 0));
-      setPayAmount(selected.reduce((sum, r) => sum + r.tutar, 0).toFixed(2));
+      // Ödeme önerisinin varsayılanı, sadece bu ekstreden yeni eklenen
+      // satırların toplamı DEĞİL (bu, kartta bir önceki dönemden kalan
+      // ödenmemiş bakiye varsa gerçek borcu olduğundan düşük gösterirdi) —
+      // içe aktarmadan HEMEN ÖNCEki gerçek borç (existingEntries, bu importun
+      // henüz eklemediği hâliyle) artı bu importun eklediği toplam, yani
+      // kartın şu anki gerçek güncel borcu. "Tam ödedim" tek dokunuşla bunu
+      // onaylar; kullanıcı isterse (asgari/kısmi ödeme) düzenler ya da adımı
+      // tamamen atlar.
+      const priorDebt = creditCardDebtBalance(existingEntries ?? [], card.id);
+      const selectedTotal = selected.reduce((sum, r) => sum + r.tutar, 0);
+      const totalDebt = priorDebt + selectedTotal;
+      setPostImportTotal(totalDebt);
+      setPayAmount(totalDebt.toFixed(2));
       setPayDate(toDateString(new Date()));
     } else {
       setError(result.error);

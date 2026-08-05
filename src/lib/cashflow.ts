@@ -123,21 +123,23 @@ export function currentBalance(entries: Entry[], from: Date = new Date()): numbe
 
 export type CashFlowEvent = { entry: Entry; occurrence: Date; isProjected?: boolean };
 export type CashFlowPoint = { date: Date; balance: number };
-export type CreditCardCycleInfo = { id: string; statement_day: number; payment_day: number };
+export type CreditCardCycleInfo = { id: string; name: string; statement_day: number; payment_day: number };
 
 // Builds the synthetic Entry a projected card-payment event is displayed
 // as — every field beyond kind/amount/credit_card_id/occurred_at is inert
 // (never read for a projected event), but the type is shared with real rows
 // so the chart/tooltip code in CashFlowTimeline.tsx doesn't need a second
-// shape to handle.
-function projectedCardPaymentEntry(cardId: string, paymentDate: Date, amount: number): Entry {
+// shape to handle. `description` carries the card's own name — CashFlowTimeline's
+// tooltip shows it so a projected event reads as "which card" rather than an
+// anonymous "tahmini" outflow, useful the moment there's more than one card.
+function projectedCardPaymentEntry(cardId: string, cardName: string, paymentDate: Date, amount: number): Entry {
   return {
     id: `projected-card-payment-${cardId}-${toDateString(paymentDate)}`,
     kind: "expense",
     amount,
     currency: "TRY",
     category: null,
-    description: null,
+    description: cardName,
     recurrence: "none",
     next_due_date: null,
     occurred_at: toDateString(paymentDate),
@@ -263,31 +265,53 @@ export function projectBalance(
       }
 
       // Whatever's already charged-and-unpaid as of today — creditCardDebtBalance
-      // nets out any card_payment the user already logged, so this can never
-      // double-count a payment they made early. It belongs to the same cycle
-      // a charge made *today* would fall into (nextCardPaymentDate applied to
-      // `today` itself): without folding it in here, a card the user hasn't
-      // charged again since today (like a single coffee bought this morning)
-      // would never show up leaving cash at all — only the *next* charge
-      // would, understating every near-term dip.
+      // nets out any card_payment the user already logged *on or before
+      // today*, so this can never double-count a payment they made early in
+      // that sense. It belongs to the same cycle a charge made *today* would
+      // fall into (nextCardPaymentDate applied to `today` itself): without
+      // folding it in here, a card the user hasn't charged again since today
+      // (like a single coffee bought this morning) would never show up
+      // leaving cash at all — only the *next* charge would, understating
+      // every near-term dip.
       // Half a kuruş, not a strict > 0 — charges and payments entered as
       // separate rows over time don't always net to exactly 0 in floating
       // point (e.g. paying a card down to zero can leave a residue like
       // 1.4e-14), and that dust was showing up as a spurious "−₺0,00 ·
       // tahmini" event.
       const debtSoFar = creditCardDebtBalance(entries, card.id, today);
-      if (debtSoFar > 0.005) {
+      // A card_payment the user already recorded for a FUTURE date (paying
+      // ahead of the due date, say) is a real row and already gets its own
+      // event from the main loop above — but its date is after `today`, so
+      // creditCardDebtBalance's asOf=today cutoff doesn't subtract it from
+      // debtSoFar yet. Left alone, the "assume the rest gets paid in full
+      // next cycle" estimate below would still project the *original*
+      // debtSoFar on top of that already-declared payment, double-counting
+      // whatever the user told us they're already paying. Netting it out
+      // here keeps the default "assume full payoff" behavior for the part
+      // the user hasn't said anything about, without contradicting what they
+      // already entered. Floored at 0, not clamped against future charges
+      // too — a payment that overshoots today's debt into next cycle's not-
+      // yet-billed charges is a rarer edge case left as a (harmless, since it
+      // only makes the projection slightly more pessimistic) simplification.
+      const todayStr = toDateString(today);
+      const alreadyDeclaredFuturePayments = entries.reduce((sum, e) => {
+        if (e.kind !== "card_payment" || e.credit_card_id !== card.id || e.occurred_at <= todayStr) return sum;
+        return sum + e.amount;
+      }, 0);
+      const remainingDebtSoFar = Math.max(0, debtSoFar - alreadyDeclaredFuturePayments);
+      if (remainingDebtSoFar > 0.005) {
         const nextPaymentDate = nextCardPaymentDate(today, card.statement_day, card.payment_day);
         const key = `${card.id}:${toDateString(nextPaymentDate)}`;
         const bucket = cycleTotals.get(key);
-        if (bucket) bucket.total += debtSoFar;
-        else cycleTotals.set(key, { cardId: card.id, paymentDate: nextPaymentDate, total: debtSoFar });
+        if (bucket) bucket.total += remainingDebtSoFar;
+        else cycleTotals.set(key, { cardId: card.id, paymentDate: nextPaymentDate, total: remainingDebtSoFar });
       }
     }
+    const cardNames = new Map(cards.map((c) => [c.id, c.name]));
     for (const { cardId, paymentDate, total } of cycleTotals.values()) {
       if (paymentDate < rangeStart || paymentDate > rangeEnd || total <= 0.005) continue;
       events.push({
-        entry: projectedCardPaymentEntry(cardId, paymentDate, total),
+        entry: projectedCardPaymentEntry(cardId, cardNames.get(cardId) ?? "", paymentDate, total),
         occurrence: paymentDate,
         isProjected: true,
       });

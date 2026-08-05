@@ -315,7 +315,7 @@
     "legendActual": "Gerçek bakiye",
     "legendOptimized": "Günlük faizde tutulsaydı",
     "cumulativeGainSentence": "Bu tarihe kadar günlük faiz işleyen bir hesapta tutsaydın ~{gain} daha fazla birikmiş olurdun.",
-    "projectedEventLabel": "tahmini",
+    "projectedEventLabel": "tahmini (tam ödeme varsayımıyla)",
     "evdsContext": "TLREF gecelik referans faiz oranı, günlük hesap yaklaşımının temeli ({asOf} itibarıyla): {rate}",
     "evdsUnavailable": "TCMB EVDS'e şu an ulaşılamıyor.",
     "rateDetailsToggle": "Faiz varsayımı ve kaynağı",
@@ -401,10 +401,11 @@
     "remindersLabel": "Hatırlatmalar açık",
     "uploadStatement": "Ekstre yükle",
     "currentDebtLabel": "Güncel borç",
+    "debtExplanation": "Kart harcamaların eksi yaptığın ödemeler. Nakit akışı, aksini söylemediğin sürece bu borcun ödeme gününde tamamen ödeneceğini varsayar — erken ya da kısmi bir ödeme girersen buna göre güncellenir.",
     "payDebt": {
       "button": "Borç öde",
       "dialogTitle": "{name} — borç öde",
-      "dialogDescription": "Bu karta ne kadar ödediğini kaydet — tam borç ya da kısmi/asgari ödeme fark etmez.",
+      "dialogDescription": "Bu karta ne kadar ödediğini kaydet — tam borç ya da kısmi/asgari ödeme fark etmez. Nakit akışını bu tarihte etkiler; yanlış girersen Geçmiş'ten silebilirsin.",
       "amountLabel": "Ödenen tutar",
       "dateLabel": "Ödeme tarihi",
       "errors": {
@@ -413,12 +414,17 @@
     },
     "history": {
       "button": "Geçmiş",
-      "dialogTitle": "{name} — ekstre geçmişi",
+      "dialogTitle": "{name} — geçmiş",
+      "statementsTitle": "Ekstreler",
       "empty": "Henüz ekstre yüklenmedi.",
       "item": "{date} tarihinde yüklendi, {count} işlem, {total}",
       "undoButton": "Geri al",
       "undoConfirmTitle": "Bu ekstreyi geri al",
-      "undoConfirmDescription": "{period} dönemine ait {count} işlem kalıcı olarak silinecek. Bu işlem geri alınamaz."
+      "undoConfirmDescription": "{period} dönemine ait {count} işlem kalıcı olarak silinecek. Bu işlem geri alınamaz.",
+      "paymentsTitle": "Ödemeler",
+      "noPayments": "Henüz ödeme kaydı yok.",
+      "deletePaymentConfirmTitle": "Bu ödemeyi sil",
+      "deletePaymentConfirmDescription": "{date} tarihinde kaydedilen {amount} ödeme kalıcı olarak silinecek, tutar kartın borcuna geri eklenecek. Bu işlem geri alınamaz."
     },
     "notificationsTitle": "Bildirimler",
     "notificationsDescription": "Ekstre ve ödeme günlerinde bildirim almak için izin ver.",
