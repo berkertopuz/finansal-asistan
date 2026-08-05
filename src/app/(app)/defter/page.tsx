@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EntryTable } from "@/components/ledger/EntryTable";
@@ -34,6 +35,13 @@ export default async function DefterPage() {
     data: { user },
   } = await getUser();
 
+  // Next renders layout.tsx and page.tsx concurrently, not strictly
+  // parent-then-child, so the (app) layout's redirect() can't be trusted to
+  // land before this page's own queries run. Re-check here (CLAUDE.md rule 3).
+  if (!user) {
+    redirect("/giris");
+  }
+
   // All independent — none of these read another's result, only the render
   // below does. Used to run serially (surplus → getEntries → positions →
   // profile/evds/termDeposit), each paying its own round trip in turn. Safe
@@ -66,8 +74,8 @@ export default async function DefterPage() {
     // and for anything whose price API happens to be down right now — a
     // fallback to what was actually paid, never a fabricated price (CLAUDE.md
     // rule 5).
-    user ? getPositionsWithPrices(supabase, user.id) : Promise.resolve([]),
-    supabase.from("profiles").select("assumed_annual_rate").eq("id", user!.id).maybeSingle(),
+    getPositionsWithPrices(supabase, user.id),
+    supabase.from("profiles").select("assumed_annual_rate").eq("id", user.id).maybeSingle(),
     // The "vadeli not showing in production" bug that led to serializing
     // these turned out to be a missing EVDS_API_KEY env var in Vercel, not
     // EVDS dropping concurrent requests (that was never actually confirmed,
@@ -100,7 +108,7 @@ export default async function DefterPage() {
   // rate so the stored figure starts real instead of a guess.
   if (assumedRate === UNSEEDED_DEFAULT_RATE && evdsRate) {
     assumedRate = Number(evdsRate.rate.toFixed(2));
-    await supabase.from("profiles").update({ assumed_annual_rate: assumedRate }).eq("id", user!.id);
+    await supabase.from("profiles").update({ assumed_annual_rate: assumedRate }).eq("id", user.id);
   }
 
   return (

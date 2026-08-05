@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { createClient, getUser } from "@/lib/supabase/server";
 import { getCreditCards } from "@/lib/credit-cards-data";
 import { CreditCardsManager } from "@/components/statements/CreditCardsManager";
@@ -8,9 +9,16 @@ export default async function KartlarPage() {
     data: { user },
   } = await getUser();
 
+  // Next renders layout.tsx and page.tsx concurrently, not strictly
+  // parent-then-child, so the (app) layout's redirect() can't be trusted to
+  // land before this page's own queries run. Re-check here (CLAUDE.md rule 3).
+  if (!user) {
+    redirect("/giris");
+  }
+
   const [initialCards, profileRow] = await Promise.all([
     getCreditCards(supabase),
-    supabase.from("profiles").select("statement_llm_consent_at").eq("id", user!.id).maybeSingle(),
+    supabase.from("profiles").select("statement_llm_consent_at").eq("id", user.id).maybeSingle(),
   ]);
 
   const hasConsent = Boolean(

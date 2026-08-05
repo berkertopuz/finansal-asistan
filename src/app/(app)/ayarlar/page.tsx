@@ -1,4 +1,5 @@
 import { LogOut } from "lucide-react";
+import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,10 +16,17 @@ export default async function AyarlarPage() {
     data: { user },
   } = await getUser();
 
+  // Next renders layout.tsx and page.tsx concurrently, not strictly
+  // parent-then-child, so the (app) layout's redirect() can't be trusted to
+  // land before this page's own queries run. Re-check here (CLAUDE.md rule 3).
+  if (!user) {
+    redirect("/giris");
+  }
+
   const { data: profile } = await supabase
     .from("profiles")
     .select("display_name")
-    .eq("id", user!.id)
+    .eq("id", user.id)
     .maybeSingle();
 
   const t = await getTranslations("settings");
@@ -32,7 +40,7 @@ export default async function AyarlarPage() {
           <LocaleSwitcher />
         </CardHeader>
         <CardContent>
-          <ProfileForm email={user!.email ?? ""} displayName={profile?.display_name ?? null} />
+          <ProfileForm email={user.email ?? ""} displayName={profile?.display_name ?? null} />
         </CardContent>
       </Card>
 
