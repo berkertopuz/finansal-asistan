@@ -27,7 +27,7 @@ export async function getEntries(supabase: SupabaseClient): Promise<Entry[]> {
   const { data } = await supabase
     .from("entries")
     .select(
-      "id, kind, amount, currency, category, description, recurrence, next_due_date, occurred_at, credit_card_id, created_at, template_id, portfolio_position_id, installment_group_id, installment_index, installment_count",
+      "id, kind, amount, currency, category, description, recurrence, next_due_date, occurred_at, credit_card_id, created_at, template_id, portfolio_position_id, installment_group_id, installment_index, installment_count, skip_dates",
     )
     .order("occurred_at", { ascending: false })
     .order("created_at", { ascending: false });

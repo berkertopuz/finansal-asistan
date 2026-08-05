@@ -148,6 +148,7 @@ function projectedCardPaymentEntry(cardId: string, paymentDate: Date, amount: nu
     installment_group_id: null,
     installment_index: null,
     installment_count: null,
+    skip_dates: [],
   };
 }
 
@@ -227,8 +228,17 @@ export function projectBalance(
       continue;
     }
     if (!entry.next_due_date) continue;
+    // A date the user explicitly skipped (deleted a single occurrence, or
+    // moved a materialized row's own date elsewhere — updateEntry/deleteEntry
+    // in src/lib/actions/entries.ts) has no real row backing it, so it's
+    // absent from existingOccurrences above — without this check it would
+    // still get projected here as a phantom event, on top of whatever real
+    // row now covers that occurrence on a different date.
+    const skipDates = new Set(entry.skip_dates ?? []);
     for (const occurrence of occurrencesInRange(entry.next_due_date, entry.recurrence, rangeStart, rangeEnd)) {
-      if (existingOccurrences.has(`${entry.id}:${toDateString(occurrence)}`)) continue;
+      const occurredAt = toDateString(occurrence);
+      if (existingOccurrences.has(`${entry.id}:${occurredAt}`)) continue;
+      if (skipDates.has(occurredAt)) continue;
       events.push({ entry, occurrence });
     }
   }

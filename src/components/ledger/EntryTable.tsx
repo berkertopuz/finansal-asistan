@@ -227,9 +227,15 @@ export function EntryTable({
     const rows: DisplayEntry[] = [];
     for (const tpl of data) {
       if (tpl.recurrence === "none" || !tpl.next_due_date) continue;
+      // A date the user explicitly skipped (deleted a single future
+      // occurrence, or moved a materialized row's own date elsewhere) has no
+      // real row backing it — without this check it would resurface here as
+      // a phantom planned row the moment its month comes into view.
+      const skipDates = new Set(tpl.skip_dates ?? []);
       for (const occurrence of occurrencesInRange(tpl.next_due_date, tpl.recurrence, monthStart, monthEnd)) {
         const occurredAt = toDateString(occurrence);
         if (existingOccurrences.has(`${tpl.id}:${occurredAt}`)) continue;
+        if (skipDates.has(occurredAt)) continue;
         rows.push({
           ...tpl,
           id: `planned-${tpl.id}-${occurredAt}`,

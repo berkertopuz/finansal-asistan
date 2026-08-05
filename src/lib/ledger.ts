@@ -56,6 +56,16 @@ export type Entry = {
   installment_group_id: string | null;
   installment_index: number | null;
   installment_count: number | null;
+  // Occurrences the user explicitly removed from this template's pattern —
+  // a single deleted occurrence (deleteEntry) or a materialized row's date
+  // moved elsewhere (updateEntry, src/lib/actions/entries.ts). Only ever
+  // meaningful on the template row itself (recurrence <> 'none'); every
+  // other row just carries the column's default '{}'. Projections computed
+  // straight from a template's pattern (src/lib/cashflow.ts's projectBalance,
+  // EntryTable.tsx's plannedRows) must filter these out the same way
+  // materializeDueOccurrences does, or a skipped/moved date reappears as a
+  // phantom projected occurrence even though no real row backs it anymore.
+  skip_dates: string[];
 };
 
 // Labels come from messages/{locale}.json ("ledger" namespace) — components
