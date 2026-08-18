@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
+import { Repeat } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EntryTable } from "@/components/ledger/EntryTable";
 import { QuickAddFAB } from "@/components/ledger/QuickAddFAB";
@@ -23,7 +24,10 @@ export default async function GelirlerPage() {
           Giderler). */}
       <div className="px-4 md:px-0">
         <Card>
-          <CardHeader>
+          <CardHeader className="flex-row items-center gap-3 space-y-0">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-signal-buy-bg text-signal-buy-foreground">
+              <Repeat className="size-5" />
+            </div>
             <CardTitle className="text-sm font-normal text-muted-foreground">
               {t("fixedItems.incomeTitle")}
             </CardTitle>

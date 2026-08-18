@@ -84,6 +84,8 @@
     "updated": "Veriler {time} güncellendi"
   },
   "home": {
+    "greeting": "Merhaba, {name}",
+    "greetingNoName": "Merhaba",
     "surplusTitle": "Bu ayın net bakiyesi",
     "viewLedger": "Defteri gör",
     "latestSignalsTitle": "Son sinyaller",
@@ -283,15 +285,17 @@
     },
     "categories": {
       "addLabel": "+ Etiket",
+      "showMore": "+{count} etiket daha",
       "addDialogTitle": "Yeni etiket",
       "addDialogDescription": "Kendi kategori etiketini oluştur — gelir/gider eklerken tekrar seçebilirsin.",
-      "namePlaceholder": "örn. Eğlence",
+      "namePlaceholder": "örn. Kedi Maması",
       "empty": "Henüz özel etiket eklemedin.",
       "deleteConfirm": "Bu etiketi silmek istediğine emin misin? Bu etiketle kaydedilmiş geçmiş kayıtlar etkilenmez.",
       "errors": {
         "nameRequired": "Etiket adı gerekli.",
         "nameTooLong": "Etiket adı çok uzun.",
         "duplicate": "Bu etiketi zaten eklemişsin.",
+        "presetExists": "Bu isimde bir kategori zaten var, farklı bir isim dene.",
         "noSession": "Oturum bulunamadı, tekrar giriş yap.",
         "saveFailed": "Kaydedilemedi, tekrar dene.",
         "genericInvalid": "Geçersiz bilgiler."

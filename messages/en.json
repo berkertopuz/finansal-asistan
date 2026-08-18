@@ -84,6 +84,8 @@
     "updated": "Data updated {time}"
   },
   "home": {
+    "greeting": "Hi, {name}",
+    "greetingNoName": "Hi there",
     "surplusTitle": "This month's net balance",
     "viewLedger": "View ledger",
     "latestSignalsTitle": "Latest signals",
@@ -283,15 +285,17 @@
     },
     "categories": {
       "addLabel": "+ Tag",
+      "showMore": "+{count} more tags",
       "addDialogTitle": "New tag",
       "addDialogDescription": "Create your own category tag — pick it again next time you add income/expenses.",
-      "namePlaceholder": "e.g. Entertainment",
+      "namePlaceholder": "e.g. Cat Food",
       "empty": "No custom tags yet.",
       "deleteConfirm": "Delete this tag? Past entries using it won't be affected.",
       "errors": {
         "nameRequired": "Tag name is required.",
         "nameTooLong": "Tag name is too long.",
         "duplicate": "You already have this tag.",
+        "presetExists": "A category with this name already exists, try a different name.",
         "noSession": "No session found, please log in again.",
         "saveFailed": "Could not save, please try again.",
         "genericInvalid": "Invalid details."

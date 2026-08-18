@@ -6,14 +6,24 @@ import { SIGNAL_TONE, type Recommendation } from "@/lib/recommendations";
 import type { AppLocale } from "@/lib/locale";
 import { cn } from "@/lib/utils";
 
-export function RecommendationCard({ recommendation }: { recommendation: Recommendation }) {
+export function RecommendationCard({
+  recommendation,
+  className,
+}: {
+  recommendation: Recommendation;
+  // Optional extra classes merged onto the underlying Card — e.g. Ana
+  // Sayfa's LatestSignalsStrip adds a hairline border here since these
+  // cards otherwise blend into the page background there; /oneriler's own
+  // RecommendationList doesn't pass this, so it's unaffected.
+  className?: string;
+}) {
   const r = recommendation;
   const locale = useLocale() as AppLocale;
   const tAssetClass = useTranslations("assetClass");
   const tRec = useTranslations("recommendations");
 
   return (
-    <Card>
+    <Card className={className}>
       <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
         <div className="flex items-center gap-2">
           <Badge variant="secondary">{tAssetClass(r.asset_class)}</Badge>

@@ -93,13 +93,14 @@ type DisplayEntry = Entry & { isPlanned?: boolean };
 
 type MobileRow = { type: "header"; label: string } | { type: "entry"; entry: DisplayEntry };
 
-// income = calm green, expense = warm amber, subscription = neutral —
-// reuses the app's existing signal tokens (already used for buy/sell tone
-// elsewhere) instead of a flat gray badge for every kind, so the column is
-// scannable at a glance.
+// income = calm green, expense = red, subscription = neutral. expense uses
+// destructive rather than signal-caution (amber) — matches the red/green
+// convention already applied on Ana Sayfa (SurplusCard, QuickEntryForm's
+// Gider/Gelir toggle), so the same "Gider" concept doesn't read as two
+// different colors depending which screen you're on.
 function kindBadgeClassName(kind: EntryKind): string {
   if (kind === "income") return "bg-signal-buy-bg text-signal-buy-foreground";
-  if (kind === "expense") return "bg-signal-caution-bg text-signal-caution-foreground";
+  if (kind === "expense") return "bg-destructive/10 text-destructive";
   return "bg-signal-hold-bg text-signal-hold-foreground";
 }
 
@@ -415,7 +416,7 @@ export function EntryTable({
 
       {monthSummary && (
         <div className="grid grid-cols-2 gap-3 px-4 sm:grid-cols-4 md:px-0">
-          <div className="glass-card rounded-2xl p-3">
+          <div className="rounded-2xl bg-card p-3 ring-1 ring-foreground/10">
             <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
               {t("summary.income")}
             </p>
@@ -423,15 +424,15 @@ export function EntryTable({
               {formatCurrency(monthSummary.income, locale)}
             </p>
           </div>
-          <div className="glass-card rounded-2xl p-3">
+          <div className="rounded-2xl bg-card p-3 ring-1 ring-foreground/10">
             <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
               {t("summary.expense")}
             </p>
-            <p className="mt-1 truncate text-lg font-bold text-signal-caution-foreground">
+            <p className="mt-1 truncate text-lg font-bold text-destructive">
               {formatCurrency(monthSummary.expense, locale)}
             </p>
           </div>
-          <div className="glass-card rounded-2xl p-3">
+          <div className="rounded-2xl bg-card p-3 ring-1 ring-foreground/10">
             <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
               {t("summary.subscription")}
             </p>
@@ -439,7 +440,7 @@ export function EntryTable({
               {formatCurrency(monthSummary.subscription, locale)}
             </p>
           </div>
-          <div className="glass-card rounded-2xl p-3">
+          <div className="rounded-2xl bg-card p-3 ring-1 ring-foreground/10">
             <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
               {t("summary.netSurplus")}
             </p>
@@ -581,40 +582,45 @@ export function EntryTable({
               icon-touch (≥48px) since these are touch targets here. Day
               headers ("Bugün"/"Dün") come from mobileRows, which only
               inserts them when the list is in chronological order. */}
-          <div className="flex flex-col gap-2 px-4 md:hidden">
-            {mobileRows.map((row, i) => {
-              if (row.type === "header") {
+          {/* One flat card containing every row (divided by hairlines,
+              circular category-icon avatars) instead of each transaction
+              as its own separately-boxed card — a real list, not a stack
+              of repeated tiles. */}
+          <div className="px-4 md:hidden">
+            <div className="rounded-3xl bg-card ring-1 ring-foreground/10">
+              {mobileRows.map((row, i) => {
+                if (row.type === "header") {
+                  return (
+                    <p
+                      key={`h-${i}`}
+                      className="px-4 pt-4 pb-2 text-xs font-medium tracking-widest text-muted-foreground uppercase first:pt-4"
+                    >
+                      {row.label}
+                    </p>
+                  );
+                }
+                const entry = row.entry;
+                const { Icon, colorClassName } = categoryIcon(entry.category);
+                const isManagedFromPortfolio = entry.kind === "investment" && Boolean(entry.portfolio_position_id);
+                const useDescriptionAsTitle = titleField === "description" && Boolean(entry.description);
+                const primaryText = useDescriptionAsTitle ? entry.description! : categoryLabel(t, entry.category);
+                const secondaryPrefix = useDescriptionAsTitle ? categoryLabel(t, entry.category) : entry.description;
                 return (
-                  <p
-                    key={`h-${i}`}
-                    className="px-2 pt-2 text-xs font-medium tracking-widest text-muted-foreground uppercase first:pt-0"
-                  >
-                    {row.label}
-                  </p>
-                );
-              }
-              const entry = row.entry;
-              const { Icon, colorClassName } = categoryIcon(entry.category);
-              const isManagedFromPortfolio = entry.kind === "investment" && Boolean(entry.portfolio_position_id);
-              const useDescriptionAsTitle = titleField === "description" && Boolean(entry.description);
-              const primaryText = useDescriptionAsTitle ? entry.description! : categoryLabel(t, entry.category);
-              const secondaryPrefix = useDescriptionAsTitle ? categoryLabel(t, entry.category) : entry.description;
-              return (
-                <div
-                  key={entry.id}
-                  className={cn(
-                    "glass-card flex items-center gap-3 rounded-2xl p-4",
-                    entry.isPlanned && "opacity-60",
-                  )}
-                >
                   <div
+                    key={entry.id}
                     className={cn(
-                      "flex size-12 shrink-0 items-center justify-center rounded-xl",
-                      colorClassName,
+                      "flex items-center gap-3 border-b border-border/60 px-4 py-3 last:border-b-0",
+                      entry.isPlanned && "opacity-60",
                     )}
                   >
-                    <Icon className="size-5" />
-                  </div>
+                    <div
+                      className={cn(
+                        "flex size-11 shrink-0 items-center justify-center rounded-full",
+                        colorClassName,
+                      )}
+                    >
+                      <Icon className="size-5" />
+                    </div>
                   <div className="flex min-w-0 flex-1 flex-col gap-0.5 overflow-hidden">
                     {/* One truncating line, not a row of fixed-width badges
                         crammed next to it — those don't shrink and were
@@ -685,7 +691,8 @@ export function EntryTable({
                   )}
                 </div>
               );
-            })}
+              })}
+            </div>
           </div>
         </>
       )}

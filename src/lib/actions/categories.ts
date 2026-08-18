@@ -4,6 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import type { Category } from "@/lib/categories-data";
+import { isPresetCategory } from "@/lib/ledger";
 
 export type CategoryActionState = { error?: string; success?: boolean; category?: Category };
 
@@ -22,6 +23,14 @@ export async function addCategory(name: string): Promise<CategoryActionState> {
 
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? t("genericInvalid") };
+  }
+
+  // Preset chips (ENTRY_CATEGORIES) live outside the `categories` table's own
+  // unique(user_id, name) constraint, so without this check a custom tag
+  // named e.g. "Eğlence" saves fine and then renders as a second, visually
+  // identical chip right next to the preset "Eğlence" chip in QuickEntryForm.
+  if (isPresetCategory(parsed.data.toLocaleLowerCase("tr"))) {
+    return { error: t("presetExists") };
   }
 
   const supabase = await createClient();

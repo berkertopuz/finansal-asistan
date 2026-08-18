@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getLocale, getTranslations } from "next-intl/server";
+import { Repeat, RefreshCw, CreditCard as CardIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EntryTable } from "@/components/ledger/EntryTable";
 import { QuickAddFAB } from "@/components/ledger/QuickAddFAB";
@@ -39,7 +40,13 @@ export default async function GiderlerPage() {
           transactions, was most of "this page is too tall". */}
       <div className="px-4 md:px-0">
         <Card>
-          <CardHeader>
+          {/* Colored icon badges — three flat gray text-only cards in a row
+              read as lifeless; a distinct accent per card gives the eye
+              something to differentiate them by besides label text. */}
+          <CardHeader className="flex-row items-center gap-3 space-y-0">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-blue-500 dark:bg-blue-400/10 dark:text-blue-400">
+              <Repeat className="size-5" />
+            </div>
             <CardTitle className="text-sm font-normal text-muted-foreground">
               {t("fixedItems.expenseTitle")}
             </CardTitle>
@@ -58,7 +65,10 @@ export default async function GiderlerPage() {
 
       <div className="px-4 md:px-0">
         <Card>
-          <CardHeader>
+          <CardHeader className="flex-row items-center gap-3 space-y-0">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-amber-500/10 text-amber-500 dark:bg-amber-400/10 dark:text-amber-400">
+              <RefreshCw className="size-5" />
+            </div>
             <CardTitle className="text-sm font-normal text-muted-foreground">
               {t("subscriptions.summaryTitle")}
             </CardTitle>
@@ -82,7 +92,10 @@ export default async function GiderlerPage() {
 
       <div className="px-4 md:px-0">
         <Card>
-          <CardHeader>
+          <CardHeader className="flex-row items-center gap-3 space-y-0">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <CardIcon className="size-5" />
+            </div>
             <CardTitle className="text-sm font-normal text-muted-foreground">
               {tCreditCards("summaryTitle")}
             </CardTitle>

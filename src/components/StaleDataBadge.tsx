@@ -27,7 +27,7 @@ export function StaleDataBadge() {
   const t = useTranslations("stale");
 
   if (!data?.latest_fetched_at) {
-    return <p className="px-4 text-xs text-muted-foreground">{t("waiting")}</p>;
+    return <p className="text-xs text-muted-foreground">{t("waiting")}</p>;
   }
 
   const stale = isStale(data.latest_fetched_at);
@@ -35,7 +35,7 @@ export function StaleDataBadge() {
   return (
     <p
       className={cn(
-        "px-4 text-xs",
+        "text-xs",
         stale ? "text-signal-caution-foreground" : "text-muted-foreground",
       )}
     >

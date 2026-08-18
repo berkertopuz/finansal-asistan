@@ -5,14 +5,19 @@ import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR, { mutate } from "swr";
 import { useLocale, useTranslations } from "next-intl";
-import { addEntry, updateEntry, type AddEntryState } from "@/lib/actions/entries";
+import { TrendingDown, TrendingUp } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  addEntry,
+  updateEntry,
+  type AddEntryState,
+} from "@/lib/actions/entries";
 import { addCategory } from "@/lib/actions/categories";
 import type { Category } from "@/lib/categories-data";
 import type { CreditCard } from "@/lib/credit-cards-data";
 import {
   DEFAULT_CATEGORY,
   ENTRY_CATEGORIES,
-  ENTRY_KINDS,
   ENTRY_RECURRENCES,
   type Entry,
   type EntryKind,
@@ -33,6 +38,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+
+// Presets are a fixed, curated list (ENTRY_CATEGORIES, 10 entries) — custom
+// tags aren't: a user can keep adding them forever, so unlike the presets
+// this list is collapsed by default once it grows past a small preview.
+const CUSTOM_CATEGORY_PREVIEW_COUNT = 3;
 
 const CATEGORIES_KEY = "/api/categories";
 const categoriesFetcher = (url: string) =>
@@ -84,7 +94,8 @@ export function QuickEntryForm({
   // toggle is hidden for subscriptions, so there's no user click to set this
   // any other way for a brand-new one).
   const [category, setCategory] = useState<string>(
-    editingEntry?.category ?? (defaultKind === "subscription" ? "abonelik" : DEFAULT_CATEGORY),
+    editingEntry?.category ??
+      (defaultKind === "subscription" ? "abonelik" : DEFAULT_CATEGORY),
   );
   // Mirrors the `kind` rule just below — but that only fires on a
   // user-driven toggle switch, which never happens for a fresh subscription
@@ -92,7 +103,8 @@ export function QuickEntryForm({
   // trigger it). Without this, a new subscription silently defaulted to
   // "Tek seferlik" instead of "Aylık".
   const [recurrence, setRecurrence] = useState<EntryRecurrence>(
-    editingEntry?.recurrence ?? (defaultKind === "subscription" ? "monthly" : "none"),
+    editingEntry?.recurrence ??
+      (defaultKind === "subscription" ? "monthly" : "none"),
   );
   // The actual kind sent to the server — always derived, never set
   // directly. "Abonelik kategorisi + herhangi bir tekrar sıklığı = her
@@ -107,7 +119,10 @@ export function QuickEntryForm({
   // bölümünde sessizce birikiyordu. Tek kaynaktan türetmek bu sınıfın
   // tamamını ortadan kaldırıyor — hangi satır, hangi sırayla düzenlenirse
   // düzenlensin aynı kural geçerli.
-  const kind: EntryKind = category === "abonelik" && recurrence !== "none" ? "subscription" : giderGelirKind;
+  const kind: EntryKind =
+    category === "abonelik" && recurrence !== "none"
+      ? "subscription"
+      : giderGelirKind;
   // template_id set means this row was generated FROM a recurring rule
   // (src/lib/recurrence-materialize.ts) — editing it is only ever editing
   // that one month's occurrence, never the rule itself (the rule is a
@@ -141,7 +156,9 @@ export function QuickEntryForm({
   // akışı bozmamak için kart seçmek isteğe bağlı bir dokunuş daha). Dolu bir
   // değer, o karta borç yazar (src/lib/cashflow.ts bunu bakiyeden hemen
   // düşmez, bkz. isCardDebt).
-  const [creditCardId, setCreditCardId] = useState<string>(editingEntry?.credit_card_id ?? "");
+  const [creditCardId, setCreditCardId] = useState<string>(
+    editingEntry?.credit_card_id ?? "",
+  );
   // Controlled only so the taksit preview below can read it live — every
   // other field stays uncontrolled (defaultValue) on purpose, this is the
   // one exception.
@@ -152,15 +169,44 @@ export function QuickEntryForm({
   const applyToAllRef = useRef<HTMLInputElement>(null);
   const [scopeDialogOpen, setScopeDialogOpen] = useState(false);
   const [addCategoryOpen, setAddCategoryOpen] = useState(false);
+  const [showAllCustomCategories, setShowAllCustomCategories] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
-  const [addCategoryError, setAddCategoryError] = useState<string | undefined>();
+  const [addCategoryError, setAddCategoryError] = useState<
+    string | undefined
+  >();
   const [addCategoryPending, setAddCategoryPending] = useState(false);
   const router = useRouter();
   const locale = useLocale() as AppLocale;
   const t = useTranslations("ledger");
   const tCommon = useTranslations("common");
-  const { data: customCategories } = useSWR<Category[]>(CATEGORIES_KEY, categoriesFetcher);
-  const { data: creditCards } = useSWR<CreditCard[]>(CREDIT_CARDS_KEY, creditCardsFetcher);
+  const { data: customCategories } = useSWR<Category[]>(
+    CATEGORIES_KEY,
+    categoriesFetcher,
+  );
+  const { data: creditCards } = useSWR<CreditCard[]>(
+    CREDIT_CARDS_KEY,
+    creditCardsFetcher,
+  );
+
+  // The currently selected tag always stays visible even while collapsed —
+  // otherwise editing a row whose category is a tag past the preview count
+  // would show no chip as selected.
+  const visibleCustomCategories = (() => {
+    if (!customCategories) return [];
+    if (
+      showAllCustomCategories ||
+      customCategories.length <= CUSTOM_CATEGORY_PREVIEW_COUNT
+    ) {
+      return customCategories;
+    }
+    const preview = customCategories.slice(0, CUSTOM_CATEGORY_PREVIEW_COUNT);
+    const selected = customCategories.find((cat) => cat.name === category);
+    return selected && !preview.some((cat) => cat.id === selected.id)
+      ? [...preview, selected]
+      : preview;
+  })();
+  const hiddenCustomCategoryCount =
+    (customCategories?.length ?? 0) - visibleCustomCategories.length;
 
   async function handleAddCategory() {
     const name = newCategoryName.trim();
@@ -170,9 +216,16 @@ export function QuickEntryForm({
     const result = await addCategory(name);
     setAddCategoryPending(false);
     if (result.success && result.category) {
-      mutate(CATEGORIES_KEY, (current: Category[] | undefined) => [...(current ?? []), result.category!], {
-        revalidate: false,
-      });
+      mutate(
+        CATEGORIES_KEY,
+        (current: Category[] | undefined) => [
+          ...(current ?? []),
+          result.category!,
+        ],
+        {
+          revalidate: false,
+        },
+      );
       setCategory(result.category.name);
       setNewCategoryName("");
       setAddCategoryOpen(false);
@@ -237,18 +290,37 @@ export function QuickEntryForm({
   );
 
   return (
-    <form ref={formRef} action={formAction} className="flex flex-col gap-3 px-4 pb-6">
-      {editingEntry && <input type="hidden" name="id" value={editingEntry.id} />}
+    <form
+      ref={formRef}
+      action={formAction}
+      className="flex flex-col gap-3 px-4 pb-6"
+    >
+      {editingEntry && (
+        <input type="hidden" name="id" value={editingEntry.id} />
+      )}
       <input type="hidden" name="kind" value={kind} />
       <input type="hidden" name="category" value={category} />
       <input type="hidden" name="recurrence" value={recurrence} />
-      <input type="hidden" name="isInstallment" value={isInstallment ? "true" : "false"} />
+      <input
+        type="hidden"
+        name="isInstallment"
+        value={isInstallment ? "true" : "false"}
+      />
       <input type="hidden" name="installmentCount" value={installmentCount} />
-      <input type="hidden" name="credit_card_id" value={giderGelirKind === "income" ? "" : creditCardId} />
+      <input
+        type="hidden"
+        name="credit_card_id"
+        value={giderGelirKind === "income" ? "" : creditCardId}
+      />
       {/* Only ever read by updateEntry, and only when the row being edited
           is itself a recurring rule — set imperatively by submitWithScope
           right before requestSubmit, never via React state (see there). */}
-      <input ref={applyToAllRef} type="hidden" name="applyToAllOccurrences" defaultValue="false" />
+      <input
+        ref={applyToAllRef}
+        type="hidden"
+        name="applyToAllOccurrences"
+        defaultValue="false"
+      />
 
       {/* Hidden, not just left unselected, when kind (computed above) is
           "subscription" — a pressed toggle would have nothing to show as
@@ -263,28 +335,72 @@ export function QuickEntryForm({
           subscription. Deriving kind from category+recurrence instead of a
           dedicated control removes that ambiguity entirely. */}
       {kind !== "subscription" && (
-        <ToggleGroup
-          value={[giderGelirKind]}
-          onValueChange={(next) => next[0] && handleGiderGelirChange(next[0] as "expense" | "income")}
-          className="w-full flex-nowrap"
-        >
-          {ENTRY_KINDS.map((value) => (
-            <ToggleGroupItem
-              key={value}
-              value={value}
-              // aria-pressed here, not a plain conditional class — Base UI's
-              // Toggle marks the pressed item aria-pressed="true" (not
-              // data-state), and the base style's aria-pressed:bg-muted
-              // beats an unconditional class on specificity, not order.
-              // A specific hex the user picked directly (not a semantic
-              // signal token) — same for both Gider and Gelir, deliberately
-              // not yellow/amber.
-              className="h-touch flex-1 aria-pressed:bg-[#7c95b0] aria-pressed:text-background aria-pressed:hover:bg-[#7c95b0]/90"
+        // A solid-fill segmented pill (same track+active-pill language as
+        // LedgerSubNav) instead of a flat aria-pressed tint. Earlier attempt
+        // used an SVG viewBox with preserveAspectRatio="none" to stretch
+        // responsively — but non-uniform scaling turns true circular arcs
+        // into ellipses (this track is ~15x wider than tall), which is
+        // exactly why the ends looked stretched and the notch looked like a
+        // sharp two-pointed blade instead of a soft dip. Native border-radius
+        // never has that problem (the browser always renders it as a true
+        // circular corner regardless of element width), and mask-image's
+        // radial-gradient radius is real pixels, not viewBox units, so the
+        // notch stays a perfect circle at any width too.
+        <div className="relative h-touch w-full">
+          <div
+            className="absolute inset-0 overflow-hidden rounded-full bg-muted"
+            style={{
+              // Circle centered exactly on the track's own bottom edge
+              // (50% 100%) — shifting the mask further down (calc(100% +
+              // Npx) + a negative bottom offset) was a dead end: it moved
+              // the whole masked layer out of alignment with the button row
+              // on top of it instead of just deepening the notch. Radius
+              // 32px with a 1px pixel-absolute feather (31px→32px) is
+              // Gemini's simpler version, confirmed better than the
+              // shifted-mask experiment.
+              maskImage: "radial-gradient(circle 32px at 50% 100%, transparent 31px, black 32px)",
+              WebkitMaskImage: "radial-gradient(circle 32px at 50% 100%, transparent 31px, black 32px)",
+            }}
+          >
+            <div
+              className={cn(
+                "absolute inset-y-0 w-1/2 transition-colors",
+                giderGelirKind === "expense"
+                  ? "left-0 bg-destructive"
+                  : "left-1/2 bg-primary",
+              )}
+            />
+          </div>
+
+          <div className="relative z-10 flex size-full">
+            <button
+              type="button"
+              onClick={() => handleGiderGelirChange("expense")}
+              className={cn(
+                "flex flex-1 items-center justify-center gap-1.5 text-sm font-medium transition-colors",
+                giderGelirKind === "expense"
+                  ? "text-white"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
             >
-              {t(`kind.${value}`)}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
+              <TrendingDown className="size-4" />
+              {t("kind.expense")}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleGiderGelirChange("income")}
+              className={cn(
+                "flex flex-1 items-center justify-center gap-1.5 text-sm font-medium transition-colors",
+                giderGelirKind === "income"
+                  ? "text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <TrendingUp className="size-4" />
+              {t("kind.income")}
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Tutar paired with whichever date field currently applies (never
@@ -319,7 +435,9 @@ export function QuickEntryForm({
             Sıklık. */}
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="entry-date">
-            {recurrence === "none" ? t("form.dateLabel") : t("form.dueDateLabel")}
+            {recurrence === "none"
+              ? t("form.dateLabel")
+              : t("form.dueDateLabel")}
           </Label>
           <Input
             id="entry-date"
@@ -339,14 +457,20 @@ export function QuickEntryForm({
             kind="subscription" iken zorunlu — boş kalırsa o satırın başlığı
             olmazdı. */}
         <Label htmlFor="description">
-          {kind === "subscription" ? t("form.subscriptionNameLabel") : t("form.descriptionLabel")}
+          {kind === "subscription"
+            ? t("form.subscriptionNameLabel")
+            : t("form.descriptionLabel")}
         </Label>
         <Input
           id="description"
           name="description"
           type="text"
           maxLength={200}
-          placeholder={kind === "subscription" ? t("form.subscriptionNamePlaceholder") : t("form.descriptionPlaceholder")}
+          placeholder={
+            kind === "subscription"
+              ? t("form.subscriptionNamePlaceholder")
+              : t("form.descriptionPlaceholder")
+          }
           required={kind === "subscription"}
           defaultValue={editingEntry?.description ?? ""}
         />
@@ -358,13 +482,17 @@ export function QuickEntryForm({
         // söylüyor — kullanıcı isteği: "kullanıcıya sadece o ay için olan
         // kaydı değiştirdiğini bildirmeliyiz".
         <p className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
-          {t("form.singleOccurrenceNote", { month: formatMonthYear(editingEntry!.occurred_at, locale) })}
+          {t("form.singleOccurrenceNote", {
+            month: formatMonthYear(editingEntry!.occurred_at, locale),
+          })}
         </p>
       ) : (
         <div className="flex flex-col gap-1.5">
           <Label>{t("form.recurrenceLabel")}</Label>
           {category === "abonelik" && (
-            <p className="text-xs text-muted-foreground">{t("form.convertToSubscriptionHint")}</p>
+            <p className="text-xs text-muted-foreground">
+              {t("form.convertToSubscriptionHint")}
+            </p>
           )}
           <ToggleGroup
             value={[recurrence]}
@@ -389,7 +517,9 @@ export function QuickEntryForm({
             ))}
           </ToggleGroup>
           {recurrence !== "none" && category !== "abonelik" && (
-            <p className="text-xs text-muted-foreground">{t("form.recurrenceNote")}</p>
+            <p className="text-xs text-muted-foreground">
+              {t("form.recurrenceNote")}
+            </p>
           )}
         </div>
       )}
@@ -424,12 +554,17 @@ export function QuickEntryForm({
       {kind === "expense" && recurrence === "none" && !editingEntry && (
         <div className="flex flex-col gap-1.5">
           <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-            <Checkbox checked={isInstallment} onCheckedChange={setIsInstallment} />
+            <Checkbox
+              checked={isInstallment}
+              onCheckedChange={setIsInstallment}
+            />
             {t("form.installmentLabel")}
           </label>
           {isInstallment && (
             <div className="flex flex-col gap-1.5 pl-1">
-              <Label htmlFor="installment-count">{t("form.installmentCountLabel")}</Label>
+              <Label htmlFor="installment-count">
+                {t("form.installmentCountLabel")}
+              </Label>
               <Input
                 id="installment-count"
                 type="number"
@@ -437,14 +572,19 @@ export function QuickEntryForm({
                 min={2}
                 max={36}
                 value={installmentCount}
-                onChange={(e) => setInstallmentCount(Number(e.target.value) || 2)}
+                onChange={(e) =>
+                  setInstallmentCount(Number(e.target.value) || 2)
+                }
                 className="max-w-24"
               />
               {Number(amountValue) > 0 && (
                 <p className="text-xs text-muted-foreground">
                   {t("form.installmentPreview", {
                     count: installmentCount,
-                    amount: formatCurrency(Number(amountValue) / installmentCount, locale),
+                    amount: formatCurrency(
+                      Number(amountValue) / installmentCount,
+                      locale,
+                    ),
                   })}
                 </p>
               )}
@@ -476,7 +616,7 @@ export function QuickEntryForm({
               yönetilir — src/components/settings/CategoryManager.tsx) —
               ham `name` metniyle basılır, categoryLabel() zaten preset
               olmayan değerleri olduğu gibi gösteriyor (src/lib/ledger.ts). */}
-          {customCategories?.map((cat) => (
+          {visibleCustomCategories.map((cat) => (
             <ToggleGroupItem
               key={cat.id}
               value={cat.name}
@@ -487,15 +627,28 @@ export function QuickEntryForm({
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="min-h-touch w-fit text-muted-foreground"
-          onClick={() => setAddCategoryOpen(true)}
-        >
-          {t("categories.addLabel")}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="min-h-touch w-fit text-muted-foreground"
+            onClick={() => setAddCategoryOpen(true)}
+          >
+            {t("categories.addLabel")}
+          </Button>
+          {hiddenCustomCategoryCount > 0 && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="min-h-touch w-fit text-muted-foreground"
+              onClick={() => setShowAllCustomCategories(true)}
+            >
+              {t("categories.showMore", { count: hiddenCustomCategoryCount })}
+            </Button>
+          )}
+        </div>
       </div>
 
       {state?.error && (
@@ -518,20 +671,36 @@ export function QuickEntryForm({
           }
         }}
       >
-        {pending ? tCommon("saving") : editingEntry ? t("form.update") : tCommon("save")}
+        {pending
+          ? tCommon("saving")
+          : editingEntry
+            ? t("form.update")
+            : tCommon("save")}
       </Button>
 
       <Dialog open={scopeDialogOpen} onOpenChange={setScopeDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t("form.editScopeTitle")}</DialogTitle>
-            <DialogDescription>{t("form.editScopeDescription")}</DialogDescription>
+            <DialogDescription>
+              {t("form.editScopeDescription")}
+            </DialogDescription>
           </DialogHeader>
           <DialogFooter className="sm:flex-col">
-            <Button type="button" variant="outline" className="w-full" onClick={() => submitWithScope(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() => submitWithScope(false)}
+            >
               {t("form.editScopeFutureOnly")}
             </Button>
-            <Button type="button" variant="default" className="w-full" onClick={() => submitWithScope(true)}>
+            <Button
+              type="button"
+              variant="default"
+              className="w-full"
+              onClick={() => submitWithScope(true)}
+            >
               {t("form.editScopeAll")}
             </Button>
             <Button
@@ -559,7 +728,9 @@ export function QuickEntryForm({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t("categories.addDialogTitle")}</DialogTitle>
-            <DialogDescription>{t("categories.addDialogDescription")}</DialogDescription>
+            <DialogDescription>
+              {t("categories.addDialogDescription")}
+            </DialogDescription>
           </DialogHeader>
           <Input
             type="text"
@@ -576,13 +747,23 @@ export function QuickEntryForm({
             autoFocus
           />
           {addCategoryError && (
-            <p className="text-sm text-signal-caution-foreground">{addCategoryError}</p>
+            <p className="text-sm text-signal-caution-foreground">
+              {addCategoryError}
+            </p>
           )}
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setAddCategoryOpen(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setAddCategoryOpen(false)}
+            >
               {tCommon("cancel")}
             </Button>
-            <Button type="button" disabled={addCategoryPending} onClick={handleAddCategory}>
+            <Button
+              type="button"
+              disabled={addCategoryPending}
+              onClick={handleAddCategory}
+            >
               {addCategoryPending ? tCommon("saving") : tCommon("add")}
             </Button>
           </DialogFooter>

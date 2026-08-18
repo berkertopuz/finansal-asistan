@@ -283,7 +283,7 @@ export function CashFlowTimeline({
   );
 
   return (
-    <Card className="glass-card ring-0">
+    <Card className="rounded-3xl">
       <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
         <CardTitle className="text-base">{t("title")}</CardTitle>
         <div className="flex items-center gap-3">
@@ -531,7 +531,7 @@ export function CashFlowTimeline({
             look", the full sentence is one tap away instead of always-on
             text. */}
         {endGain > 0 && (
-          <details className="glass-card group rounded-2xl">
+          <details className="group rounded-2xl bg-muted/50">
             <summary className="flex min-h-touch cursor-pointer list-none items-center justify-between gap-2 p-3 text-sm marker:content-none [&::-webkit-details-marker]:hidden">
               <span className="font-medium text-foreground">{t("dailyAccount.title")}</span>
               <span className="flex shrink-0 items-center gap-1">
@@ -558,7 +558,7 @@ export function CashFlowTimeline({
             summary line alone answers "is this worth a look", full
             breakdown is one tap away. */}
         {showTermDeposit && termGain > 0 && (
-          <details className="glass-card group rounded-2xl">
+          <details className="group rounded-2xl bg-muted/50">
             <summary className="flex min-h-touch cursor-pointer list-none items-center justify-between gap-2 p-3 text-sm marker:content-none [&::-webkit-details-marker]:hidden">
               <span className="font-medium text-foreground">{t("termDeposit.title")}</span>
               <span className="flex shrink-0 items-center gap-1">

@@ -189,13 +189,6 @@ body {
   padding-top: env(safe-area-inset-top);
 }
 
-/* Translucent, blurred card surface (Defter redesign) — Tailwind's opacity
-   modifier works on any theme color automatically, so bg-card/40 needs no
-   separate rgba/color-mix token, and it's theme-aware in both modes. */
-.glass-card {
-  @apply border border-border/60 bg-card/40 backdrop-blur-xl;
-}
-
 @layer base {
   * {
     @apply border-border outline-ring/50;

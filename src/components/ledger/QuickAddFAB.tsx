@@ -20,21 +20,35 @@ const QuickEntryForm = dynamic(
   { loading: () => <div className="h-64" /> },
 );
 
-export function QuickAddFAB({ defaultKind }: { defaultKind?: EntryKind } = {}) {
+export function QuickAddFAB({
+  defaultKind,
+  renderTrigger,
+}: {
+  defaultKind?: EntryKind;
+  // Lets a caller (e.g. the Home hero's pill button) open this exact same
+  // Sheet with its own trigger markup instead of the fixed round FAB below —
+  // keeps the Sheet/open-state wiring in one place instead of duplicating
+  // it. Omitted entirely, behavior is identical to before.
+  renderTrigger?: (props: { onClick: () => void }) => React.ReactNode;
+} = {}) {
   const [open, setOpen] = useState(false);
   const t = useTranslations("ledger");
 
   return (
     <>
-      <Button
-        type="button"
-        size="icon-touch"
-        onClick={() => setOpen(true)}
-        aria-label={t("addEntry")}
-        className="fixed right-4 bottom-24 z-20 size-14 rounded-2xl shadow-lg md:right-8 md:bottom-8"
-      >
-        <Plus className="size-6" />
-      </Button>
+      {renderTrigger ? (
+        renderTrigger({ onClick: () => setOpen(true) })
+      ) : (
+        <Button
+          type="button"
+          size="icon-touch"
+          onClick={() => setOpen(true)}
+          aria-label={t("addEntry")}
+          className="fixed right-4 bottom-24 z-20 size-14 rounded-2xl shadow-lg md:right-8 md:bottom-8"
+        >
+          <Plus className="size-6" />
+        </Button>
+      )}
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="bottom">
           <SheetHeader>

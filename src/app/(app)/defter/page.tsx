@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EntryTable } from "@/components/ledger/EntryTable";
 import { CashFlowTimeline } from "@/components/ledger/CashFlowTimeline";
 import { QuickAddFAB } from "@/components/ledger/QuickAddFAB";
@@ -10,6 +9,7 @@ import { getPositionsWithPrices } from "@/lib/positions-data";
 import { fetchReferenceRate, fetchTermDepositRate } from "@/lib/providers/evds";
 import { formatCurrency } from "@/lib/format";
 import type { AppLocale } from "@/lib/locale";
+import { cn } from "@/lib/utils";
 
 type MonthlySurplus = {
   income_total: number;
@@ -111,72 +111,91 @@ export default async function DefterPage() {
     await supabase.from("profiles").update({ assumed_annual_rate: assumedRate }).eq("id", user.id);
   }
 
+  // Donut chart stops for the hero's Gelir/Gider/Abonelik ring — conic-gradient
+  // draws clockwise from 12 o'clock by default, so each slice's end angle is
+  // just the running total of the percentages before it.
+  const breakdownTotal = surplus.income_total + surplus.expense_total + surplus.subscription_total;
+  const incomePct = breakdownTotal > 0 ? (surplus.income_total / breakdownTotal) * 100 : 0;
+  const expensePct = breakdownTotal > 0 ? (surplus.expense_total / breakdownTotal) * 100 : 0;
+  const donutGradient =
+    breakdownTotal > 0
+      ? `conic-gradient(var(--signal-buy-foreground) 0% ${incomePct}%, var(--destructive) ${incomePct}% ${incomePct + expensePct}%, var(--signal-hold-foreground) ${incomePct + expensePct}% 100%)`
+      : "var(--muted)";
+
   return (
     <div className="flex flex-1 flex-col gap-6">
+      {/* Same hero-card language as Ana Sayfa's SurplusCard (rounded-3xl
+          solid bg-card, big headline number, divided income/expense list)
+          instead of the old translucent glass-card tile grid — the two
+          summary cards read as the same design system now. Custom accent
+          hex colors (violet net worth, off-white subscription, blue net
+          surplus) are kept as-is; only the container language changed, not
+          the deliberately-picked palette. */}
       <div className="px-4 md:px-0">
-        <Card className="glass-card ring-0">
-          <CardHeader>
-            <CardTitle className="text-base">{t("title")}</CardTitle>
-          </CardHeader>
-          {/* 5 columns only from lg: up — at md: (where the desktop sidebar
-              already ate 256px) sm:grid-cols-5 left each card too narrow for
-              a bold ₺xxx.xxx,xx figure, wrapping/overflowing badly around
-              ~773px viewports. truncate on the value is a defensive
-              fallback so a future narrow case clips instead of overflowing. */}
-          <CardContent className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-            {/* col-span-2 on mobile so it reads as the headline figure,
-                full-width above the other four's even 2x2 grid. Violet, not
-                a specific hex the user picked directly, not a semantic
-                token. */}
-            <div className="glass-card col-span-2 rounded-2xl p-4 lg:col-span-1">
-              <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
-                {t("netWorth")}
-              </p>
-              <p className="mt-1 truncate text-xl font-bold text-[#AB47BC]">
-                {formatCurrency(netWorth, locale)}
-              </p>
+        <div className="rounded-3xl bg-card p-6 text-card-foreground shadow-sm ring-1 ring-foreground/10">
+          <p className="text-sm text-muted-foreground">{t("title")}</p>
+          <p className="mt-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            {t("netWorth")}
+          </p>
+          <p className="mt-1 text-4xl font-semibold tracking-tight text-[#AB47BC]">
+            {formatCurrency(netWorth, locale)}
+          </p>
+
+          {/* A ring chart + centered net figure instead of a flat list —
+              the same three amounts, but as an actual "financial
+              statistics" composition rather than stacked rows. */}
+          <div className="mt-6 flex items-center gap-6">
+            <div className="relative size-28 shrink-0">
+              <div className="absolute inset-0 rounded-full" style={{ background: donutGradient }} />
+              <div className="absolute inset-3 flex flex-col items-center justify-center rounded-full bg-card text-center">
+                <span className="text-[10px] text-muted-foreground">{t("netSurplus")}</span>
+                <span
+                  className={cn(
+                    "text-sm font-semibold",
+                    surplus.surplus >= 0 ? "text-signal-buy-foreground" : "text-destructive",
+                  )}
+                >
+                  {formatCurrency(surplus.surplus, locale)}
+                </span>
+              </div>
             </div>
-            <div className="glass-card rounded-2xl p-4">
-              <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
-                {t("income")}
-              </p>
-              <p className="mt-1 truncate text-xl font-bold text-signal-buy-foreground">
-                {formatCurrency(surplus.income_total, locale)}
-              </p>
+            <div className="flex flex-1 flex-col divide-y divide-border/60">
+              <div className="flex items-center justify-between gap-3 py-2 first:pt-0">
+                <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span className="size-2.5 shrink-0 rounded-full bg-signal-buy-foreground" />
+                  {t("income")}
+                </span>
+                <span className="text-sm font-semibold text-signal-buy-foreground">
+                  {formatCurrency(surplus.income_total, locale)}
+                </span>
+              </div>
+              {/* destructive (red), not signal-caution (amber) — matches
+                  the red/green convention already applied on Ana Sayfa
+                  (SurplusCard, QuickEntryForm's Gider/Gelir toggle,
+                  EntryTable's kind badge), so "Gider" reads as the same
+                  color everywhere in the app instead of amber here and red
+                  there. */}
+              <div className="flex items-center justify-between gap-3 py-2">
+                <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span className="size-2.5 shrink-0 rounded-full bg-destructive" />
+                  {t("expense")}
+                </span>
+                <span className="text-sm font-semibold text-destructive">
+                  {formatCurrency(surplus.expense_total, locale)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3 py-2 last:pb-0">
+                <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span className="size-2.5 shrink-0 rounded-full bg-[#E8E6E1]" />
+                  {t("subscription")}
+                </span>
+                <span className="text-sm font-semibold text-[#E8E6E1]">
+                  {formatCurrency(surplus.subscription_total, locale)}
+                </span>
+              </div>
             </div>
-            {/* Caution-amber, not signal-buy green — an expense leaving the
-                account isn't a "good" signal the way income is, but it's
-                also not the sell/alarm-red used elsewhere for signals, so
-                this reuses the same amber CLAUDE.md already keeps for
-                "pay attention to this" tones. */}
-            <div className="glass-card rounded-2xl p-4">
-              <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
-                {t("expense")}
-              </p>
-              <p className="mt-1 truncate text-xl font-bold text-signal-caution-foreground">
-                {formatCurrency(surplus.expense_total, locale)}
-              </p>
-            </div>
-            {/* Specific hex the user picked directly, not a semantic
-                token. */}
-            <div className="glass-card rounded-2xl p-4">
-              <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
-                {t("subscription")}
-              </p>
-              <p className="mt-1 truncate text-xl font-bold text-[#E8E6E1]">
-                {formatCurrency(surplus.subscription_total, locale)}
-              </p>
-            </div>
-            <div className="glass-card rounded-2xl p-4">
-              <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
-                {t("netSurplus")}
-              </p>
-              <p className="mt-1 truncate text-xl font-bold text-blue-500 dark:text-blue-400">
-                {formatCurrency(surplus.surplus, locale)}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
       <div className="px-4 md:px-0">

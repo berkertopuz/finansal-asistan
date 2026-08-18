@@ -3,8 +3,11 @@
 import Link from "next/link";
 import useSWR from "swr";
 import { useTranslations } from "next-intl";
+import { ArrowRight } from "lucide-react";
 import { RecommendationCard } from "@/components/recommendations/RecommendationCard";
 import { Skeleton } from "@/components/ui/skeleton";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import type { Recommendation } from "@/lib/recommendations";
 
 const fetcher = (url: string) =>
@@ -27,7 +30,7 @@ export function LatestSignalsStrip({ initialData }: { initialData?: Recommendati
 
   if (isLoading) {
     return (
-      <div className="flex flex-col gap-3 px-4">
+      <div className="flex flex-col gap-3">
         {Array.from({ length: 3 }).map((_, i) => (
           <Skeleton key={i} className="h-40 w-full rounded-lg" />
         ))}
@@ -42,7 +45,7 @@ export function LatestSignalsStrip({ initialData }: { initialData?: Recommendati
 
   if (data.length === 0) {
     return (
-      <p className="px-4 text-sm text-muted-foreground">
+      <p className="text-sm text-muted-foreground">
         {t("emptySignals")}{" "}
         <Link href="/oneriler" className="underline underline-offset-2">
           {t("emptySignalsLink")}
@@ -53,15 +56,16 @@ export function LatestSignalsStrip({ initialData }: { initialData?: Recommendati
   }
 
   return (
-    <div className="flex flex-col gap-3 px-4">
+    <div className="flex flex-col gap-4">
       {data.slice(0, 3).map((r) => (
-        <RecommendationCard key={r.id} recommendation={r} />
+        <RecommendationCard key={r.id} recommendation={r} className="rounded-2xl border border-border" />
       ))}
       <Link
         href="/oneriler"
-        className="py-2 text-center text-xs text-muted-foreground underline underline-offset-2"
+        className={cn(buttonVariants({ variant: "secondary", size: "touch" }), "w-full rounded-full")}
       >
         {tRecommendations("seeAll")}
+        <ArrowRight className="size-4" />
       </Link>
     </div>
   );
