@@ -34,9 +34,22 @@ export const statementRowSchema = z.object({
   taksit_sayisi: z.number().nullable(),
 });
 
+// Ekstre başlığı (kesim tarihi / son ödeme tarihi) artık Next.js tarafında
+// banka başına regex ile DEĞİL, modelin markdown'daki "Ekstre özeti"
+// bölümündeki aday etiketlerden seçmesiyle bulunuyor — bu, yeni bir banka
+// için tarih etiketi eklemek zorunluluğunu tamamen kaldıran değişikliğin
+// LLM tarafındaki ucu (bkz. src/lib/statement-import/extract.ts tasarım notu).
+// Bulunamayan alan null döner; uydurma tarih üretmek yasak (prompt kural 2).
+export const statementHeaderSchema = z.object({
+  hesap_kesim_tarihi: z.string().nullable(), // YYYY-MM-DD
+  son_odeme_tarihi: z.string().nullable(), // YYYY-MM-DD
+});
+
 export const statementResponseSchema = z.object({
+  ekstre: statementHeaderSchema,
   islemler: z.array(statementRowSchema),
 });
 
 export type StatementRow = z.infer<typeof statementRowSchema>;
+export type StatementHeader = z.infer<typeof statementHeaderSchema>;
 export type StatementResponse = z.infer<typeof statementResponseSchema>;

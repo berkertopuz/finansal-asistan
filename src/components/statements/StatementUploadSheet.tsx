@@ -91,6 +91,11 @@ export function StatementUploadSheet({
   // card_payment modeliyle yer değiştirdiği için artık nakit akışı
   // hesaplarına girmiyor.
   const [statementDate, setStatementDate] = useState<string | null>(null);
+  // Kesim tarihi ayrıştırmadan mı geldi, kullanıcı mı girdi? Ayrıştırmadan
+  // geldiyse özet olarak gösterilir; gelmediyse (LLM özet adaylarında
+  // bulamadı ya da bulduğu değer makul çıkmadı) kullanıcıya düzenlenebilir
+  // bir tarih alanı sunulur.
+  const [statementDateAutoDetected, setStatementDateAutoDetected] = useState(false);
   const [paymentDueDate, setPaymentDueDate] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   // İçe aktarma başarılı olduktan sonra gösterilen isteğe bağlı adım —
@@ -141,6 +146,7 @@ export function StatementUploadSheet({
       }
       setReviewRows(toReviewRows(result.rows, existingEntries ?? []));
       setStatementDate(result.header?.statementDate ?? null);
+      setStatementDateAutoDetected(Boolean(result.header?.statementDate));
       setPaymentDueDate(result.header?.paymentDueDate ?? null);
       const statementDay = result.header?.statementDate ? Number(result.header.statementDate.slice(8, 10)) : null;
       const paymentDay = result.header?.paymentDueDate ? Number(result.header.paymentDueDate.slice(8, 10)) : null;
@@ -326,14 +332,32 @@ export function StatementUploadSheet({
                   önce net cevap alsın diye — ayrıştırılan kesim tarihinden
                   türetiliyor, elle bir ay seçtirmek yerine (ayrıştırma
                   güvenilir, göstermek yeterli). */}
-              {statementDate && (
+              {statementDateAutoDetected ? (
                 <p className="text-sm text-muted-foreground">
                   {t("periodLabel", {
-                    month: formatMonthYear(statementDate, locale),
-                    statementDate: formatDate(statementDate, locale),
+                    month: formatMonthYear(statementDate!, locale),
+                    statementDate: formatDate(statementDate!, locale),
                     paymentDate: paymentDueDate ? formatDate(paymentDueDate, locale) : "—",
                   })}
                 </p>
+              ) : (
+                // Kesim tarihi artık banka başına regex ile değil, ekstre
+                // özeti adaylarından LLM seçimiyle bulunuyor ve makul olmayan
+                // değerler null'a düşürülüyor (bkz.
+                // src/lib/statement-import/schema.ts) — yani "bulunamadı"
+                // gerçek ve beklenen bir durum. Eskiden bu durumda
+                // handleImport sessizce hiçbir şey yapmıyordu (buton
+                // tıklanıyor, hiçbir şey olmuyordu); artık kullanıcı dönemi
+                // kendisi giriyor ve içe aktarma o zamana kadar kapalı.
+                <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-muted/40 p-3">
+                  <span className="text-sm text-foreground">{t("statementDateMissing")}</span>
+                  <input
+                    type="date"
+                    value={statementDate ?? ""}
+                    onChange={(e) => setStatementDate(e.target.value || null)}
+                    className="min-h-touch rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  />
+                </div>
               )}
               {matchingImport && (
                 <div className="flex items-start gap-2 rounded-lg border border-signal-caution-foreground/30 bg-signal-caution-bg p-3 text-sm text-signal-caution-foreground">
@@ -362,7 +386,12 @@ export function StatementUploadSheet({
               )}
 
               {reviewRows.length > 0 && (
-                <Button type="button" size="touch" disabled={importing} onClick={handleImport}>
+                <Button
+                  type="button"
+                  size="touch"
+                  disabled={importing || !statementDate}
+                  onClick={handleImport}
+                >
                   {importing
                     ? tCommon("saving")
                     : t("importSelected", { count: reviewRows.filter((r) => r.selected).length })}

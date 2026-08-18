@@ -1,86 +1,45 @@
 import { getDocumentProxy } from "unpdf";
-
-export type StatementHeader = {
-  statementDate: string | null; // YYYY-MM-DD
-  paymentDueDate: string | null; // YYYY-MM-DD
-};
+import { classifyLines, splitOnDates } from "./classify";
+import { extractPositionedLines } from "./layout";
+import { buildStatementMarkdown } from "./markdown";
 
 export type ExtractedStatement = {
-  header: StatementHeader;
-  transactionText: string;
+  /** LLM'e gönderilecek, maskelenmiş ve şekil-filtresinden geçmiş markdown. */
+  markdown: string;
+  /** Whitelist'ten geçen aday işlem satırı sayısı (0 ise ayrıştırma başarısız). */
+  transactionCount: number;
 };
 
-// Her banka ekstresinin işlem tablosu başlığını farklı yazması bekleniyor —
-// yeni bir banka eklemek bu diziye bir satır eklemekle sınırlı kalsın diye
-// (CLAUDE.md'nin "küçük bir yeni konfigürasyon" hedefi). fullText üzerinde
-// sırayla denenir, en az bir eşleşme veren ilk desen kazanır — segment
-// ayırma/sayfa geçişi mantığı (extractStatementText içindeki döngü) hepsi
-// için ortak.
-const TABLE_START_PATTERNS: RegExp[] = [
-  // Enpara: "İşlem tarihi Açıklama Taksit Tutar"
-  /İşlem tarihi\s*Açıklama\s*Taksit\s*Tutar/gi,
-  // QNB Xtra: "İşlem Tarihi İşlem Açıklaması Tutar Taksit ParaPuan" —
-  // extractRawText'in QNB_FONT_CODE_MAP düzeltmesi sayesinde artık gerçek
-  // haliyle okunabiliyor, ayrı bir "bozuk metni atla" deseni gerekmiyor.
-  /İşlem Tarihi\s*İşlem Açıklaması\s*Tutar\s*Taksit\s*ParaPuan/gi,
-];
-
-const TABLE_END_MARKERS = [
-  /Sayfa\s+\d+\s*\/\s*\d+/i,
-  /Kart sahibinin T\.C\. kimlik/i,
-  /Bir sonraki ekstrenizin tarihi/i,
-  /BSMV ve KKDF tutarlarına/i,
-  // QNB: işlem tablosunun son sayfası "Genel Toplam" ile biter, hemen
-  // ardından hesap özeti ve TCKN'li imza bloğu gelir.
-  /Genel Toplam/i,
-  // Bankadan bağımsız son güvenlik ağı: QNB'de her sayfanın altbilgisi
-  // (banka adı, TCKN, sicil no...) "Sayfa X / Y" işaretinden ÖNCE geliyor
-  // (gerçek bir QNB ekstresi üzerinde doğrulandı) — üstteki desenlerden
-  // hiçbiri bir sayfa altbilgisini durduramazsa bile, "TCKN:" (T.C. Kimlik
-  // Numarası) ifadesinin göründüğü her yer kimlik bloğunun başladığı
-  // anlamına gelir; hangi banka olursa olsun kesip atmak güvenli.
-  /TCKN\s*:/i,
-];
-
-// \s* (sıfır ya da daha fazla), \s+ değil: extractRawText artık pdf.js'in
-// getTextContent()'i yerine ham glyph akışını kullanıyor (bkz. aşağısı) —
-// unpdf'in extractText()'i konum farkına bakıp senkron bir boşluk eklerken
-// (ör. "Ekstre tarihi 05/07/2026"), ham akışta iki kelime arasında gerçek
-// bir boşluk glyph'i yoksa hiç boşluk kalmıyor ("Ekstre tarihi05/07/2026",
-// gerçek Enpara PDF'i üzerinde doğrulandı) — \s+ bu durumda hiç eşleşmezdi.
-const STATEMENT_DATE_PATTERNS = [
-  /Ekstre tarihi\s*(\d{2}\/\d{2}\/\d{4})/i, // Enpara
-  /Hesap Kesim Tarihi\s*:?\s*(\d{2}\/\d{2}\/\d{4})/i, // QNB
-];
-
-// Sayısal (Enpara: "Son ödeme tarihi 25/05/2026") ve yazıyla (QNB: "Son
-// Ödeme Tarihi: 25 Mayıs 2026, Pazartesi") iki farklı biçim var; ikisini
-// tek bir regex'e sığdırmak yerine ayrı ayrı deneniyor.
-const DUE_DATE_NUMERIC_PATTERNS = [
-  /Son ödeme tarihi\s*(\d{2}\/\d{2}\/\d{4})/i, // Enpara
-];
-const DUE_DATE_WRITTEN_PATTERN = /Son\s+Ödeme\s+Tarihi\s*:?\s*(\d{1,2})\s+(\p{L}+)\s+(\d{4})/iu; // QNB
-
-const TURKISH_MONTHS: Record<string, string> = {
-  ocak: "01",
-  şubat: "02",
-  subat: "02",
-  mart: "03",
-  nisan: "04",
-  mayıs: "05",
-  mayis: "05",
-  haziran: "06",
-  temmuz: "07",
-  ağustos: "08",
-  agustos: "08",
-  eylül: "09",
-  eylul: "09",
-  ekim: "10",
-  kasım: "11",
-  kasim: "11",
-  aralık: "12",
-  aralik: "12",
-};
+// TASARIM NOTU — banka başına konfigürasyon neden KALDIRILDI
+//
+// Bu dosya eskiden dört tane banka-özel knob taşıyordu: TABLE_START_PATTERNS
+// (her bankanın işlem tablosu başlığı), STATEMENT_DATE_PATTERNS ve
+// DUE_DATE_* (her bankanın tarih etiketleri) ve TABLE_END_MARKERS. Yeni bir
+// banka desteklemek, o bankaya ait gerçek bir PDF'i ele geçirip bu dizilere
+// satır eklemek anlamına geliyordu — Play Store'a çıkacak bir uygulama için
+// sürdürülemez (kullanıcı her bankadan örnek ekstre toplayamıyor).
+//
+// Yerine geçen şey: classify.ts'teki ŞEKİL temelli whitelist. Whitelist
+// mantığı (yalnızca eşleşen satırlar LLM'e çıkar, gerisi atılır) aynen
+// korunuyor — değişen tek şey, eşleşme kriterinin banka etiketi yerine
+// "tarihle başlar + tutar içerir" gibi bankadan bağımsız bir şekil olması.
+// Kesim/son ödeme tarihini artık regex bulmuyor: özet alanları aday olarak
+// LLM'e veriliyor, hangisinin ne olduğuna o karar veriyor.
+//
+// GİZLİLİK: whitelist blacklist'e ÇEVRİLMEDİ. "Her şeyi gönder, PII'yi
+// maskele" tasarımı reddedildi — maskeleyicinin kaçırdığı bir ad/adres
+// doğrudan OpenAI'a giderdi ve Türkçe ad/adres'i regex ile güvenilir
+// yakalamak mümkün değil (merchant adları da BÜYÜK HARF). Ad/adres blokları
+// hâlâ *yapısal olarak* elenir: içlerinde ne tarih ne tutar olduğu için
+// hiçbir kovaya girmezler. mask.ts bunun üstüne ikinci katman.
+//
+// QNB'nin kırık fontu için aşağıdaki kalibrasyon makinesi olduğu gibi
+// korundu, ama artık bir ÖNKOŞUL değil, opsiyonel bir iyileştirme: o
+// mekanizma çözemediği glyph'i boş bırakıyor, ve bozuk glyph'ler yalnızca
+// harfleri etkiliyor (rakamlar >= 32 kodlu normal glyph'ler) — yani
+// bilinmeyen bir bankada kırık font varsa tarihler ve tutarlar %100 doğru
+// çıkar, sadece merchant adında bir harf eksilir. Genericlik tam buradan
+// geliyor.
 
 // QNB Xtra'nın PDF'lerinde gömülü font, Türkçe'ye özgü harfleri metin
 // katmanına hiç aktarmıyor — pdf.js bu glyph'leri BULABİLİYOR (fontta
@@ -148,11 +107,39 @@ const QNB_CALIBRATION_ANCHORS: { pattern: RegExp; letters: string[] }[] = [
     pattern: new RegExp(`215 (${QNB_MARKER_PATTERN})i(${QNB_MARKER_PATTERN})li/(${QNB_MARKER_PATTERN})stanbul`),
     letters: ["Ş", "ş", "İ"],
   },
-  { pattern: new RegExp(`Nakit Avans(${QNB_MARKER_PATTERN})cretler`), letters: ["Ü"] },
+  { pattern: new RegExp(`Nakit Avans\\s*(${QNB_MARKER_PATTERN})cretler`), letters: ["Ü"] },
   { pattern: new RegExp(`Nakit (${QNB_MARKER_PATTERN})ekim`), letters: ["Ç"] },
   { pattern: new RegExp(`Hesap (${QNB_MARKER_PATTERN})zetiniz`), letters: ["Ö"] },
   { pattern: new RegExp(`son (${QNB_MARKER_PATTERN})deme tarihiniz`), letters: ["ö"] },
   { pattern: new RegExp(`Alı(${QNB_MARKER_PATTERN})veri(${QNB_MARKER_PATTERN})Faizi`), letters: ["ş", "ş"] },
+
+  // Büyük "Ü" için ek çapalar. Neden gerekti: bu PDF birden fazla font
+  // alt-kümesi gömüyor (özet bloğu, işlem tablosu ve altbilgi ayrı fontlar) ve
+  // AYNI harf her fontta farklı bir kod alıyor — yani tek bir çapa bir harfi
+  // yalnızca TEK bir fontta çözüyor. Gerçek bir QNB ekstresinde "Ü" üç ayrı
+  // kodda geçti: yukarıdaki "Nakit AvansÜcretler" çapası bunlardan yalnızca
+  // birini çözdü, işlem tablosu ve altbilgi fontlarındaki "Ü" boş kaldı
+  // ("GÜMÜŞSUYU" -> "GMSUYU", "GÜMRÜKSÜZ" -> "GMRKSZ" olarak göründü,
+  // kullanıcı bildirdi).
+  //
+  // "Ücretler" (çoğul) ile "Ücreti" (tekil) birbirini dışlayan iki desen:
+  // "cretler" ve "creti" ortak bir önekten sonra ayrıştığı için biri diğerinin
+  // metnine eşleşmiyor — ikisi ayrı çapa olmak zorunda, yoksa exec() ilk
+  // eşleşmede durup ikinci fontun kodunu hiç görmüyor.
+  { pattern: new RegExp(`Nakit Avans\\s*(${QNB_MARKER_PATTERN})creti`), letters: ["Ü"] },
+  { pattern: new RegExp(`Kampanyası\\s*(${QNB_MARKER_PATTERN})creti`), letters: ["Ü"] },
+  // Altbilgideki yıllık üyelik ücreti bildirimi — bankanın sabit yasal metni,
+  // gerçek ekstrede 7 kez tekrarlıyor, tek satırda iki "Ü" veriyor.
+  {
+    pattern: new RegExp(`yıllık\\s*(${QNB_MARKER_PATTERN})yelik\\s*(${QNB_MARKER_PATTERN})creti`),
+    letters: ["Ü", "Ü"],
+  },
+  // "SÖZLEŞME DEĞİŞİKLİĞİ BİLDİRİMİ" altbilgi başlığı — büyük harf "Ş" için
+  // şablonda bulunan tek güvenilir çapa (diğer "Ş" geçişleri merchant
+  // adlarında, yani kullanıcıya özel).
+  { pattern: new RegExp(`S(${QNB_MARKER_PATTERN})ZLE(${QNB_MARKER_PATTERN})ME`), letters: ["Ö", "Ş"] },
+  // Özet bloğundaki "Dönem Borcu" etiketi — küçük "ö"nün özet fontundaki kodu.
+  { pattern: new RegExp(`D(${QNB_MARKER_PATTERN})nem Borcu`), letters: ["ö"] },
 ];
 
 // "Ğ" için hiçbir şablon ibaresinde çapa yok (bkz. yukarıdaki not), ama
@@ -262,89 +249,33 @@ async function extractRawText(pdf: PDFDocumentLike): Promise<string> {
   return safeText.includes("QNB") ? resolveQnbMarkers(aggressiveText, codeWidths) : safeText;
 }
 
-function toIsoDateFromDDMMYYYY(ddmmyyyy: string): string {
-  const [d, m, y] = ddmmyyyy.split("/");
-  return `${y}-${m}-${d}`;
-}
-
-function toIsoDateFromWritten(day: string, monthName: string, year: string): string | null {
-  const month = TURKISH_MONTHS[monthName.toLocaleLowerCase("tr")];
-  if (!month) return null;
-  return `${year}-${month}-${day.padStart(2, "0")}`;
-}
-
-function extractStatementDate(fullText: string): string | null {
-  for (const pattern of STATEMENT_DATE_PATTERNS) {
-    const m = fullText.match(pattern);
-    if (m) return toIsoDateFromDDMMYYYY(m[1]);
-  }
-  return null;
-}
-
-function extractDueDate(fullText: string): string | null {
-  for (const pattern of DUE_DATE_NUMERIC_PATTERNS) {
-    const m = fullText.match(pattern);
-    if (m) return toIsoDateFromDDMMYYYY(m[1]);
-  }
-  const written = fullText.match(DUE_DATE_WRITTEN_PATTERN);
-  if (written) return toIsoDateFromWritten(written[1], written[2], written[3]);
-  return null;
-}
-
-function findTableEnd(text: string, from: number): number {
-  let earliest = text.length;
-  for (const marker of TABLE_END_MARKERS) {
-    const m = new RegExp(marker.source, marker.flags.replace("g", "")).exec(text.slice(from));
-    if (m) earliest = Math.min(earliest, from + m.index);
-  }
-  return earliest;
-}
-
-// PDF'in TÜM metnini (`fullText`) yalnızca bu fonksiyon içinde, yerel olarak
-// görür — ad soyad, TC kimlik no, kart numarası, adres dahil hiçbir kısmı bu
-// fonksiyonun dışına çıkmaz. Dönen `transactionText` sadece işlem tablosu
-// satırlarını, `header` sadece iki tarihi (kimlikle ilişkilendirilemez)
-// içerir — çağıran taraf (src/app/api/statements/parse/route.ts) bunun
-// dışında hiçbir şeye erişemez, LLM'e yalnızca bu ikisi gider.
+// PDF'in TÜM metnini (`fullText` ve `positionedLines`) yalnızca bu fonksiyon
+// içinde, yerel olarak görür — ad soyad, TC kimlik no, kart numarası, adres
+// dahil hiçbir kısmı bu fonksiyonun dışına çıkmaz. Dönen `markdown` yalnızca
+// classify.ts'in şekil whitelist'inden geçen (ve mask.ts'ten geçirilmiş)
+// satırları içerir; çağıran taraf (src/app/api/statements/parse/route.ts)
+// bunun dışında hiçbir şeye erişemez, LLM'e yalnızca bu gider.
+//
+// İki metin çıkarma yolu kullanılır, ikisi de aynı PDF üzerinde:
+//   - Ham glyph akışı (extractRawText) → İŞLEM satırları. QNB'nin kırık
+//     fontunu kurtarmanın tek yolu bu, karşılığında konum bilgisi yok; ama
+//     her işlem satırı tarihle başladığı için splitOnDates deterministik ve
+//     banka-bağımsız bir satırlaştırma sağlıyor.
+//   - Konumlu metin (extractPositionedLines) → ÖZET satırları. Etiketin
+//     nerede bitip adres bloğunun nerede başladığını bilmek için gerçek
+//     satır yapısı gerekiyor; bunu yalnızca getTextContent'in x/y'si veriyor.
 export async function extractStatementText(pdfBuffer: ArrayBuffer): Promise<ExtractedStatement> {
   const pdf = await getDocumentProxy(new Uint8Array(pdfBuffer));
   const fullText = await extractRawText(pdf);
+  const positionedLines = await extractPositionedLines(pdf);
 
-  const segments: string[] = [];
-  for (const tableStart of TABLE_START_PATTERNS) {
-    tableStart.lastIndex = 0;
-    let match: RegExpExecArray | null;
-    while ((match = tableStart.exec(fullText))) {
-      const segmentStart = match.index + match[0].length;
-      const segmentEnd = findTableEnd(fullText, segmentStart);
-      const rawSegment = fullText.slice(segmentStart, segmentEnd).trim();
-      // Bazı bankalar (QNB) tablo başlığı ile ilk gerçek işlemin arasına
-      // "Önceki Dönem Bakiyeniz ... ASIL KART: [maskeli kart no] - [AD
-      // SOYAD]" gibi bir özet+kimlik satırı sıkıştırıyor (gerçek bir QNB
-      // ekstresi üzerinde doğrulandı) — segmenti ilk tarihten önce hiç
-      // başlatmamak, bu satırın (dolayısıyla içindeki adın/kart no'nun)
-      // LLM'e giden metne hiç girmemesini garantiliyor; ayrıca tarihsiz
-      // özet satırlarını zaten atması gereken LLM'e bir yük daha bindirmiyor.
-      const firstDate = rawSegment.match(/\d{2}\/\d{2}\/\d{4}/);
-      const segment = firstDate ? rawSegment.slice(rawSegment.indexOf(firstDate[0])) : rawSegment;
-      // PDF metni satır sonlarını korumadan tek bir düz metne akıyor —
-      // "Bir önceki ekstre bakiyeniz 16.163,36 TL 15/06/2026 Ödeme..." gibi bir
-      // satırın tutarı, hemen ardından gelen satırın tarihine bitişik kalıyor.
-      // Bu, LLM'in "önceki satırın tutarı mı, yoksa bu satırın bir parçası mı"
-      // belirsizliğine düşüp bazen bir satırı tamamen atlamasına yol açtı
-      // (gerçek PDF üzerinde gözlendi). Her tarihten önce satır sonu ekleyerek
-      // her işlemi kendi satırına ayırmak bu belirsizliği kökten kaldırıyor —
-      // LLM'e güvenmek yerine deterministik bir düzeltme.
-      segments.push(segment.replace(/(\d{2}\/\d{2}\/\d{4})/g, "\n$1").trim());
-    }
-    if (segments.length > 0) break; // ilk eşleşen format kazanır, diğer bankaların desenini hiç denemiyoruz
-  }
+  const lines = classifyLines({
+    transactionCandidates: splitOnDates(fullText),
+    summaryCandidates: positionedLines,
+  });
 
   return {
-    header: {
-      statementDate: extractStatementDate(fullText),
-      paymentDueDate: extractDueDate(fullText),
-    },
-    transactionText: segments.join("\n"),
+    markdown: buildStatementMarkdown(lines),
+    transactionCount: lines.transactions.length,
   };
 }

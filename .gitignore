@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Banka ekstreleri — ayrıştırıcıyı test etmek için repo köküne konan gerçek
+# ekstre PDF'leri ad soyad, TC kimlik no, kart numarası ve adres taşıyor;
+# hiçbiri versiyon kontrolüne girmemeli. Kasıt varsa `git add -f` gerekir.
+*.pdf
+
+# Claude Code yerel dosyaları (launch.json paylaşılabilir, bunlar değil)
+.claude/settings.local.json
+.claude/worktrees/

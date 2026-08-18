@@ -1,6 +1,6 @@
 import "@supabase/functions-js/edge-runtime.d.ts";
 import { withSupabase } from "@supabase/server";
-import { parseStatementTransactions } from "../_shared/statements/openai-client.ts";
+import { parseStatement } from "../_shared/statements/openai-client.ts";
 
 // src/app/api/statements/parse/route.ts'in ucu — refresh-recommendations ile
 // aynı desen: auth:["user"] çağıranın kendi oturum JWT'sini sunmasını
@@ -15,26 +15,41 @@ export default {
       return Response.json({ error: "Oturum doğrulanamadı." }, { status: 401 });
     }
 
-    let transactionText: string;
+    let statementMarkdown: string;
     try {
       const body = await req.json();
-      transactionText = typeof body.transactionText === "string" ? body.transactionText : "";
+      statementMarkdown = typeof body.statementMarkdown === "string" ? body.statementMarkdown : "";
     } catch {
       return Response.json({ error: "Geçersiz istek gövdesi." }, { status: 400 });
     }
 
-    if (!transactionText.trim()) {
-      return Response.json({ error: "İşlem metni boş." }, { status: 400 });
+    if (!statementMarkdown.trim()) {
+      return Response.json({ error: "Ekstre metni boş." }, { status: 400 });
     }
 
     try {
-      const rows = await parseStatementTransactions({
+      const parsed = await parseStatement({
         apiKey: Deno.env.get("OPENAI_API_KEY")!,
-        transactionText,
+        statementMarkdown,
       });
-      return Response.json({ islemler: rows });
+      return Response.json(parsed);
     } catch (err) {
-      return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
+      // Ham sağlayıcı hata metnini KULLANICIYA göndermiyoruz. Eskiden
+      // `err.message` doğrudan döndürülüyor ve Next tarafı onu olduğu gibi
+      // ekrana basıyordu — gerçek bir denemede kullanıcı Türkçe arayüzde
+      // "429 You have no credits remaining. Add credits to continue using
+      // the API at..." metnini gördü. Bu iki kuralı birden bozuyor:
+      // CLAUDE.md kural 1 (kullanıcıya görünen metinler mesaj kataloğundan
+      // gelir) ve sağlayıcı iç detayının arayüze sızmaması. Artık yalnızca
+      // sabit bir kod dönüyor, ayrıntı fonksiyon loguna yazılıyor.
+      console.error("parse-statement OpenAI çağrısı başarısız:", err);
+      const status = (err as { status?: unknown })?.status;
+      // 429 = kota/hız limiti. Bu ayrımı korumak işe yarıyor: kullanıcı bu
+      // uygulamada API anahtarının sahibi, yani "kota bitti" onun
+      // düzeltebileceği bir durum — genel bir "tekrar dene" mesajı yanıltıcı
+      // olurdu.
+      const code = status === 429 ? "quotaExceeded" : "llmFailed";
+      return Response.json({ code }, { status: 502 });
     }
   }),
 };

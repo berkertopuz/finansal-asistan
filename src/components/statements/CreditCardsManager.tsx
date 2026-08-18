@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, useSyncExternalStore } from "react";
 import useSWR, { mutate } from "swr";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
@@ -35,6 +35,39 @@ import { formatCurrency, formatDate, formatMonthYear } from "@/lib/format";
 import { toDateString, type Entry } from "@/lib/ledger";
 import type { AppLocale } from "@/lib/locale";
 import { StatementUploadSheet } from "@/components/statements/StatementUploadSheet";
+
+// Bildirim izni sunucuda bilinemez, client'ta bilinir — yani React açısından
+// bir "external system" değeri. Bunu `useState(typeof window !== "undefined"
+// ? Notification.permission : "unsupported")` ile okumak hydration
+// uyuşmazlığına yol açıyordu (gerçek bir çalıştırmada Kartlar sayfasında
+// gözlendi: sunucu bildirim kartını hiç basmıyor, client basıyor); useState +
+// useEffect'e çevirmek ise effect içinde senkron setState demek oluyor
+// (cascading render, eslint hatası). useSyncExternalStore tam bu durum için
+// var: ayrı bir sunucu snapshot'ı alıyor, yani sunucu ile client'ın ilk
+// render'ı tanımı gereği uyuşuyor.
+//
+// Aboneliğin gerçek bir işi var: izni biz değiştirdiğimizde
+// (handleEnableNotifications içindeki requestPermission) abonelere haber
+// veriliyor. Tarayıcı iznin kendiliğinden değiştiğine dair bir olay
+// yayınlamıyor, o yüzden başka bir tetikleyici yok.
+const notifPermissionListeners = new Set<() => void>();
+
+function subscribeNotifPermission(onStoreChange: () => void): () => void {
+  notifPermissionListeners.add(onStoreChange);
+  return () => notifPermissionListeners.delete(onStoreChange);
+}
+
+function getNotifPermission(): NotificationPermission | "unsupported" {
+  return "Notification" in window ? Notification.permission : "unsupported";
+}
+
+function getServerNotifPermission(): NotificationPermission | "unsupported" {
+  return "unsupported";
+}
+
+function notifyNotifPermissionChanged(): void {
+  for (const listener of notifPermissionListeners) listener();
+}
 
 const CARDS_KEY = "/api/credit-cards";
 const fetcher = (url: string) =>
@@ -96,8 +129,10 @@ export function CreditCardsManager({
   const [undoError, setUndoError] = useState<string | undefined>();
   const [deletePaymentTarget, setDeletePaymentTarget] = useState<Entry | null>(null);
   const [deletePaymentPending, setDeletePaymentPending] = useState(false);
-  const [notifState, setNotifState] = useState<NotificationPermission | "unsupported">(
-    typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported",
+  const notifState = useSyncExternalStore(
+    subscribeNotifPermission,
+    getNotifPermission,
+    getServerNotifPermission,
   );
   const router = useRouter();
   const locale = useLocale() as AppLocale;
@@ -119,7 +154,9 @@ export function CreditCardsManager({
 
   async function handleEnableNotifications() {
     const permission = await Notification.requestPermission();
-    setNotifState(permission);
+    // requestPermission zaten Notification.permission'ı güncelliyor; store'un
+    // okuyacağı kaynak o, burada yapılacak tek şey abonelere haber vermek.
+    notifyNotifPermissionChanged();
     if (permission !== "granted") return;
 
     const registration = await navigator.serviceWorker.ready;

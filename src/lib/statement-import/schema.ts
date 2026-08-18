@@ -39,6 +39,39 @@ export const statementRowSchema = z.object({
 
 export type StatementRow = z.infer<typeof statementRowSchema>;
 
+export type StatementHeader = {
+  statementDate: string | null; // YYYY-MM-DD
+  paymentDueDate: string | null; // YYYY-MM-DD
+};
+
+// Bu iki tarih artık banka başına regex ile değil, modelin ekstre özeti
+// adaylarından seçmesiyle geliyor (bkz. extract.ts tasarım notu) — yani
+// "deterministik olarak doğru" olmaktan "doğrulanması gereken" hale geldiler.
+// statement_imports'un dönem anahtarı bu tarih olduğu için (unique(card,
+// statement_date)) uydurma bir tarih sessizce yanlış bir döneme yazardı;
+// makul olmayan her değer null'a düşürülür ve kullanıcı içe aktarma
+// ekranında tarihin boş olduğunu görür.
+const PLAUSIBLE_YEAR_RANGE = { min: 2000, max: 2100 };
+
+function toPlausibleIsoDate(value: unknown): string | null {
+  const normalized = normalizeDate(value);
+  if (typeof normalized !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return null;
+  const [year, month, day] = normalized.split("-").map(Number);
+  if (year < PLAUSIBLE_YEAR_RANGE.min || year > PLAUSIBLE_YEAR_RANGE.max) return null;
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  // Takvimde gerçekten var mı (31 Şubat gibi bir tarihi ele)
+  const date = new Date(`${normalized}T00:00:00Z`);
+  return date.getUTCMonth() + 1 === month && date.getUTCDate() === day ? normalized : null;
+}
+
+export function parseStatementHeader(raw: unknown): StatementHeader {
+  const source = (raw ?? {}) as { hesap_kesim_tarihi?: unknown; son_odeme_tarihi?: unknown };
+  return {
+    statementDate: toPlausibleIsoDate(source.hesap_kesim_tarihi),
+    paymentDueDate: toPlausibleIsoDate(source.son_odeme_tarihi),
+  };
+}
+
 // Şekli doğru ama içerik olarak güvenilmez satırları (negatif/sıfır tutar,
 // taksit_index > taksit_sayisi gibi tutarsızlıklar) sessizce eler —
 // kullanıcıya hiç gösterilmez, tıpkı recommendations'ın atıf-eşleşmeyen
