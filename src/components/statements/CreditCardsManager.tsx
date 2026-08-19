@@ -1,15 +1,23 @@
 "use client";
 
-import { useActionState, useState, useSyncExternalStore } from "react";
+import { useActionState, useState, useSyncExternalStore, type ReactNode } from "react";
 import useSWR, { mutate } from "swr";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import { CreditCard as CardIcon, History, Plus, Trash2, Upload } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  BellOff,
+  Check,
+  CircleDollarSign,
+  CreditCard as CardIcon,
+  History,
+  Plus,
+  Trash2,
+  Upload,
+} from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -35,6 +43,7 @@ import { formatCurrency, formatDate, formatMonthYear } from "@/lib/format";
 import { toDateString, type Entry } from "@/lib/ledger";
 import type { AppLocale } from "@/lib/locale";
 import { StatementUploadSheet } from "@/components/statements/StatementUploadSheet";
+import { cn } from "@/lib/utils";
 
 // Bildirim izni sunucuda bilinemez, client'ta bilinir — yani React açısından
 // bir "external system" değeri. Bunu `useState(typeof window !== "undefined"
@@ -138,6 +147,12 @@ export function CreditCardsManager({
   const locale = useLocale() as AppLocale;
   const t = useTranslations("creditCards");
   const tCommon = useTranslations("common");
+
+  // Ekstre/ödeme günü metinlerindeki <hl> etiketi — sayıyı cümlenin
+  // içinden ayırmak icin, çeviri dizesini parçalamadan.
+  const hl = (chunks: ReactNode) => (
+    <span className="font-medium text-amber-500 dark:text-amber-400">{chunks}</span>
+  );
 
   const [state, formAction, pending] = useActionState<CreditCardState, FormData>(
     async (_prev, formData) => {
@@ -262,17 +277,17 @@ export function CreditCardsManager({
     <div className="flex flex-col gap-4">
       {notifState !== "unsupported" && notifState !== "granted" && (
         <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-normal text-muted-foreground">
-              {t("notificationsTitle")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-center justify-between gap-3">
-            <p className="text-sm text-foreground">
-              {notifState === "denied" ? t("notificationsDenied") : t("notificationsDescription")}
-            </p>
+          <CardContent className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-col gap-0.5">
+              <p className="font-heading text-base font-semibold text-foreground">
+                {t("notificationsTitle")}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {notifState === "denied" ? t("notificationsDenied") : t("notificationsDescription")}
+              </p>
+            </div>
             {notifState !== "denied" && (
-              <Button type="button" variant="outline" size="sm" onClick={handleEnableNotifications}>
+              <Button type="button" variant="outline" onClick={handleEnableNotifications}>
                 {t("notificationsEnable")}
               </Button>
             )}
@@ -280,9 +295,12 @@ export function CreditCardsManager({
         </Card>
       )}
 
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-medium text-foreground">{t("title")}</h2>
-        <Button type="button" variant="outline" size="sm" onClick={() => setAddOpen(true)}>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-heading text-base font-semibold text-primary">{t("title")}</h2>
+        {/* Dolu (primary) buton: bu sayfanın tek "yeni bir şey yarat"
+            aksiyonu o, kart satırlarındaki outline aksiyonlarla aynı
+            ağırlıkta durunca kayboluyordu. */}
+        <Button type="button" onClick={() => setAddOpen(true)}>
           <Plus className="size-4" />
           {t("addLabel")}
         </Button>
@@ -301,16 +319,21 @@ export function CreditCardsManager({
             const debt = entries ? creditCardDebtBalance(entries, card.id) : 0;
             return (
               <Card key={card.id}>
-                <CardContent className="flex flex-col gap-3 pt-6">
+                <CardContent className="flex flex-col gap-4">
                   <div className="flex items-center gap-3">
                     <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                       <CardIcon className="size-5" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-foreground">{card.name}</p>
+                      <p className="truncate font-heading text-base font-semibold text-foreground">
+                        {card.name}
+                      </p>
+                      {/* Gün sayıları vurgulu: bu satırdaki tek değişken bilgi
+                          o iki sayı, düz gri bir cümlenin içinde okunmak için
+                          tekrar taranması gerekiyordu. */}
                       <p className="text-xs text-muted-foreground">
-                        {t("statementDayShort", { day: card.statement_day })} ·{" "}
-                        {t("paymentDayShort", { day: card.payment_day })}
+                        {t.rich("statementDayShort", { day: card.statement_day, hl })} ·{" "}
+                        {t.rich("paymentDayShort", { day: card.payment_day, hl })}
                       </p>
                     </div>
                     <Button
@@ -324,15 +347,45 @@ export function CreditCardsManager({
                       <Trash2 className="size-4" />
                     </Button>
                   </div>
-                  <div className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
-                    <span className="text-xs text-muted-foreground">{t("currentDebtLabel")}</span>
-                    <span
-                      className={
-                        debt > 0 ? "text-sm font-semibold text-signal-caution-foreground" : "text-sm font-semibold text-foreground"
-                      }
+                  {/* Borç artık gri bir şeritte tek satır değil, kendi bölümü:
+                      kartın asıl sayısı o — etiket üstte küçük ve büyük
+                      harflerle, tutar altında büyük puntoyla. */}
+                  <div className="flex flex-wrap items-end justify-between gap-3 border-t border-foreground/10 pt-4">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">
+                        {t("currentDebtLabel")}
+                      </span>
+                      <span
+                        className={cn(
+                          "font-heading text-2xl font-semibold tabular-nums",
+                          debt > 0 ? "text-signal-caution-foreground" : "text-foreground",
+                        )}
+                      >
+                        {formatCurrency(debt, locale)}
+                      </span>
+                    </div>
+                    {/* Checkbox + etiket yerine tek bir durum düğmesi: açıkken
+                        yeşil bir onay, kapalıyken soluk bir çan. Aynı tıklama
+                        hedefi, ama "şu an açık mı" sorusu tek bakışta
+                        cevaplanıyor. role="switch" + aria-checked ile ekran
+                        okuyucuda hâlâ bir aç/kapa denetimi. */}
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={card.reminders_enabled}
+                      onClick={() => handleToggleReminders(card)}
+                      className={cn(
+                        "flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors hover:bg-muted",
+                        card.reminders_enabled ? "text-primary" : "text-muted-foreground",
+                      )}
                     >
-                      {formatCurrency(debt, locale)}
-                    </span>
+                      {card.reminders_enabled ? (
+                        <Check className="size-4" />
+                      ) : (
+                        <BellOff className="size-4" />
+                      )}
+                      {card.reminders_enabled ? t("remindersLabel") : t("remindersDisabledLabel")}
+                    </button>
                   </div>
                   {/* Ne bu borcun nereden geldiği, ne de nakit akışının bunu
                       ödeme gününde nasıl ele aldığı başka hiçbir yerde
@@ -343,27 +396,24 @@ export function CreditCardsManager({
                   {debt > 0 && (
                     <p className="text-xs text-muted-foreground">{t("debtExplanation")}</p>
                   )}
-                  <div className="flex items-center justify-between gap-2">
-                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Checkbox
-                        checked={card.reminders_enabled}
-                        onCheckedChange={() => handleToggleReminders(card)}
-                      />
-                      {t("remindersLabel")}
-                    </label>
+                  {/* Ekstre yükleme diğer ikisinden ayrıldı (dolu buton, sağda):
+                      bu kartın asıl işi o, "Borç öde"/"Geçmiş" ise ona bağlı
+                      ikincil işler. */}
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex flex-wrap gap-2">
-                      <Button type="button" variant="outline" size="sm" onClick={() => openPayDebt(card, debt)}>
+                      <Button type="button" variant="outline" onClick={() => openPayDebt(card, debt)}>
+                        <CircleDollarSign className="size-4" />
                         {t("payDebt.button")}
                       </Button>
-                      <Button type="button" variant="outline" size="sm" onClick={() => setHistoryCard(card)}>
+                      <Button type="button" variant="outline" onClick={() => setHistoryCard(card)}>
                         <History className="size-4" />
                         {t("history.button")}
                       </Button>
-                      <Button type="button" variant="outline" size="sm" onClick={() => setUploadCard(card)}>
-                        <Upload className="size-4" />
-                        {t("uploadStatement")}
-                      </Button>
                     </div>
+                    <Button type="button" onClick={() => setUploadCard(card)}>
+                      <Upload className="size-4" />
+                      {t("uploadStatement")}
+                    </Button>
                   </div>
                 </CardContent>
               </Card>

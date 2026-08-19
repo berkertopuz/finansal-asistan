@@ -473,8 +473,8 @@
     "nameLabel": "Kart adı",
     "statementDayLabel": "Ekstre günü",
     "paymentDayLabel": "Ödeme günü",
-    "statementDayShort": "Ekstre: her ayın {day}'i",
-    "paymentDayShort": "Ödeme: her ayın {day}'i",
+    "statementDayShort": "Ekstre: her ayın <hl>{day}</hl>'i",
+    "paymentDayShort": "Ödeme: her ayın <hl>{day}</hl>'i",
     "remindersLabel": "Hatırlatmalar açık",
     "uploadStatement": "Ekstre yükle",
     "currentDebtLabel": "Güncel borç",
@@ -515,7 +515,9 @@
       "saveFailed": "Kaydedilemedi, tekrar dene.",
       "genericInvalid": "Geçersiz bilgiler.",
       "cardNotFound": "Kart bulunamadı."
-    }
+    },
+    "remindersDisabledLabel": "Hatırlatmalar kapalı",
+    "backToLedger": "Defter"
   },
   "offline": {
     "title": "Bağlantı yok",

@@ -473,8 +473,8 @@
     "nameLabel": "Card name",
     "statementDayLabel": "Statement day",
     "paymentDayLabel": "Payment day",
-    "statementDayShort": "Statement: {day} of each month",
-    "paymentDayShort": "Payment: {day} of each month",
+    "statementDayShort": "Statement: <hl>{day}</hl> of each month",
+    "paymentDayShort": "Payment: <hl>{day}</hl> of each month",
     "remindersLabel": "Reminders on",
     "uploadStatement": "Upload statement",
     "currentDebtLabel": "Current debt",
@@ -515,7 +515,9 @@
       "saveFailed": "Could not save, please try again.",
       "genericInvalid": "Invalid details.",
       "cardNotFound": "Card not found."
-    }
+    },
+    "remindersDisabledLabel": "Reminders off",
+    "backToLedger": "Ledger"
   },
   "offline": {
     "title": "No connection",

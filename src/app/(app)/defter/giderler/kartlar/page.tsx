@@ -1,4 +1,7 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
+import { ArrowLeft } from "lucide-react";
 import { createClient, getUser } from "@/lib/supabase/server";
 import { getCreditCards } from "@/lib/credit-cards-data";
 import { CreditCardsManager } from "@/components/statements/CreditCardsManager";
@@ -25,8 +28,20 @@ export default async function KartlarPage() {
     (profileRow.data as { statement_llm_consent_at: string | null } | null)?.statement_llm_consent_at,
   );
 
+  const t = await getTranslations("creditCards");
+
   return (
     <div className="flex flex-1 flex-col gap-4 px-4 py-6 md:px-0">
+      {/* Bu sayfa Giderler özetindeki karttan açılıyor; alt gezinme çubuğu
+          hangi sekmede olduğunu söylüyor ama bir üst seviyeye dönüş yolu
+          yoktu. */}
+      <Link
+        href="/defter/giderler"
+        className="flex w-fit items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ArrowLeft className="size-4" />
+        {t("backToLedger")}
+      </Link>
       <CreditCardsManager initialCards={initialCards} initialHasConsent={hasConsent} />
     </div>
   );
