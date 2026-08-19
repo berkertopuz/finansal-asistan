@@ -24,8 +24,9 @@ import {
   type EntryRecurrence,
 } from "@/lib/ledger";
 import { formatCurrency, formatMonthYear } from "@/lib/format";
-import type { AppLocale } from "@/lib/locale";
-import { SUPPORTED_CURRENCIES, type FxRate } from "@/lib/providers/tcmb-fx";
+import { toIntlTag, type AppLocale } from "@/lib/locale";
+import { CurrencyPicker } from "@/components/ledger/CurrencyPicker";
+import type { FxRate } from "@/lib/providers/tcmb-fx";
 import type { VoiceDraft } from "@/lib/voice";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -493,15 +494,32 @@ export function QuickEntryForm({
           hiding anything. */}
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between gap-2">
-            <Label htmlFor="amount">{t("form.amountLabel")}</Label>
-            {/* Para birimi seçici etiketin yanında: varsayılan TL olduğu için
-                sıradan bir kayıtta hiç dikkat çekmiyor, ama yurt dışındayken
-                aramaya gerek kalmadan orada duruyor. */}
-            <select
+          <Label htmlFor="amount">{t("form.amountLabel")}</Label>
+          {/* Para birimi seçici tutar alanının İÇİNDE, sağda. Ayrı bir satır
+              ya da etiket yanında bir <select> olarak denendi; TL girişinde
+              bile yer kaplıyor ve forma ikinci bir kontrol satırı ekliyordu.
+              Tek alan gibi görünüyor, varsayılan "₺" olduğu için sıradan bir
+              kayıtta fark edilmiyor. */}
+          <div className="relative">
+            <Input
+              id="amount"
+              // Döviz seçiliyse bu alan ORİJİNAL tutarı tutuyor; sunucuya
+              // giden TL tutarı aşağıdaki gizli input'tan gidiyor.
+              name={isForeign ? undefined : "amount"}
+              type="number"
+              inputMode="decimal"
+              step="0.01"
+              min="0"
+              placeholder="0,00"
+              value={amountValue}
+              onChange={(e) => setAmountValue(e.target.value)}
+              autoFocus
+              required
+              className="pr-20"
+            />
+            <CurrencyPicker
               value={currency}
-              onChange={(e) => {
-                const next = e.target.value;
+              onChange={(next) => {
                 setCurrency(next);
                 if (next === "TRY") {
                   setFxRate("");
@@ -511,56 +529,28 @@ export function QuickEntryForm({
                 }
                 void loadFxRate(next, dateValue);
               }}
-              aria-label={t("form.currencyLabel")}
-              className="border-input bg-background rounded-md border px-2 py-1 text-xs"
-            >
-              <option value="TRY">₺ TRY</option>
-              {SUPPORTED_CURRENCIES.map((code) => (
-                <option key={code} value={code}>
-                  {code}
-                </option>
-              ))}
-            </select>
+            />
           </div>
-          <Input
-            id="amount"
-            // Döviz seçiliyse bu alan ORİJİNAL tutarı tutuyor; sunucuya giden
-            // TL tutarı aşağıdaki gizli input'tan gidiyor.
-            name={isForeign ? undefined : "amount"}
-            type="number"
-            inputMode="decimal"
-            step="0.01"
-            min="0"
-            placeholder="0,00"
-            value={amountValue}
-            onChange={(e) => setAmountValue(e.target.value)}
-            autoFocus
-            required
-          />
           {isForeign && (
             <>
+              {/* Kur ARTIK ELLE GİRİLMİYOR. Düzenlenebilir bir kur alanı
+                  vardı; kullanıcı hem çok yer kapladığını hem de sorun
+                  yarattığını bildirdi. Doğrusu da bu: kartla yapılan bir
+                  harcamada gerçek kuru zaten banka belirliyor ve ekstre
+                  geldiğinde o rakam bu kaydın yerine geçiyor
+                  (src/components/statements/StatementUploadSheet.tsx). Yani
+                  kullanıcının burada tahmin etmesine gerek yok. */}
               <input type="hidden" name="amount" value={tryEquivalent ?? ""} />
               <input type="hidden" name="original_amount" value={amountValue} />
               <input type="hidden" name="original_currency" value={currency} />
               <input type="hidden" name="fx_rate" value={fxRate} />
               <input type="hidden" name="fx_rate_date" value={fxRateDate} />
-              <div className="flex items-center gap-2">
-                <Label htmlFor="fx-rate" className="text-muted-foreground shrink-0 text-xs">
-                  {t("form.fxRateLabel", { currency })}
-                </Label>
-                <input
-                  id="fx-rate"
-                  type="number"
-                  inputMode="decimal"
-                  step="0.000001"
-                  min="0"
-                  value={fxRate}
-                  onChange={(e) => setFxRate(e.target.value)}
-                  className="border-input bg-background min-h-touch w-full rounded-md border px-2 py-1 text-sm"
-                  required
-                />
-              </div>
-              <p className="text-muted-foreground text-xs">
+              <p
+                className={cn(
+                  "text-xs",
+                  fxState === "missing" ? "text-signal-caution-foreground" : "text-muted-foreground",
+                )}
+              >
                 {fxState === "loading"
                   ? t("form.fxLoading")
                   : fxState === "missing"
@@ -568,7 +558,10 @@ export function QuickEntryForm({
                     : tryEquivalent !== null
                       ? t("form.fxEquivalent", {
                           amount: formatCurrency(tryEquivalent, locale),
-                          date: fxRateDate,
+                          rate: new Intl.NumberFormat(toIntlTag(locale), {
+                            maximumFractionDigits: 4,
+                          }).format(Number(fxRate)),
+                          currency,
                         })
                       : t("form.fxHint")}
               </p>

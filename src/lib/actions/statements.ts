@@ -15,6 +15,17 @@ const importRowSchema = z.object({
   kategori: z.enum(ENTRY_CATEGORIES).catch("diğer"),
   taksit_index: z.number().int().min(1).nullable(),
   taksit_sayisi: z.number().int().min(2).nullable(),
+  // Bu satır, kullanıcının YURT DIŞINDA elle girdiği dövizli bir kaydın
+  // ekstredeki karşılığıysa o kaydın id'si. Client eşleştiriyor
+  // (StatementUploadSheet.tsx), burada o kayıt EKLENMİYOR — GÜNCELLENİYOR.
+  //
+  // Neden: kullanıcı tatilde 5 € harcayıp elle giriyor, TCMB kuruyla ~278 TL
+  // yazılıyor. Ay sonunda banka kendi kuru + komisyonuyla 285 TL kesiyor.
+  // Tutarlar tutmadığı için normal mükerrer tespiti bunu yakalamıyordu ve
+  // aynı harcama iki kez sayılıyordu. Banka otorite, kullanıcının girdiği
+  // tahmin — o yüzden ekstre satırı mevcut kaydın üstüne yazıyor ve orijinal
+  // döviz tutarı korunup kur bankanın GERÇEK kuruna göre yeniden hesaplanıyor.
+  replaces_entry_id: z.string().uuid().nullable().optional(),
 });
 
 // Kullanıcının inceleme ekranında işaretleyip onayladığı satırlar — hangi
@@ -118,7 +129,9 @@ export async function importStatementEntries(
     return { error: t("saveFailed") };
   }
 
-  const insertRows = parsed.data.map((row) => {
+  // Değiştirilecek kayıtlar önce ayrılıyor: bunlar insert edilmiyor.
+  const replacements = parsed.data.filter((row) => row.replaces_entry_id);
+  const insertRows = parsed.data.filter((row) => !row.replaces_entry_id).map((row) => {
     // entries_installment_fields_consistent (bkz.
     // supabase/migrations/20260721130000_installments_and_categories.sql)
     // ya üçünün de null ya da üçünün de dolu olmasını şart koşuyor. LLM
@@ -174,6 +187,43 @@ export async function importStatementEntries(
       installment_count: hasInstallment ? row.taksit_sayisi : null,
     };
   });
+
+  // Elle girilmiş dövizli kayıtları bankanın gerçek rakamıyla güncelle.
+  // Orijinal tutar ve para birimi olduğu gibi kalıyor; değişen şey TL tutarı
+  // ve ondan türeyen efektif kur — yani "5 € harcadım" bilgisi korunurken
+  // "bu bana kaç TL'ye mal oldu" sorusunun cevabı tahminden gerçeğe dönüyor.
+  for (const row of replacements) {
+    const { data: existing } = await supabase
+      .from("entries")
+      .select("original_amount, original_currency")
+      .eq("id", row.replaces_entry_id!)
+      .maybeSingle();
+    const original = (existing as { original_amount: number | null } | null)?.original_amount ?? null;
+
+    const { error: replaceError } = await supabase
+      .from("entries")
+      .update({
+        amount: row.tutar,
+        occurred_at: row.tarih,
+        credit_card_id: parsedCardId.data,
+        statement_import_id: statementImport.id,
+        // Bankanın uyguladığı efektif kur: kestiği TL / harcanan döviz.
+        // TCMB kuru değil — gerçekte ödenen bu.
+        fx_rate: original && original > 0 ? Math.round((row.tutar / original) * 1e6) / 1e6 : null,
+        fx_rate_date: parsedStatementDate.data,
+      })
+      .eq("id", row.replaces_entry_id!);
+    if (replaceError) {
+      console.error("importStatementEntries: dövizli kayıt güncellenemedi", replaceError);
+    }
+  }
+
+  if (insertRows.length === 0) {
+    revalidatePath("/defter");
+    revalidatePath("/defter/giderler/kartlar");
+    revalidatePath("/");
+    return { success: true, imported: replacements.length };
+  }
 
   const { error } = await supabase.from("entries").insert(insertRows);
   if (error) {

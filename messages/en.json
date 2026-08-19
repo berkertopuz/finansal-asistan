@@ -268,9 +268,11 @@
       "currencyLabel": "Currency",
       "fxRateLabel": "1 {currency} =",
       "fxLoading": "Fetching rate…",
-      "fxMissing": "That day's rate could not be fetched. Enter the rate your bank applied.",
-      "fxEquivalent": "Will be recorded as {amount} (using the {date} rate).",
-      "fxHint": "Enter the amount and rate; the TRY equivalent is calculated."
+      "fxMissing": "Rate unavailable. Enter it in TRY or try again later.",
+      "fxEquivalent": "≈ {amount}  ·  1 {currency} = {rate}",
+      "fxHint": "Enter the amount and rate; the TRY equivalent is calculated.",
+      "currencySearch": "Search currency",
+      "currencyNoMatch": "No matching currency"
     },
     "fixedItems": {
       "expenseTitle": "Fixed expenses",
@@ -456,7 +458,8 @@
       "daysUnknown": "The statement and due days could not be read from the PDF; the 1st of the month was assumed. You can correct this on the Cards page.",
       "createAndContinue": "Create card and continue",
       "backToList": "Back to saved cards"
-    }
+    },
+    "replacesManualEntry": "Replaces the {original} entry you added manually"
   },
   "creditCards": {
     "summaryTitle": "Credit Card Statements",

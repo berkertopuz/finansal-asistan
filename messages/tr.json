@@ -268,9 +268,11 @@
       "currencyLabel": "Para birimi",
       "fxRateLabel": "1 {currency} =",
       "fxLoading": "Kur alınıyor…",
-      "fxMissing": "O tarihin kuru alınamadı. Bankanın uyguladığı kuru kendin yaz.",
-      "fxEquivalent": "Deftere {amount} olarak yazılacak ({date} kuruyla).",
-      "fxHint": "Tutarı ve kuru gir; TL karşılığı hesaplanacak."
+      "fxMissing": "Kur alınamadı. TL olarak gir ya da sonra tekrar dene.",
+      "fxEquivalent": "≈ {amount}  ·  1 {currency} = {rate}",
+      "fxHint": "Tutarı ve kuru gir; TL karşılığı hesaplanacak.",
+      "currencySearch": "Para birimi ara",
+      "currencyNoMatch": "Eşleşen para birimi yok"
     },
     "fixedItems": {
       "expenseTitle": "Sabit giderler",
@@ -456,7 +458,8 @@
       "daysUnknown": "Kesim ve son ödeme günü ekstreden okunamadı; ayın 1'i varsayıldı. Kartlar sayfasından düzeltebilirsin.",
       "createAndContinue": "Kartı oluştur ve devam et",
       "backToList": "Kayıtlı kartlara dön"
-    }
+    },
+    "replacesManualEntry": "Elle girdiğin {original} kaydının yerine geçecek"
   },
   "creditCards": {
     "summaryTitle": "Kredi Kartı Ekstreleri",

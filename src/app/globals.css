@@ -318,4 +318,20 @@ body {
   html {
     @apply font-sans;
   }
+
+  /* Sayı alanlarındaki artır/azalt okları kaldırılıyor. Bir finans
+     uygulamasında tutar yazılır, tıklanarak artırılmaz: oklar hem yer kaplıyor
+     (para birimi seçici gibi alan içindeki kontrollerle çakışıyor) hem de
+     kazara bir tık tutarı sessizce 1 birim değiştirebiliyor. inputMode
+     ("decimal") mobil klavyeyi zaten sayısal açıyor, type="number"in
+     doğrulama faydası da yerinde kalıyor. */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
 }

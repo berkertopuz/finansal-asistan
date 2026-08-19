@@ -36,7 +36,48 @@ type StatementRow = {
   taksit_sayisi: number | null;
 };
 
-type ReviewRow = StatementRow & { selected: boolean; possibleDuplicate: boolean };
+type ReviewRow = StatementRow & {
+  selected: boolean;
+  possibleDuplicate: boolean;
+  // Bu satır, kullanıcının elle girdiği dövizli bir kaydın ekstredeki
+  // karşılığıysa o kayıt. İçe aktarma onu EKLEMİYOR, üstüne yazıyor.
+  replaces: { id: string; label: string } | null;
+};
+
+// Yurt dışında kartla yapılan bir harcamada kullanıcı TCMB kuruyla giriyor,
+// banka kendi kuru + komisyonuyla kesiyor — iki tutar hiçbir zaman birebir
+// tutmuyor. %12'lik pencere bankaların uyguladığı makas + komisyonu rahatça
+// kapsıyor ama gerçekten farklı bir harcamayı yanlışlıkla eşleştirecek kadar
+// geniş değil (aynı kartta, aynı güne yakın, dövizli bir kayıt olmak zaten
+// güçlü bir kimlik).
+const FX_SPREAD_TOLERANCE = 0.12;
+const FX_DATE_WINDOW_DAYS = 3;
+
+function daysBetween(a: string, b: string): number {
+  return Math.abs(Date.parse(a + "T00:00:00") - Date.parse(b + "T00:00:00")) / 86_400_000;
+}
+
+// Ekstre satırının karşılık geldiği, elle girilmiş dövizli kaydı bulur.
+function findForeignMatch(
+  row: StatementRow,
+  existing: Entry[],
+  creditCardId: string,
+): { id: string; label: string } | null {
+  if (row.taksit_index !== null) return null;
+  const match = existing.find((e) => {
+    if (e.kind !== "expense" && e.kind !== "subscription") return false;
+    if (!e.original_currency || e.original_amount === null) return false;
+    // Zaten bir ekstreden gelmiş bir kaydın üstüne yazmıyoruz — bu eşleşme
+    // yalnızca ELLE girilmiş tahminler için.
+    if (e.credit_card_id !== creditCardId && e.credit_card_id !== null) return false;
+    if (daysBetween(e.occurred_at, row.tarih) > FX_DATE_WINDOW_DAYS) return false;
+    const diff = Math.abs(e.amount - row.tutar) / Math.max(e.amount, row.tutar);
+    return diff <= FX_SPREAD_TOLERANCE;
+  });
+  return match
+    ? { id: match.id, label: `${match.original_amount} ${match.original_currency}` }
+    : null;
+}
 
 const ENTRIES_KEY = "/api/entries";
 const entriesFetcher = (url: string) => fetch(url).then((res) => res.json());
@@ -117,8 +158,13 @@ function toReviewRows(rows: StatementRow[], existing: Entry[], creditCardId: str
     // gelir. "odeme" (kartın kendisine yapılan ödeme) ise yeni bir harcama
     // değil, zaten borcu doğuran asıl harcama ayrı bir satırda sayılıyor —
     // onu da eklemek çift sayım olurdu, o yüzden varsayılan olarak işaretsiz.
-    const selected = (row.tur === "harcama" || row.tur === "ucret") && !possibleDuplicate;
-    return { ...row, selected, possibleDuplicate };
+    const replaces = findForeignMatch(row, existing, creditCardId);
+    // Değiştirilecek satır MÜKERRER DEĞİL — tam tersi, işaretlenmesi gereken
+    // satır o: onaylanınca elle girilen tahminin yerine bankanın gerçek
+    // rakamı geçiyor. İşaretlenmezse tahmin defterde kalır.
+    const selected =
+      (row.tur === "harcama" || row.tur === "ucret") && (!possibleDuplicate || replaces !== null);
+    return { ...row, selected, possibleDuplicate: possibleDuplicate && !replaces, replaces };
   });
 }
 
@@ -353,6 +399,7 @@ export function StatementUploadSheet({
     setImporting(true);
     const result = await importStatementEntries(
       selected.map((r) => ({
+        replaces_entry_id: r.replaces?.id ?? null,
         tarih: r.tarih,
         aciklama: r.aciklama,
         tutar: r.tutar,
@@ -673,6 +720,11 @@ export function StatementUploadSheet({
                           {row.taksit_index && row.taksit_sayisi && (
                             <Badge variant="outline">
                               {row.taksit_index}/{row.taksit_sayisi}
+                            </Badge>
+                          )}
+                          {row.replaces && (
+                            <Badge variant="outline" className="gap-1">
+                              {t("replacesManualEntry", { original: row.replaces.label })}
                             </Badge>
                           )}
                           {row.possibleDuplicate && (
