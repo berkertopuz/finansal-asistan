@@ -35,20 +35,26 @@ Türkçe'de "bin yüz" (1100) ile "bin yedi yüz" (1700), "on" ile "yüz" kolay
 karışır — emin olamadığın bir sayıyı duyduğun gibi yaz, tahminle
 yuvarlama.
 
+BU METİNDEKİ ÖRNEKLER BİR KELİME LİSTESİ DEĞİLDİR. Aşağıdaki kurallarda
+geçen ürün adları yalnızca biçimi göstermek için var; kayıtta ne
+duyduğunla hiçbir ilgileri yok. Duyduğun kelimeyi bu örneklerden birine
+BENZETME, örneklerde geçen bir ada ÇEVİRME. Bir kelimeyi net
+duyamadıysan, örneklerden tanıdık bir ad seçmektense duyduğun sesi en
+yakın biçimde yaz.
+
 EN ÖNEMLİ KURAL: Kayıtta kaç ayrı harcama/gelir geçiyorsa items dizisinde O
 KADAR eleman olmalı. İnsanlar harcamalarını tek tek değil topluca sayar —
-"yüz lira sigara, elli lira ekmek, on beş lira su" ÜÇ ayrı işlemdir ve üçü de
+"yüz lira benzin, elli lira dergi, on beş lira otopark" ÜÇ ayrı işlemdir ve üçü de
 items dizisine girer. HİÇBİRİNİ ATLAMA, HİÇBİRİNİ BİRLEŞTİRME, tutarları
 TOPLAMA. Tek bir harcama anlatılmışsa dizide tek eleman olur.
 
-ADET: Kullanıcı bir kalemin ADEDİNİ söyleyebilir ("3 ekmek 10 lira", "2 su 20
-lira"). Bu YİNE TEK bir işlemdir — adet kadar ayrı eleman ÜRETME. Söylenen
+ADET: Kullanıcı bir kalemin ADEDİNİ söyleyebilir ("3 defter 10 lira", "2 bilet
+40 lira"). Bu YİNE TEK bir işlemdir — adet kadar ayrı eleman ÜRETME. Söylenen
 tutarın o kalemin TOPLAMI mı yoksa BİRİM fiyatı mı olduğu belirsizse TOPLAM
-kabul et ("3 ekmek 10 lira" -> tek işlem, amount 10).
+kabul et ("3 defter 10 lira" -> tek işlem, amount 10).
 ADET DESCRIPTION'A MUTLAKA YAZILIR ve söylendiği gibi korunur — bu kuralın
-istisnası yok:
-  - "3 ekmek 30 lira"        -> description "3 ekmek"  (SADECE "ekmek" YANLIŞ)
-  - "2 su 20 lira"           -> description "2 su"     (SADECE "su" YANLIŞ)
+istisnası yok (X, kayıtta ne duyduysan o):
+  - "3 X 30 lira"            -> description "3 X"  (SADECE "X" YANLIŞ)
   - "1 köpek maması 1700 tl" -> description "1 köpek maması"
 Kullanıcı adedi neden söylüyorsa (ne aldığını hatırlamak için) o bilgi
 kaybolmamalı.
@@ -113,7 +119,7 @@ KURALLAR — istisnasız uygulanır:
    ifadesi geçmiyorsa bugünün tarihini ver. GELECEK bir tarih üretme —
    kullanıcı açıkça gelecekten söz etmiyorsa tarih bugünden sonra olamaz.
    Kullanıcı bir zaman ifadesini birden fazla kalem için bir kez söylemiş
-   olabilir ("dün yüz lira sigara, elli lira ekmek aldım") — bu durumda o
+   olabilir ("dün yüz lira benzin, elli lira dergi aldım") — bu durumda o
    tarih O CÜMLEDEKİ TÜM kalemler için geçerlidir.
 
 8. installmentCount: kullanıcı o kalem için taksitten söz ettiyse taksit
@@ -128,16 +134,26 @@ KURALLAR — istisnasız uygulanır:
    üretme, benzer bir kategori adı uydurma:
 ${params.categories.map((c) => `   - ${c}`).join("\n")}
    Hangisi olduğundan emin değilsen "diğer" ver. Kısa örnekler: restoran/kafe/
-   yemek siparişi -> yemek; süpermarket alışverişi, ekmek, su, sigara gibi
-   günlük tüketim -> market; taksi/benzin/otobüs -> ulaşım; elektrik/su/
+   yemek siparişi -> yemek; süpermarket/bakkal alışverişi ve günlük tüketim
+   maddeleri -> market; taksi/benzin/otobüs -> ulaşım; elektrik/su/
    doğalgaz/internet faturası -> fatura; sinema/konser/oyun -> eğlence;
    maaş -> maaş.
 
 10. description: O KALEMİN kısa açıklaması (en fazla 60 karakter),
     ${descriptionLanguage} yazılacak. Kullanıcının söylediği ürün/yer/satıcı
-    adını koru ("Migros", "Netflix", "sigara", "ekmek"). Tutarı ve tarihi
+    adını DUYDUĞUN GİBİ koru. Tutarı ve tarihi
     açıklamaya tekrar yazma — onlar ayrı alanlarda. Hiçbir açıklama
     çıkaramıyorsan boş string ver.
+
+    FİİL AÇIKLAMA DEĞİLDİR. Türkçe'de nesne fiilden ÖNCE gelir — açıklamaya
+    yazılacak olan fiil değil, ondan ÖNCEKİ addır. "aldım", "ödedim",
+    "harcadım", "verdim", "yaptım", "geldi", "çektim" gibi fiiller
+    açıklamaya ASLA tek başına yazılmaz (X, kayıtta duyduğun ad):
+      - "X aldım 5 dolar"   -> description "X"  ("aldım" YANLIŞ)
+      - "X yaptım 400 lira" -> description "X"  ("yaptım" YANLIŞ)
+      - "X ödedim 90 lira"  -> description "X"  ("ödedim" YANLIŞ)
+    Cümlede fiil dışında hiçbir ad geçmiyorsa boş string ver — fiili
+    açıklama diye yazmaktansa boş bırakmak doğrudur.
 
 11. creditCardName: kullanıcı o kalem için bir ödeme yöntemi söylediyse
     doldurulur. Kullanıcının kayıtlı kartları:

@@ -35,7 +35,17 @@ const DEFAULT_MODEL = "gemini-3.5-flash-lite";
 // Birincil model retry'lerden sonra hâlâ 5xx veriyorsa son bir şans: farklı
 // bir modelin kapasitesi bağımsız, aynı anda ikisinin birden dolu olması
 // nadir. Kullanıcının az önce söylediği cümleyi çöpe atmaktan iyi.
-const DEFAULT_FALLBACK_MODEL = "gemini-3.5-flash";
+//
+// Eskiden gemini-3.5-flash'tı; voice-bench ölçümü onu eledi (aynı kayıt,
+// 3 deneme): 3.5-flash medyan 18,5 sn ve transkript "kahve aldım beş tele",
+// 3.7-flash medyan 2,4 sn ve kusursuz transkript. 18 saniye bekleyen
+// kullanıcı için fallback'in kurtardığı cümlenin değeri kalmıyor.
+//
+// 3.7-flash'ın ücretsiz katmanda GÜNDE 20 istek limiti var (CLAUDE.md) —
+// birincil model olamamasının sebebi bu. Ama FALLBACK nadiren çalışıyor
+// (yalnızca flash-lite üst üste 3 kez 5xx verdiğinde), o yüzden 20/gün
+// burada gerçek bir kısıt değil.
+const DEFAULT_FALLBACK_MODEL = "gemini-3.7-flash";
 
 // Gemini 3.x Flash VARSAYILAN OLARAK "medium" seviyede düşünüyor ve düşünme
 // çıktı token bütçesinden yiyor. Gerçek kullanımda bu şöyle patladı: "3 ekmek

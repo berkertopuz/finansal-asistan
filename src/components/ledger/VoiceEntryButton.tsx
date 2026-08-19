@@ -342,6 +342,18 @@ export function VoiceEntryButton({
             <SheetTitle>{t("singleSheetTitle")}</SheetTitle>
             <SheetDescription className="sr-only">{t("singleSheetDescription")}</SheetDescription>
           </SheetHeader>
+          {/* Transkript TEK kalemde de görünmeli. Modelin ne DUYDUĞUNU
+              göstermek bu alanın varlık sebebi (bkz. voice/schema.ts): hata
+              bildirimlerinin çoğu tek kalemli cümlelerden geliyor ("kahve
+              aldım 5 dolar" -> açıklama "aldım") ve transkript yalnızca
+              çok kalemli inceleme listesinde basıldığı için, en sık
+              kullanılan yolda sorunun DUYMADA mı ÇIKARIMDA mı olduğu
+              görülemiyordu. */}
+          {transcript && (
+            <p className="text-muted-foreground border-border mx-4 rounded-lg border border-dashed px-3 py-2 text-xs">
+              <span className="font-medium">{t("heard")}</span> “{transcript}”
+            </p>
+          )}
           {singleDraft && (
             <QuickEntryForm
               key={`${singleDraft.description}-${singleDraft.amount}`}
