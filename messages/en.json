@@ -301,7 +301,52 @@
         "genericInvalid": "Invalid details."
       }
     },
-    "addEntry": "Add entry"
+    "addEntry": "Add entry",
+    "voice": {
+      "holdToTalk": "Add by voice",
+      "hint": "Tap and say your expenses",
+      "recording": "Listening…",
+      "processing": "Transcribing…",
+      "offline": "Voice entry needs an internet connection.",
+      "foreignCurrency": "Items in a foreign currency cannot be selected until you enter the amount in TRY — no conversion is applied.",
+      "consent": {
+        "title": "Voice entry needs your consent",
+        "body": "The audio you record with push-to-talk is sent to Google Gemini to be turned into an entry. The recording is not stored on our servers; it is only held in memory for the duration of that request. You can withdraw this consent any time from Settings.",
+        "accept": "I consent",
+        "cancel": "Cancel"
+      },
+      "errors": {
+        "noSession": "Session not found, please sign in again.",
+        "consentRequired": "You need to give consent before continuing.",
+        "micDenied": "Microphone permission was denied. Allow microphone access in your browser or app settings.",
+        "micUnavailable": "Could not reach the microphone. Another app may be using it.",
+        "recordingFailed": "Recording failed, please try again.",
+        "tooShort": "That recording was too short. Hold the button down while you speak.",
+        "invalidAudio": "The recording was invalid, please try again.",
+        "emptyAudio": "The recording was empty, please try again.",
+        "audioTooLong": "That recording was too long. Try a shorter sentence.",
+        "sessionInvalid": "Could not verify your session, please sign in again.",
+        "notUnderstood": "I could not make that out. Try short sentences that include the amount: \"two hundred fifty lira at the supermarket\".",
+        "transcribeFailed": "Could not transcribe the audio, please try again.",
+        "quotaExceeded": "Your Google AI daily request limit is used up (the free tier allows 20 requests a day for gemini-3.7-flash). It resets tomorrow; to avoid waiting, enable billing in Google AI Studio or switch to a model with higher limits.",
+        "llmFailed": "The AI service did not return the expected response. Check the browser console for details (the \"[sesli giriş] başarısız\" line).",
+        "connectionError": "Connection problem, please try again.",
+        "saveFailed": "The entries could not be added, please try again.",
+        "overloaded": "Google's AI service is busy right now. Try again in a few seconds."
+      },
+      "stop": "Stop",
+      "singleSheetTitle": "Entry added by voice",
+      "singleSheetDescription": "Check the transaction extracted from your recording, then save it.",
+      "reviewTitle": "{count} transactions heard",
+      "reviewDescription": "Check the transactions extracted from your recording, then save them.",
+      "saveSelected": "Add {count} entries",
+      "installments": "{count} instalments",
+      "editHint": "You can correct any item before saving.",
+      "itemLabel": "Item {index}",
+      "foreignRowHint": "A foreign currency was heard ({amount}). No conversion was applied — enter the amount in TRY.",
+      "heard": "What I heard:"
+    },
+    "statementUpload": "Upload statement"
   },
   "cashflow": {
     "title": "Cash Flow",
@@ -390,6 +435,19 @@
       "genericInvalid": "Invalid details.",
       "saveFailed": "Could not save, please try again.",
       "alreadyImported": "This statement has already been uploaded."
+    },
+    "uploadSheetTitleGeneric": "Upload statement",
+    "assignCard": {
+      "prompt": "Read {count} transactions. Which card is this statement for?",
+      "period": "Period: {month}",
+      "cardDays": "Statement {statementDay} · Due {paymentDay}",
+      "newCard": "Add a new card",
+      "nameLabel": "Card name",
+      "namePlaceholder": "e.g. Bonus, World, Axess",
+      "daysFromStatement": "Statement day {statementDay}, due day {paymentDay} — read from the statement.",
+      "daysUnknown": "The statement and due days could not be read from the PDF; the 1st of the month was assumed. You can correct this on the Cards page.",
+      "createAndContinue": "Create card and continue",
+      "backToList": "Back to saved cards"
     }
   },
   "creditCards": {

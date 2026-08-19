@@ -20,6 +20,10 @@ const QuickEntryForm = dynamic(
   { loading: () => <div className="h-64" /> },
 );
 
+// Tek düğme, yığın değil. Sesli giriş ve ekstre yükleme bir ara buraya
+// (yüzen bir yığın olarak) eklenmişti; üç yüzen düğme içerik alanlarının
+// üstüne biniyordu. İkisi de artık satır içi: LedgerQuickActions
+// (defter sayfaları) ve HeroActions (ana sayfa).
 export function QuickAddFAB({
   defaultKind,
   renderTrigger,

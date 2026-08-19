@@ -412,11 +412,11 @@ export function EntryTable({
   }
 
   return (
-    // pb-24 clears QuickAddFAB (fixed bottom-24 size-14 ≈ 152px of vertical
-    // space above the viewport bottom on mobile) so the last row's actions
-    // aren't hidden behind it when scrolled all the way down; md:pb-4 is a
-    // smaller nod to the same FAB sitting bottom-8 on desktop.
-    <div className="flex flex-col gap-3 pb-24 md:pb-4">
+    // FAB yığını artık üç düğme (ekstre + mikrofon + ekle) ve etiket satırı:
+    // bottom-24'ten itibaren ~250px yer kaplıyor, eski pb-24 (96px) son satırın
+    // aksiyonlarını yığının altında bırakıyordu. md:pb-4, masaüstünde bottom-8'e
+    // oturan aynı yığın için küçük bir pay.
+    <div className="flex flex-col gap-3 pb-64 md:pb-4">
       {monthFilter && (
         <div className="flex items-center justify-between px-4 md:px-0">
           <MonthSelect value={month} onChange={setMonth} allowAll={allowAllMonths} />

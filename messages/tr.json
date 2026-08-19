@@ -301,7 +301,52 @@
         "genericInvalid": "Geçersiz bilgiler."
       }
     },
-    "addEntry": "Kayıt ekle"
+    "addEntry": "Kayıt ekle",
+    "voice": {
+      "holdToTalk": "Sesle ekle",
+      "hint": "Dokun ve harcamalarını söyle",
+      "recording": "Dinliyorum…",
+      "processing": "Kayıt çözümleniyor…",
+      "offline": "Sesli giriş için internet bağlantısı gerekiyor.",
+      "foreignCurrency": "Yabancı para birimli kalemler tutarını TL olarak yazana kadar seçilemez — kur çevirisi yapılmıyor.",
+      "consent": {
+        "title": "Sesli giriş için onayın gerekiyor",
+        "body": "Bas-konuş ile kaydettiğin ses, işleme dönüştürülmek üzere Google Gemini servisine gönderilir. Kayıt sunucularımızda saklanmaz, yalnızca o istek boyunca bellekte işlenir. Bu onayı Ayarlar'dan istediğin zaman geri alabilirsin.",
+        "accept": "Onaylıyorum",
+        "cancel": "Vazgeç"
+      },
+      "errors": {
+        "noSession": "Oturum bulunamadı, tekrar giriş yap.",
+        "consentRequired": "Devam etmeden önce onay vermen gerekiyor.",
+        "micDenied": "Mikrofon izni verilmedi. Sesli giriş için tarayıcı/uygulama ayarlarından mikrofona izin ver.",
+        "micUnavailable": "Mikrofona ulaşılamadı. Başka bir uygulama kullanıyor olabilir.",
+        "recordingFailed": "Kayıt alınamadı, tekrar dene.",
+        "tooShort": "Kayıt çok kısa. Butonu basılı tutup konuş.",
+        "invalidAudio": "Ses kaydı geçersiz, tekrar dene.",
+        "emptyAudio": "Ses kaydı boş, tekrar dene.",
+        "audioTooLong": "Kayıt çok uzun. Daha kısa bir cümleyle dene.",
+        "sessionInvalid": "Oturum doğrulanamadı, tekrar giriş yap.",
+        "notUnderstood": "Söylediğini anlayamadım. Tutarı da içeren kısa cümleler dene: \"Migros'ta iki yüz elli lira\".",
+        "transcribeFailed": "Ses çözümlenemedi, tekrar dene.",
+        "quotaExceeded": "Google AI günlük istek limitin doldu (ücretsiz katmanda gemini-3.7-flash için günde 20 istek). Yarın sıfırlanır; beklemek istemiyorsan Google AI Studio'da faturalandırmayı aç ya da daha yüksek limitli bir modele geç.",
+        "llmFailed": "Yapay zekâ servisi beklenen cevabı vermedi. Ayrıntı için tarayıcı konsoluna bak (\"[sesli giriş] başarısız\" satırı).",
+        "connectionError": "Bağlantı sorunu, tekrar dene.",
+        "saveFailed": "Kayıtlar eklenemedi, tekrar dene.",
+        "overloaded": "Google'ın yapay zekâ servisi şu anda yoğun. Birkaç saniye sonra tekrar dene — kaydın kaybolmadı, butona basıp yeniden söylemen yeterli."
+      },
+      "stop": "Bitir",
+      "singleSheetTitle": "Sesle eklenen kayıt",
+      "singleSheetDescription": "Sesten çıkarılan işlemi kontrol edip kaydet.",
+      "reviewTitle": "{count} işlem duyuldu",
+      "reviewDescription": "Sesten çıkarılan işlemleri kontrol edip kaydet.",
+      "saveSelected": "{count} kaydı ekle",
+      "installments": "{count} taksit",
+      "editHint": "Kalemleri kaydetmeden önce düzeltebilirsin.",
+      "itemLabel": "{index}. kalem",
+      "foreignRowHint": "Yabancı para birimi duyuldu ({amount}). Kur çevirisi yapılmadı — tutarı TL olarak yaz.",
+      "heard": "Duyduğum:"
+    },
+    "statementUpload": "Ekstre yükle"
   },
   "cashflow": {
     "title": "Nakit Akışı",
@@ -390,6 +435,19 @@
       "genericInvalid": "Geçersiz bilgiler.",
       "saveFailed": "Kaydedilemedi, tekrar dene.",
       "alreadyImported": "Bu ekstre zaten yüklenmiş."
+    },
+    "uploadSheetTitleGeneric": "Ekstre yükle",
+    "assignCard": {
+      "prompt": "{count} işlem okundu. Bu ekstre hangi karta ait?",
+      "period": "Dönem: {month}",
+      "cardDays": "Kesim {statementDay} · Ödeme {paymentDay}",
+      "newCard": "Yeni kart ekle",
+      "nameLabel": "Kart adı",
+      "namePlaceholder": "Örn. Bonus, World, Axess",
+      "daysFromStatement": "Kesim günü {statementDay}, son ödeme günü {paymentDay} — ekstreden okundu.",
+      "daysUnknown": "Kesim ve son ödeme günü ekstreden okunamadı; ayın 1'i varsayıldı. Kartlar sayfasından düzeltebilirsin.",
+      "createAndContinue": "Kartı oluştur ve devam et",
+      "backToList": "Kayıtlı kartlara dön"
     }
   },
   "creditCards": {

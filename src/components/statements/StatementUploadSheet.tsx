@@ -15,8 +15,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { recordStatementConsent, importStatementEntries } from "@/lib/actions/statements";
-import { payCreditCardDebt, updateCreditCard } from "@/lib/actions/credit-cards";
+import { addCreditCard, payCreditCardDebt, updateCreditCard } from "@/lib/actions/credit-cards";
 import { creditCardDebtBalance } from "@/lib/cashflow";
 import { formatCurrency, formatDate, formatMonthYear } from "@/lib/format";
 import type { AppLocale } from "@/lib/locale";
@@ -41,6 +43,20 @@ const entriesFetcher = (url: string) => fetch(url).then((res) => res.json());
 
 const STATEMENT_IMPORTS_KEY = "/api/statement-imports";
 const statementImportsFetcher = (url: string) => fetch(url).then((res) => res.json());
+
+// QuickEntryForm ile aynı anahtar — sheet artık kart listesini kendisi
+// okuyor, çünkü Kartlar sayfasından değil FAB'dan da açılabiliyor.
+const CREDIT_CARDS_KEY = "/api/credit-cards";
+const creditCardsFetcher = (url: string) => fetch(url).then((res) => res.json());
+
+// "YYYY-MM-DD" -> ayın günü. Yeni kart formunun kesim/son ödeme günlerini
+// ekstrenin kendisinden doldurmak için — akışın asıl kazancı bu: kullanıcı
+// bu iki sayıyı bilmek/hatırlamak zorunda kalmıyor, sadece bir isim yazıyor.
+function dayOfMonth(dateString: string | null): number | null {
+  if (!dateString) return null;
+  const day = Number(dateString.slice(8, 10));
+  return Number.isInteger(day) && day >= 1 && day <= 31 ? day : null;
+}
 
 // TAKSİTLİ satırlarda mükerrer tespiti TARİHE BAKMAZ, seri kimliğine bakar.
 //
@@ -111,8 +127,23 @@ export function StatementUploadSheet({
   onConsentGranted,
   onClose,
 }: {
-  card: CreditCard;
-  hasConsent: boolean;
+  // İSTEĞE BAĞLI. Kartlar sayfasındaki kart başına "Yükle" düğmesi kartı
+  // baştan veriyor (eski davranış aynen korunuyor). FAB'dan açıldığında ise
+  // kart YOK: önce PDF yükleniyor, kart ayrıştırmadan SONRA seçiliyor.
+  // Sıralamanın tersine çevrilmesinin sebebi sadece tık sayısı değil —
+  // yeni bir kart eklemek kesim/son ödeme günlerini gerektiriyor ve bu iki
+  // bilgi zaten ekstrenin içinde yazıyor. Kart adımını sonraya almak, o
+  // formu "bir isim yaz"a indiriyor.
+  card?: CreditCard;
+  // İSTEĞE BAĞLI. Kartlar sayfası bunu sunucudan biliyor ve veriyor. FAB'dan
+  // açıldığında bilinmiyor (undefined) — o durumda rıza kapısı ÖNDEN
+  // gösterilmiyor: kullanıcı dosyayı seçiyor, /api/statements/parse 403 +
+  // consentRequired dönerse rıza adımı O ZAMAN çıkıyor ve onaydan sonra aynı
+  // dosya otomatik yeniden gönderiliyor. Sesli girişteki desenin aynısı —
+  // zaten onay vermiş kullanıcıya her seferinde ekstra bir adım göstermemek
+  // için, ve yalnızca bunun için yeni bir "rıza durumu" endpoint'i açmamak
+  // için.
+  hasConsent?: boolean;
   onConsentGranted: () => void;
   onClose: () => void;
 }) {
@@ -120,6 +151,18 @@ export function StatementUploadSheet({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const [reviewRows, setReviewRows] = useState<ReviewRow[] | null>(null);
+  // Ayrıştırılmış ama henüz bir karta atanmamış satırlar. Mükerrer tespiti
+  // (toReviewRows) kart id'si olmadan yapılamıyor, o yüzden ham satırlar
+  // burada bekliyor ve kart seçilir seçilmez inceleme satırlarına çevriliyor.
+  const [rawRows, setRawRows] = useState<StatementRow[] | null>(null);
+  const [selectedCard, setSelectedCard] = useState<CreditCard | null>(null);
+  const [newCardName, setNewCardName] = useState("");
+  const [newCardOpen, setNewCardOpen] = useState(false);
+  const [cardPending, setCardPending] = useState(false);
+  // Sunucu rıza istediğinde dosyayı saklıyoruz: onaydan sonra kullanıcı
+  // dosyayı yeniden seçmek zorunda kalmasın.
+  const [needsConsent, setNeedsConsent] = useState(false);
+  const pendingFileRef = useRef<File | null>(null);
   const [suggestedDays, setSuggestedDays] = useState<{ statement_day: number; payment_day: number } | null>(
     null,
   );
@@ -149,6 +192,7 @@ export function StatementUploadSheet({
   const [payPending, setPayPending] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { data: existingEntries } = useSWR<Entry[]>(ENTRIES_KEY, entriesFetcher);
+  const { data: cards } = useSWR<CreditCard[]>(CREDIT_CARDS_KEY, creditCardsFetcher);
   const { data: statementImports } = useSWR<StatementImport[]>(
     STATEMENT_IMPORTS_KEY,
     statementImportsFetcher,
@@ -159,17 +203,76 @@ export function StatementUploadSheet({
   const tCommon = useTranslations("common");
   const tCategory = useTranslations("ledger.category");
 
+  // Prop olarak gelen kart (Kartlar sayfası) ya da bu akışta seçilen/oluşturulan
+  // kart. Aşağıdaki her şey bunun üzerinden çalışıyor.
+  const activeCard = card ?? selectedCard;
+
+  // Kart belli olduğu anda ham satırları inceleme satırlarına çevirir —
+  // mükerrer tespiti kart id'sine bağlı olduğu için ancak burada yapılabiliyor.
+  function attachCard(target: CreditCard, rows: StatementRow[], fromStatement: boolean) {
+    setSelectedCard(target);
+    setReviewRows(toReviewRows(rows, existingEntries ?? [], target.id));
+    setRawRows(null);
+    // Yeni oluşturulan kartın günleri zaten ekstreden geldi — ona "günlerini
+    // güncelleyeyim mi" diye sormanın anlamı yok. Yalnızca MEVCUT bir kartın
+    // kayıtlı günleri ekstredekinden farklıysa öneri gösteriliyor.
+    if (fromStatement) return;
+    const sDay = dayOfMonth(statementDate);
+    const pDay = dayOfMonth(paymentDueDate);
+    if (sDay && pDay && (sDay !== target.statement_day || pDay !== target.payment_day)) {
+      setSuggestedDays({ statement_day: sDay, payment_day: pDay });
+    }
+  }
+
+  async function handleCreateCard() {
+    const name = newCardName.trim();
+    if (!name || !rawRows) return;
+    setCardPending(true);
+    setError(undefined);
+    const formData = new FormData();
+    formData.append("name", name);
+    // Ekstreden okunamadıysa ayın 1'i — kullanıcı kartı sonradan Kartlar
+    // sayfasından düzeltebilir; akışı burada bir tarih sorusuyla durdurmak
+    // "önce yükle" fikrinin tamamını bozardı.
+    formData.append("statement_day", String(dayOfMonth(statementDate) ?? 1));
+    formData.append("payment_day", String(dayOfMonth(paymentDueDate) ?? 1));
+    const result = await addCreditCard({}, formData);
+    setCardPending(false);
+    if (!result.success || !result.card) {
+      setError(result.error ?? t("errors.saveFailed"));
+      return;
+    }
+    mutate(CREDIT_CARDS_KEY, (current: CreditCard[] | undefined) => [...(current ?? []), result.card!], {
+      revalidate: false,
+    });
+    router.refresh();
+    attachCard(result.card, rawRows, true);
+  }
+
   async function handleConsent() {
     setConsentPending(true);
     const result = await recordStatementConsent();
     setConsentPending(false);
-    if (result.success) onConsentGranted();
-    else setError(result.error);
+    if (!result.success) {
+      setError(result.error);
+      return;
+    }
+    onConsentGranted();
+    setNeedsConsent(false);
+    // Rıza dosya seçildikten sonra istendiyse, o dosyayı şimdi gönder.
+    const pending = pendingFileRef.current;
+    if (pending) {
+      pendingFileRef.current = null;
+      void parseFile(pending);
+    }
   }
 
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (file) void parseFile(file);
+  }
+
+  async function parseFile(file: File) {
     setError(undefined);
     setUploading(true);
 
@@ -179,19 +282,33 @@ export function StatementUploadSheet({
     try {
       const res = await fetch("/api/statements/parse", { method: "POST", body: formData });
       const result = await res.json();
+      if (res.status === 403 && result?.consentRequired) {
+        pendingFileRef.current = file;
+        setNeedsConsent(true);
+        setUploading(false);
+        return;
+      }
       if (!res.ok) {
         setError(result.error ?? t("errors.parseFailed"));
         setUploading(false);
         return;
       }
-      setReviewRows(toReviewRows(result.rows, existingEntries ?? [], card.id));
       setStatementDate(result.header?.statementDate ?? null);
       setStatementDateAutoDetected(Boolean(result.header?.statementDate));
       setPaymentDueDate(result.header?.paymentDueDate ?? null);
-      const statementDay = result.header?.statementDate ? Number(result.header.statementDate.slice(8, 10)) : null;
-      const paymentDay = result.header?.paymentDueDate ? Number(result.header.paymentDueDate.slice(8, 10)) : null;
-      if (statementDay && paymentDay && (statementDay !== card.statement_day || paymentDay !== card.payment_day)) {
-        setSuggestedDays({ statement_day: statementDay, payment_day: paymentDay });
+
+      if (card) {
+        // Kart baştan belliydi (Kartlar sayfasındaki kart başına düğme) —
+        // doğrudan incelemeye geç, eski davranışın aynısı.
+        setReviewRows(toReviewRows(result.rows, existingEntries ?? [], card.id));
+        const sDay = dayOfMonth(result.header?.statementDate ?? null);
+        const pDay = dayOfMonth(result.header?.paymentDueDate ?? null);
+        if (sDay && pDay && (sDay !== card.statement_day || pDay !== card.payment_day)) {
+          setSuggestedDays({ statement_day: sDay, payment_day: pDay });
+        }
+      } else {
+        // Kart yok: satırlar kart adımında bekliyor.
+        setRawRows(result.rows);
       }
     } catch {
       setError(t("errors.connectionError"));
@@ -202,7 +319,8 @@ export function StatementUploadSheet({
 
   async function handleApplySuggestedDays() {
     if (!suggestedDays) return;
-    await updateCreditCard(card.id, suggestedDays);
+    if (!activeCard) return;
+    await updateCreditCard(activeCard.id, suggestedDays);
     setSuggestedDays(null);
     router.refresh();
   }
@@ -223,12 +341,12 @@ export function StatementUploadSheet({
   // koyuyor (errors.alreadyImported).
   const matchingImport = statementDate
     ? statementImports?.find(
-        (imp) => imp.credit_card_id === card.id && imp.statement_date === statementDate,
+        (imp) => imp.credit_card_id === activeCard?.id && imp.statement_date === statementDate,
       )
     : undefined;
 
   async function handleImport() {
-    if (!reviewRows || !statementDate) return;
+    if (!reviewRows || !statementDate || !activeCard) return;
     const selected = reviewRows.filter((r) => r.selected);
     if (selected.length === 0) return;
     setImporting(true);
@@ -241,7 +359,7 @@ export function StatementUploadSheet({
         taksit_index: r.taksit_index,
         taksit_sayisi: r.taksit_sayisi,
       })),
-      card.id,
+      activeCard.id,
       statementDate,
       paymentDueDate,
     );
@@ -258,7 +376,7 @@ export function StatementUploadSheet({
       // kartın şu anki gerçek güncel borcu. "Tam ödedim" tek dokunuşla bunu
       // onaylar; kullanıcı isterse (asgari/kısmi ödeme) düzenler ya da adımı
       // tamamen atlar.
-      const priorDebt = creditCardDebtBalance(existingEntries ?? [], card.id);
+      const priorDebt = creditCardDebtBalance(existingEntries ?? [], activeCard.id);
       const selectedTotal = selected.reduce((sum, r) => sum + r.tutar, 0);
       const totalDebt = priorDebt + selectedTotal;
       setPostImportTotal(totalDebt);
@@ -275,9 +393,10 @@ export function StatementUploadSheet({
       setPayError(t("errors.genericInvalid"));
       return;
     }
+    if (!activeCard) return;
     setPayPending(true);
     setPayError(undefined);
-    const result = await payCreditCardDebt(card.id, amount, payDate);
+    const result = await payCreditCardDebt(activeCard.id, amount, payDate);
     setPayPending(false);
     if (result.success) {
       mutate(ENTRIES_KEY);
@@ -292,7 +411,9 @@ export function StatementUploadSheet({
     <Sheet open onOpenChange={(open) => !open && onClose()}>
       <SheetContent side="bottom">
         <SheetHeader>
-          <SheetTitle>{t("uploadSheetTitle", { name: card.name })}</SheetTitle>
+          <SheetTitle>
+            {activeCard ? t("uploadSheetTitle", { name: activeCard.name }) : t("uploadSheetTitleGeneric")}
+          </SheetTitle>
           <SheetDescription className="sr-only">{t("uploadSheetDescription")}</SheetDescription>
         </SheetHeader>
 
@@ -338,13 +459,93 @@ export function StatementUploadSheet({
                 </Button>
               </div>
             </div>
-          ) : !hasConsent ? (
+          ) : hasConsent === false || needsConsent ? (
             <div className="flex flex-col gap-3">
               <p className="text-sm text-foreground">{t("consentText")}</p>
               {error && <p className="text-sm text-signal-caution-foreground">{error}</p>}
               <Button type="button" size="touch" disabled={consentPending} onClick={handleConsent}>
                 {consentPending ? tCommon("saving") : t("consentAccept")}
               </Button>
+            </div>
+          ) : rawRows ? (
+            // KART ADIMI — ayrıştırma bitti, satırlar hazır, geriye sadece
+            // "bu hangi kart" sorusu kaldı. Bu adım kasıtlı olarak yüklemeden
+            // SONRA: yeni bir kart için gereken kesim/son ödeme günleri
+            // ekstrenin içinden çıktığı için form burada tek bir isim alanına
+            // iniyor.
+            <div className="flex flex-col gap-3">
+              <p className="text-sm text-foreground">
+                {t("assignCard.prompt", { count: rawRows.length })}
+              </p>
+              {statementDate && (
+                <p className="text-xs text-muted-foreground">
+                  {t("assignCard.period", { month: formatMonthYear(statementDate, locale) })}
+                </p>
+              )}
+
+              {!newCardOpen && (cards?.length ?? 0) > 0 && (
+                <div className="flex flex-col gap-2">
+                  {cards!.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => attachCard(c, rawRows, false)}
+                      className="flex min-h-touch items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 text-left text-sm transition-colors hover:bg-muted"
+                    >
+                      <span className="font-medium text-foreground">{c.name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {t("assignCard.cardDays", { statementDay: c.statement_day, paymentDay: c.payment_day })}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {newCardOpen || (cards?.length ?? 0) === 0 ? (
+                <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/40 p-3">
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="new-card-name">{t("assignCard.nameLabel")}</Label>
+                    <Input
+                      id="new-card-name"
+                      value={newCardName}
+                      onChange={(e) => setNewCardName(e.target.value)}
+                      placeholder={t("assignCard.namePlaceholder")}
+                      autoFocus
+                      maxLength={50}
+                    />
+                  </div>
+                  {/* Günler ekstreden okundu — kullanıcıya sadece BİLGİ olarak
+                      gösteriliyor, doldurulacak alan olarak değil. Okunamadıysa
+                      ayın 1'i varsayılıyor ve bu da açıkça yazılıyor. */}
+                  <p className="text-xs text-muted-foreground">
+                    {dayOfMonth(statementDate) && dayOfMonth(paymentDueDate)
+                      ? t("assignCard.daysFromStatement", {
+                          statementDay: dayOfMonth(statementDate)!,
+                          paymentDay: dayOfMonth(paymentDueDate)!,
+                        })
+                      : t("assignCard.daysUnknown")}
+                  </p>
+                  <Button
+                    type="button"
+                    size="touch"
+                    disabled={cardPending || newCardName.trim().length === 0}
+                    onClick={handleCreateCard}
+                  >
+                    {cardPending ? tCommon("saving") : t("assignCard.createAndContinue")}
+                  </Button>
+                  {(cards?.length ?? 0) > 0 && (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setNewCardOpen(false)}>
+                      {t("assignCard.backToList")}
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <Button type="button" variant="outline" size="touch" onClick={() => setNewCardOpen(true)}>
+                  {t("assignCard.newCard")}
+                </Button>
+              )}
+
+              {error && <p className="text-sm text-signal-caution-foreground">{error}</p>}
             </div>
           ) : !reviewRows ? (
             <div className="flex flex-col gap-3">

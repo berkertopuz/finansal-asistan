@@ -4,8 +4,14 @@ import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import type { CreditCard } from "@/lib/credit-cards-data";
 
-export type CreditCardState = { error?: string; success?: boolean };
+// `card`: yeni oluşturulan satır. Ekstre yükleme akışı (PDF önce, kart
+// sonra) kartı oluşturur oluşturmaz onun id'siyle inceleme adımına geçmek
+// zorunda — kullanıcıyı "kartı ekledim, şimdi listeden yine ben mi seçeyim"
+// noktasına düşürmemek için. Mevcut useActionState çağrıları bu alanı
+// okumuyor, eklenmesi onları etkilemiyor.
+export type CreditCardState = { error?: string; success?: boolean; card?: CreditCard };
 
 async function buildCardSchema() {
   const t = await getTranslations("creditCards.errors");
@@ -41,12 +47,16 @@ export async function addCreditCard(
     return { error: t("noSession") };
   }
 
-  const { error } = await supabase.from("credit_cards").insert({
-    user_id: user.id,
-    name: parsed.data.name,
-    statement_day: parsed.data.statement_day,
-    payment_day: parsed.data.payment_day,
-  });
+  const { data, error } = await supabase
+    .from("credit_cards")
+    .insert({
+      user_id: user.id,
+      name: parsed.data.name,
+      statement_day: parsed.data.statement_day,
+      payment_day: parsed.data.payment_day,
+    })
+    .select("id, name, statement_day, payment_day, reminders_enabled")
+    .single();
 
   if (error) {
     return { error: t("saveFailed") };
@@ -54,7 +64,7 @@ export async function addCreditCard(
 
   revalidatePath("/defter/giderler/kartlar");
   revalidatePath("/defter/giderler");
-  return { success: true };
+  return { success: true, card: data as CreditCard };
 }
 
 export async function updateCreditCard(

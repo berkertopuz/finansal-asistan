@@ -25,6 +25,7 @@ import {
 } from "@/lib/ledger";
 import { formatCurrency, formatMonthYear } from "@/lib/format";
 import type { AppLocale } from "@/lib/locale";
+import type { VoiceDraft } from "@/lib/voice";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -79,15 +80,28 @@ export function QuickEntryForm({
   onSaved,
   editingEntry,
   defaultKind = "expense",
+  draft,
 }: {
   onSaved: () => void;
   editingEntry?: Entry;
   defaultKind?: EntryKind;
+  // Sesli girişten gelen taslak (src/components/ledger/VoiceEntryButton.tsx).
+  // YALNIZCA aşağıdaki useState initializer'larında okunuyor — form mount
+  // olduktan sonra taslağın değişmesi diye bir durum yok, QuickAddFAB her
+  // yeni taslak için formu key ile yeniden mount ediyor. Böylece sesli giriş
+  // formun kendi state makinesine hiç dokunmuyor: kullanıcı her alanı normal
+  // şekilde düzeltebiliyor ve kaydetme yolu (addEntry + zod) aynı kalıyor.
+  draft?: VoiceDraft;
 }) {
+  // Model "subscription" dediyse kategoriyi "abonelik"e sabitliyoruz: aşağıda
+  // kind kategori+sıklıktan TÜRETİLİYOR, dolayısıyla kategori başka bir şey
+  // kalırsa (ör. modelin verdiği "eğlence") Netflix satırı sessizce sıradan
+  // bir gidere dönerdi.
+  const draftIsSubscription = draft?.kind === "subscription";
   // The Gider/Gelir toggle's own state — deliberately NOT the same thing
   // as the `kind` actually sent to the server (computed just below).
   const [giderGelirKind, setGiderGelirKind] = useState<"expense" | "income">(
-    editingEntry?.kind === "income" ? "income" : "expense",
+    editingEntry?.kind === "income" || draft?.kind === "income" ? "income" : "expense",
   );
   // A fresh subscription defaults straight to the "abonelik" chip instead of
   // "diğer" — same reasoning as the recurrence default just below (kind's
@@ -95,6 +109,7 @@ export function QuickEntryForm({
   // any other way for a brand-new one).
   const [category, setCategory] = useState<string>(
     editingEntry?.category ??
+      (draftIsSubscription ? "abonelik" : draft?.category) ??
       (defaultKind === "subscription" ? "abonelik" : DEFAULT_CATEGORY),
   );
   // Mirrors the `kind` rule just below — but that only fires on a
@@ -104,6 +119,9 @@ export function QuickEntryForm({
   // "Tek seferlik" instead of "Aylık".
   const [recurrence, setRecurrence] = useState<EntryRecurrence>(
     editingEntry?.recurrence ??
+      // Abonelik olduğu söylenmiş ama sıklık duyulmamışsa aylık varsay —
+      // prompt kural 6 ile aynı varsayım, tek yerde kalmasın diye burada da.
+      (draftIsSubscription && draft?.recurrence === "none" ? "monthly" : draft?.recurrence) ??
       (defaultKind === "subscription" ? "monthly" : "none"),
   );
   // The actual kind sent to the server — always derived, never set
@@ -142,7 +160,7 @@ export function QuickEntryForm({
   // vanishing into a blank "Ödeme tarihi" the moment they switch Sıklık to
   // something other than "Tek seferlik".
   const [dateValue, setDateValue] = useState<string>(() => {
-    if (!editingEntry) return todayDateInputValue();
+    if (!editingEntry) return draft?.occurred_at ?? todayDateInputValue();
     return editingEntry.recurrence === "none"
       ? editingEntry.occurred_at
       : (editingEntry.next_due_date ?? "");
@@ -150,20 +168,24 @@ export function QuickEntryForm({
   // Taksit — sadece brand-new bir gider için anlamlı (editingEntry'de hiç
   // gösterilmiyor, aşağıya bkz.): tek bir satırı düzenlemek zaten sıradan
   // bir düzenleme, "seriyi" düzenlemek diye ayrı bir kavram yok.
-  const [isInstallment, setIsInstallment] = useState(false);
-  const [installmentCount, setInstallmentCount] = useState(2);
+  const [isInstallment, setIsInstallment] = useState(draft?.installmentCount != null);
+  const [installmentCount, setInstallmentCount] = useState(draft?.installmentCount ?? 2);
   // "" = Nakit/Banka (bakiyeyi hemen düşürür, varsayılan — 3-dokunuşluk
   // akışı bozmamak için kart seçmek isteğe bağlı bir dokunuş daha). Dolu bir
   // değer, o karta borç yazar (src/lib/cashflow.ts bunu bakiyeden hemen
   // düşmez, bkz. isCardDebt).
   const [creditCardId, setCreditCardId] = useState<string>(
-    editingEntry?.credit_card_id ?? "",
+    editingEntry?.credit_card_id ?? draft?.credit_card_id ?? "",
   );
   // Controlled only so the taksit preview below can read it live — every
   // other field stays uncontrolled (defaultValue) on purpose, this is the
   // one exception.
   const [amountValue, setAmountValue] = useState<string>(
-    editingEntry ? String(editingEntry.amount) : "",
+    editingEntry
+      ? String(editingEntry.amount)
+      : draft?.amount != null && draft.currency === "TRY"
+        ? String(draft.amount)
+        : "",
   );
   const formRef = useRef<HTMLFormElement>(null);
   const applyToAllRef = useRef<HTMLInputElement>(null);
@@ -424,6 +446,11 @@ export function QuickEntryForm({
             autoFocus
             required
           />
+          {draft?.currency === "foreign" && (
+            <p role="alert" className="text-muted-foreground text-xs">
+              {t("voice.foreignCurrency")}
+            </p>
+          )}
         </div>
 
         {/* One input standing in for both occurred_at (one-off) and
@@ -472,7 +499,7 @@ export function QuickEntryForm({
               : t("form.descriptionPlaceholder")
           }
           required={kind === "subscription"}
-          defaultValue={editingEntry?.description ?? ""}
+          defaultValue={editingEntry?.description ?? draft?.description ?? ""}
         />
       </div>
 
