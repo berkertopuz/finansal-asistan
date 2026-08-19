@@ -98,7 +98,7 @@ function parseItem(
     credit_card_id: matchedCard?.id ?? "",
     fx_rate: typeof raw.fx_rate === "number" && raw.fx_rate > 0 ? raw.fx_rate : null,
     fx_rate_date:
-      typeof raw.fx_rate_date === "string" && /^d{4}-d{2}-d{2}$/.test(raw.fx_rate_date)
+      typeof raw.fx_rate_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.fx_rate_date)
         ? raw.fx_rate_date
         : null,
   };
