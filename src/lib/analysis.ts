@@ -249,6 +249,12 @@ export function categoryChanges(
  */
 function isCommitted(entry: Entry): boolean {
   if (entry.kind === "subscription") return true;
+  // KATEGORİSİ abonelik olan satırlar da taahhüt. Ekstre içe aktarma her
+  // satırı kind="expense" olarak yazıyor (src/lib/actions/statements.ts), yani
+  // ekstreden gelen bir Netflix/Spotify çekimi kind bakımından sıradan bir
+  // harcama gibi görünüyor ve haftagünü profiline giriyordu. Kullanıcının o
+  // günle bir ilgisi yok — aboneliğin çekim gününü kullanıcı seçmiyor.
+  if (entry.category === "abonelik") return true;
   if (entry.template_id !== null) return true;
   return entry.installment_index !== null && entry.installment_index > 1;
 }

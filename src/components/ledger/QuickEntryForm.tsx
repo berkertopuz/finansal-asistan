@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR, { mutate } from "swr";
@@ -102,8 +102,14 @@ export function QuickEntryForm({
   const draftIsSubscription = draft?.kind === "subscription";
   // The Gider/Gelir toggle's own state — deliberately NOT the same thing
   // as the `kind` actually sent to the server (computed just below).
+  // defaultKind DA sayılıyor: Gelirler sayfasındaki "Kayıt ekle" bu propla
+  // "income" gönderiyor ama toggle onu okumuyordu, form hep Gider seçili
+  // açılıyordu. defaultKind zaten kategori ve sıklık varsayılanlarını
+  // belirliyor; Gider/Gelir anahtarını dışarıda bırakmak tutarsızdı.
   const [giderGelirKind, setGiderGelirKind] = useState<"expense" | "income">(
-    editingEntry?.kind === "income" || draft?.kind === "income" ? "income" : "expense",
+    editingEntry?.kind === "income" || draft?.kind === "income" || defaultKind === "income"
+      ? "income"
+      : "expense",
   );
   // A fresh subscription defaults straight to the "abonelik" chip instead of
   // "diğer" — same reasoning as the recurrence default just below (kind's
@@ -218,9 +224,14 @@ export function QuickEntryForm({
   //
   // Gelen değer DÜZENLENEBİLİR bir alana yazılıyor: bankanın kestiği gerçek
   // kur TCMB kurundan farklı (komisyon biniyor), son sözü kullanıcı söylüyor.
-  async function loadFxRate(nextCurrency: string, nextDate: string) {
+  // showLoading=false yalnızca mount'taki tamamlama çağrısı için: o çağrı bir
+  // effect'ten geliyor ve orada SENKRON setState cascading render tetikliyor
+  // (react-hooks/set-state-in-effect). await'in ötesindeki güncellemeler
+  // sorunsuz, sadece bu ilk bayrak atlanıyor — kullanıcı zaten bir şey
+  // beklemiyor, form daha yeni açıldı.
+  async function loadFxRate(nextCurrency: string, nextDate: string, showLoading = true) {
     if (nextCurrency === "TRY" || !nextCurrency || !nextDate) return;
-    setFxState("loading");
+    if (showLoading) setFxState("loading");
     try {
       const res = await fetch(`/api/fx-rate?currency=${nextCurrency}&date=${nextDate}`);
       const data: { rate: FxRate | null } = await res.json();
@@ -248,6 +259,27 @@ export function QuickEntryForm({
     if (amount <= 0 || rate <= 0) return null;
     return Math.round(amount * rate * 100) / 100;
   })();
+
+  // Taslak dövizli geldi ama kuru yoksa (rota kuru ekleyememiş ya da edge
+  // function eski sürümde) mount'ta bir kez çekiyoruz. Bu olmadan form
+  // "USD seçili ama kur boş" halinde açılıyordu ve Kaydet, dördü birlikte
+  // dolu olmalı kuralına takılıp "döviz bilgileri eksik" diyordu — kullanıcı
+  // para birimini elle yeniden seçince düzeliyordu, ki bu da hatanın tarifi.
+  //
+  // setState YOK burada: hepsi await'in ötesinde çalışıyor
+  // (react-hooks/set-state-in-effect).
+  const fxBootstrappedRef = useRef(false);
+  useEffect(() => {
+    if (fxBootstrappedRef.current) return;
+    if (!isForeign || fxRate || !dateValue) return;
+    fxBootstrappedRef.current = true;
+    // Bir sonraki tick'e erteleniyor: çağrı effect gövdesinde SENKRON
+    // çalışırsa React kural olarak cascading render uyarısı veriyor
+    // (react-hooks/set-state-in-effect) ve haklı — kur getirmenin boyamayla
+    // aynı karede başlaması gerekmiyor.
+    const timer = setTimeout(() => void loadFxRate(currency, dateValue, false), 0);
+    return () => clearTimeout(timer);
+  }, [isForeign, fxRate, currency, dateValue]);
 
   const formRef = useRef<HTMLFormElement>(null);
   const applyToAllRef = useRef<HTMLInputElement>(null);

@@ -315,7 +315,7 @@
       "holdToTalk": "Sesle ekle",
       "hint": "Dokun ve harcamalarını söyle",
       "recording": "Dinliyorum…",
-      "processing": "Kayıt çözümleniyor…",
+      "processing": "Çözümleniyor…",
       "offline": "Sesli giriş için internet bağlantısı gerekiyor.",
       "foreignCurrency": "Yabancı para birimli kalemler tutarını TL olarak yazana kadar seçilemez — kur çevirisi yapılmıyor.",
       "consent": {

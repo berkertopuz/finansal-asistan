@@ -309,7 +309,7 @@ export function VoiceEntryButton({
         disabled={busy}
         aria-label={t("holdToTalk")}
         aria-pressed={recording}
-        className={cn("rounded-full", recording && "animate-pulse", className)}
+        className={cn("min-w-0 rounded-full", recording && "animate-pulse", className)}
         onClick={handleToggle}
       >
         {busy ? (
@@ -319,7 +319,14 @@ export function VoiceEntryButton({
         ) : (
           <Mic className="size-4" />
         )}
-        {showLabel ? (recording ? t("stop") : busy ? t("processing") : t("holdToTalk")) : null}
+        {/* Etiket taşmasın: Button whitespace-nowrap uyguluyor, uzun bir
+            durum metni ("Çözümleniyor…") sabit genişlikli düğmeden dışarı
+            akıyordu. min-w-0 + truncate, taşma yerine üç nokta veriyor. */}
+        {showLabel ? (
+          <span className="min-w-0 truncate">
+            {recording ? t("stop") : busy ? t("processing") : t("holdToTalk")}
+          </span>
+        ) : null}
       </Button>
 
       {(errorKey || errorText) && !reviewItems && (
