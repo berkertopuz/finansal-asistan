@@ -74,12 +74,25 @@ KURALLAR — istisnasız uygulanır:
    dokuz" -> 129.99. amount alanını her zaman POZİTİF ver — gelir mi gider mi
    olduğu kind alanından anlaşılıyor, tutara eksi işareti koyma.
 
-4. Para birimi: currency alanına duyduğun para biriminin ISO KODUNU yaz —
-   "elli dolar" -> "USD", "yirmi euro" -> "EUR", "otuz sterlin" -> "GBP",
-   "bin yen" -> "JPY". amount'a duyduğun sayıyı olduğu gibi yaz. TL'ye ASLA
-   ÇEVİRME: kur bilgin yok, uydurulmuş bir kur kullanıcının defterini bozar —
-   kuru uygulama kendisi getiriyor, senin işin sadece ne duyduğunu söylemek.
-   Para birimi söylenmemişse ya da lira/TL denmişse currency="TRY".
+4. Para birimi: currency alanına duyduğun para biriminin ISO KODUNU yaz.
+   amount'a duyduğun sayıyı olduğu gibi yaz. TL'ye ASLA ÇEVİRME: kur bilgin
+   yok, uydurulmuş bir kur kullanıcının defterini bozar — kuru uygulama
+   kendisi getiriyor, senin işin sadece ne duyduğunu söylemek.
+
+   Kullanıcı günlük konuşma dilinde söyler, ülke adı EKLEMEZ. Belirsiz
+   isimleri TÜRKİYE'DEKİ YAYGIN KARŞILIĞINA sabitle, ASLA daha nadir bir
+   ülkenin parasına gitme:
+   - "dolar", "dolara", "$" -> USD (ABD doları). Kanada/Avustralya doları
+     DEĞİL — kullanıcı onları kastediyorsa "kanada doları" diye açıkça söyler.
+   - "euro", "avro" -> EUR
+   - "sterlin", "pound" -> GBP
+   - "frank" -> CHF
+   - "yen" -> JPY
+   - "riyal" -> SAR, "dirhem" -> AED, "ruble" -> RUB, "yuan" -> CNY
+   Yalnızca ülke açıkça söylendiğinde diğerlerine git ("kanada doları" -> CAD,
+   "avustralya doları" -> AUD, "isveç kronu" -> SEK).
+
+   Para birimi söylenmemişse ya da lira/TL/₺ denmişse currency="TRY".
 
 5. kind alanı:
    - "income" = kullanıcının aldığı para (maaş, ödeme geldi, satış geliri).

@@ -335,3 +335,33 @@ body {
     appearance: textfield;
   }
 }
+
+@layer components {
+  /* İnce, temaya uyan kaydırma çubuğu. Masaüstünde tarayıcının varsayılan
+     geniş gri çubuğu, uygulamanın içindeki küçük panellerde (para birimi
+     listesi, inceleme listeleri) kaba duruyor ve karanlık modda tema dışı
+     kalıyor. Firefox `scrollbar-*` özelliklerini, WebKit ise ::-webkit-
+     sözde elemanlarını kullandığı için ikisi birden yazılıyor.
+
+     Kaydırma davranışı DEĞİŞMİYOR — yalnızca görünüm. Çubuğu tamamen
+     gizlemiyoruz: bir listenin kaydırılabildiğini gösteren tek görsel ipucu o,
+     mobilde de dokunmatik çubuk zaten kendiliğinden kayboluyor. */
+  .scrollbar-subtle {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .scrollbar-subtle::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-subtle::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-subtle::-webkit-scrollbar-thumb {
+    background-color: var(--border);
+    border-radius: 9999px;
+  }
+  .scrollbar-subtle::-webkit-scrollbar-thumb:hover {
+    background-color: var(--muted-foreground);
+  }
+}

@@ -117,16 +117,26 @@ export function CurrencyPicker({
     // Sheet içeriği kaydırıldığında panel düğmeden kopmasın diye kapatıyoruz —
     // sabit konumlu bir paneli kaydırma boyunca takip ettirmek, kapatmaktan
     // hem daha pahalı hem de kullanıcı için daha şaşırtıcı olurdu.
-    const onScrollOrResize = () => setOpen(false);
+    //
+    // AMA panelin KENDİ listesi kaydırıldığında kapanmamalı. Dinleyici
+    // capture aşamasında olduğu için her elemanın scroll'unu görüyor ve ilk
+    // sürümde listeyi kaydırmaya çalışmak paneli anında kapatıyordu — liste
+    // teknik olarak kaydırılabilirken kullanıcıya "hiç kaymıyor" olarak
+    // yansıyordu.
+    const onScroll = (event: Event) => {
+      if (panelRef.current?.contains(event.target as Node)) return;
+      setOpen(false);
+    };
+    const onResize = () => setOpen(false);
     document.addEventListener("pointerdown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
-    window.addEventListener("resize", onScrollOrResize);
-    window.addEventListener("scroll", onScrollOrResize, true);
+    window.addEventListener("resize", onResize);
+    window.addEventListener("scroll", onScroll, true);
     return () => {
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("resize", onScrollOrResize);
-      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("scroll", onScroll, true);
     };
   }, [open]);
 
@@ -154,7 +164,7 @@ export function CurrencyPicker({
                 className="min-h-touch w-full bg-transparent text-sm outline-none"
               />
             </div>
-            <div className="overflow-y-auto py-1">
+            <div className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto py-1">
               {filtered.length === 0 ? (
                 <p className="text-muted-foreground px-3 py-2 text-xs">{t("currencyNoMatch")}</p>
               ) : (
