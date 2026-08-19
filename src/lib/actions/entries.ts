@@ -6,6 +6,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_CATEGORY } from "@/lib/ledger";
 import { buildInstallmentRows } from "@/lib/installments";
+import { isSupportedCurrency } from "@/lib/providers/tcmb-fx";
 
 export type AddEntryState = { error?: string; success?: boolean };
 
@@ -77,8 +78,34 @@ async function buildEntrySchema() {
         .string()
         .optional()
         .transform((v) => (v ? v : undefined)),
+      // DÖVİZ — dördü birlikte gelir ya da hiçbiri gelmez (DB'de de CHECK var).
+      // `amount` yine TL: form, orijinal tutar × kurdan hesaplayıp gizli
+      // input'la gönderiyor. Kur burada YENİDEN ÇEKİLMİYOR — kullanıcı
+      // bankasının kestiği gerçek kuru elle yazmış olabilir ve onu ezmek
+      // kaydı yanlış yapardı.
+      original_amount: z.coerce.number().positive().max(10_000_000).optional(),
+      original_currency: z
+        .string()
+        .optional()
+        .transform((v) => (v ? v : undefined))
+        .refine((v) => v === undefined || isSupportedCurrency(v), { message: t("genericInvalid") }),
+      fx_rate: z.coerce.number().positive().max(1_000_000).optional(),
+      fx_rate_date: z
+        .string()
+        .optional()
+        .transform((v) => (v ? v : undefined)),
     })
     .superRefine((data, ctx) => {
+      const fxFields = [
+        data.original_amount,
+        data.original_currency,
+        data.fx_rate,
+        data.fx_rate_date,
+      ];
+      const filled = fxFields.filter((v) => v !== undefined).length;
+      if (filled !== 0 && filled !== 4) {
+        ctx.addIssue({ code: "custom", path: ["original_currency"], message: t("fxIncomplete") });
+      }
       if (data.recurrence === "none" && !data.occurred_at) {
         ctx.addIssue({ code: "custom", path: ["occurred_at"], message: t("dateRequired") });
       }
@@ -138,6 +165,10 @@ export async function addEntry(
     next_due_date: formData.get("next_due_date") || undefined,
     installmentCount: formData.get("installmentCount") || undefined,
     credit_card_id: formData.get("credit_card_id") || undefined,
+    original_amount: formData.get("original_amount") || undefined,
+    original_currency: formData.get("original_currency") || undefined,
+    fx_rate: formData.get("fx_rate") || undefined,
+    fx_rate_date: formData.get("fx_rate_date") || undefined,
   });
 
   if (!parsed.success) {
@@ -207,6 +238,11 @@ export async function addEntry(
     user_id: user.id,
     kind: parsed.data.kind,
     amount: parsed.data.amount,
+    // Döviz: `amount` TL kalıyor, bunlar sadece "aslında ne harcandı" kaydı.
+    original_amount: parsed.data.original_amount ?? null,
+    original_currency: parsed.data.original_currency ?? null,
+    fx_rate: parsed.data.fx_rate ?? null,
+    fx_rate_date: parsed.data.fx_rate_date ?? null,
     category: parsed.data.category,
     // A brand-new recurring row has no user-chosen occurred_at (the field
     // isn't shown) — "today" just means "added to the ledger today", which
@@ -249,6 +285,10 @@ export async function updateEntry(
     recurrence: formData.get("recurrence") || "none",
     next_due_date: formData.get("next_due_date") || undefined,
     credit_card_id: formData.get("credit_card_id") || undefined,
+    original_amount: formData.get("original_amount") || undefined,
+    original_currency: formData.get("original_currency") || undefined,
+    fx_rate: formData.get("fx_rate") || undefined,
+    fx_rate_date: formData.get("fx_rate_date") || undefined,
   });
 
   if (!parsed.success) {
@@ -311,6 +351,13 @@ export async function updateEntry(
       recurrence: parsed.data.recurrence,
       next_due_date: isRecurring ? parsed.data.next_due_date! : null,
       credit_card_id: creditCardId,
+      // Döviz alanları düzenlemede de yazılıyor: kullanıcı para birimini
+      // TL'ye çevirdiyse ÜÇÜ DE null olmalı, yoksa DB CHECK'i (dördü birlikte)
+      // ihlal olur ve kayıt reddedilir.
+      original_amount: parsed.data.original_amount ?? null,
+      original_currency: parsed.data.original_currency ?? null,
+      fx_rate: parsed.data.fx_rate ?? null,
+      fx_rate_date: parsed.data.fx_rate_date ?? null,
       // A row turning recurring becomes a template in its own right, which
       // can't also be a generated occurrence of another template — the DB
       // enforces this (entries_template_id_only_when_concrete: recurrence

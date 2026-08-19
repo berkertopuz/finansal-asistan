@@ -34,7 +34,7 @@ import {
 import { QuickEntryForm } from "@/components/ledger/QuickEntryForm";
 import { MonthSelect, currentMonthKey } from "@/components/ledger/MonthSelect";
 import { deleteEntry } from "@/lib/actions/entries";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatDate, formatForeignAmount } from "@/lib/format";
 import type { AppLocale } from "@/lib/locale";
 import { categoryLabel, entryDisplayDate, toDateString, type Entry, type EntryKind } from "@/lib/ledger";
 import { occurrencesInRange } from "@/lib/cashflow";
@@ -548,6 +548,15 @@ export function EntryTable({
                     >
                       {entry.kind === "income" ? "+" : "−"}
                       {formatCurrency(entry.amount, locale)}
+                      {/* Döviz: TL tutarı asıl sayı (her toplam onu kullanıyor),
+                          altında kullanıcının gerçekte harcadığı/kazandığı
+                          tutar. Kur kayıt anında kilitlendiği için bu satır
+                          sonradan değişmiyor. */}
+                      {entry.original_currency && entry.original_amount !== null && (
+                        <span className="text-muted-foreground block text-xs font-normal">
+                          {formatForeignAmount(entry.original_amount, entry.original_currency, locale)}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       {entry.isPlanned ? (

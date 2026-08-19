@@ -1,12 +1,14 @@
 import { ENTRY_CATEGORIES, DEFAULT_CATEGORY, type EntryKind, type EntryRecurrence } from "@/lib/ledger";
 import type { CreditCard } from "@/lib/credit-cards-data";
+import { isSupportedCurrency } from "@/lib/providers/tcmb-fx";
 
 // supabase/functions/_shared/voice/schema.ts ile elle senkron tutulan ikiz —
 // iki runtime, ortak paket yok (statements tarafındaki aynı desen).
 export type VoiceDraft = {
   kind: EntryKind;
   amount: number | null;
-  currency: "TRY" | "foreign";
+  /** ISO kodu; "TRY" ya da desteklenen bir döviz. */
+  currency: string;
   category: string;
   description: string;
   occurred_at: string | null;
@@ -16,6 +18,10 @@ export type VoiceDraft = {
   // döndürüyor, burada id'ye çevriliyor — arayüzde seçici zaten id ile
   // çalışıyor ve addEntry de id bekliyor.
   credit_card_id: string;
+  // Kuru rota ekliyor (model değil) — bkz. src/app/api/voice/route.ts.
+  // Bulunamazsa null: form kullanıcıdan kuru ister, uydurulmaz.
+  fx_rate: number | null;
+  fx_rate_date: string | null;
 };
 
 export type VoiceResult = {
@@ -80,13 +86,21 @@ function parseItem(
   return {
     kind,
     amount,
-    currency: raw.currency === "foreign" ? "foreign" : "TRY",
+    // Tanımadığımız her kod TRY'ye düşer — form yanlış bir para birimiyle
+    // açılıp uydurma bir kur çekmesin.
+    currency:
+      typeof raw.currency === "string" && isSupportedCurrency(raw.currency) ? raw.currency : "TRY",
     category,
     description: typeof raw.description === "string" ? raw.description.slice(0, 200) : "",
     occurred_at: occurredAt,
     recurrence,
     installmentCount,
     credit_card_id: matchedCard?.id ?? "",
+    fx_rate: typeof raw.fx_rate === "number" && raw.fx_rate > 0 ? raw.fx_rate : null,
+    fx_rate_date:
+      typeof raw.fx_rate_date === "string" && /^d{4}-d{2}-d{2}$/.test(raw.fx_rate_date)
+        ? raw.fx_rate_date
+        : null,
   };
 }
 

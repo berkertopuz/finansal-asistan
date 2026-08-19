@@ -33,6 +33,15 @@ export type Entry = {
   // dönemine düşüyor (bkz. supabase/migrations/20260819120000_entries_purchased_at.sql).
   // DB seviyesinde purchased_at < occurred_at zorunlu.
   purchased_at: string | null;
+  // DÖVİZ. `amount` her zaman TL — bu alanlar yalnızca "kullanıcı aslında ne
+  // harcadı/kazandı" bilgisini taşıyor ve hiçbir toplama girmiyor.
+  // Kur kayıt anında kilitleniyor (bkz. 20260819140000 migration): geçmiş
+  // ayların toplamı kur oynadıkça değişmesin diye. Dördü birlikte dolu ya da
+  // dördü birlikte boş (DB CHECK).
+  original_amount: number | null;
+  original_currency: string | null;
+  fx_rate: number | null;
+  fx_rate_date: string | null;
   // Which card this row concerns:
   // - kind='expense'/'subscription': null means cash/debit (reduces cash
   //   immediately, today's default behavior); set means charged to that

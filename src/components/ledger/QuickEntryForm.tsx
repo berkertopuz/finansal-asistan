@@ -25,6 +25,7 @@ import {
 } from "@/lib/ledger";
 import { formatCurrency, formatMonthYear } from "@/lib/format";
 import type { AppLocale } from "@/lib/locale";
+import { SUPPORTED_CURRENCIES, type FxRate } from "@/lib/providers/tcmb-fx";
 import type { VoiceDraft } from "@/lib/voice";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -183,10 +184,70 @@ export function QuickEntryForm({
   const [amountValue, setAmountValue] = useState<string>(
     editingEntry
       ? String(editingEntry.amount)
-      : draft?.amount != null && draft.currency === "TRY"
+      : draft?.amount != null
         ? String(draft.amount)
         : "",
   );
+  // DÖVİZ. amount alanı TL kalıyor (DB'de de öyle — bkz. migration notu);
+  // yabancı para seçilince görünen tutar alanı ORİJİNAL tutarı, ayrı bir alan
+  // kuru tutuyor ve TL karşılığı ikisinden hesaplanıp gizli input'la
+  // gönderiliyor.
+  const [currency, setCurrency] = useState<string>(
+    // Sesli girişten gelen taslak para birimi kodunu taşıyor; form o para
+    // birimiyle açılıyor ve kuru kullanıcı kaydetmeden önce görüyor.
+    editingEntry?.original_currency ?? draft?.currency ?? "TRY",
+  );
+  const [fxRate, setFxRate] = useState<string>(
+    editingEntry?.fx_rate != null
+      ? String(editingEntry.fx_rate)
+      : draft?.fx_rate != null
+        ? String(draft.fx_rate)
+        : "",
+  );
+  const [fxRateDate, setFxRateDate] = useState<string>(
+    editingEntry?.fx_rate_date ?? draft?.fx_rate_date ?? "",
+  );
+  const [fxState, setFxState] = useState<"idle" | "loading" | "missing">("idle");
+  const isForeign = currency !== "TRY" && currency !== "";
+
+  // Kur, para birimi ya da tarih DEĞİŞTİĞİNDE çekiliyor — effect'ten değil,
+  // doğrudan olay işleyicisinden. Bu bir render yan etkisi değil, kullanıcı
+  // eylemine verilen bir yanıt; effect içinde senkron setState cascading
+  // render tetikliyordu (react-hooks/set-state-in-effect).
+  //
+  // Gelen değer DÜZENLENEBİLİR bir alana yazılıyor: bankanın kestiği gerçek
+  // kur TCMB kurundan farklı (komisyon biniyor), son sözü kullanıcı söylüyor.
+  async function loadFxRate(nextCurrency: string, nextDate: string) {
+    if (nextCurrency === "TRY" || !nextCurrency || !nextDate) return;
+    setFxState("loading");
+    try {
+      const res = await fetch(`/api/fx-rate?currency=${nextCurrency}&date=${nextDate}`);
+      const data: { rate: FxRate | null } = await res.json();
+      if (data.rate) {
+        setFxRate(String(data.rate.rate));
+        setFxRateDate(data.rate.asOf);
+        setFxState("idle");
+      } else {
+        // Kur uydurulmuyor (CLAUDE.md kural 5) — kullanıcı kendisi yazıyor.
+        setFxRateDate(nextDate);
+        setFxState("missing");
+      }
+    } catch {
+      setFxState("missing");
+    }
+  }
+
+
+  // Kuruşa yuvarlanmış TL karşılığı — deftere yazılan ve her toplamda
+  // kullanılan sayı bu.
+  const tryEquivalent = (() => {
+    const amount = Number(amountValue);
+    const rate = Number(fxRate);
+    if (!isForeign || !Number.isFinite(amount) || !Number.isFinite(rate)) return null;
+    if (amount <= 0 || rate <= 0) return null;
+    return Math.round(amount * rate * 100) / 100;
+  })();
+
   const formRef = useRef<HTMLFormElement>(null);
   const applyToAllRef = useRef<HTMLInputElement>(null);
   const [scopeDialogOpen, setScopeDialogOpen] = useState(false);
@@ -432,10 +493,40 @@ export function QuickEntryForm({
           hiding anything. */}
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="amount">{t("form.amountLabel")}</Label>
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor="amount">{t("form.amountLabel")}</Label>
+            {/* Para birimi seçici etiketin yanında: varsayılan TL olduğu için
+                sıradan bir kayıtta hiç dikkat çekmiyor, ama yurt dışındayken
+                aramaya gerek kalmadan orada duruyor. */}
+            <select
+              value={currency}
+              onChange={(e) => {
+                const next = e.target.value;
+                setCurrency(next);
+                if (next === "TRY") {
+                  setFxRate("");
+                  setFxRateDate("");
+                  setFxState("idle");
+                  return;
+                }
+                void loadFxRate(next, dateValue);
+              }}
+              aria-label={t("form.currencyLabel")}
+              className="border-input bg-background rounded-md border px-2 py-1 text-xs"
+            >
+              <option value="TRY">₺ TRY</option>
+              {SUPPORTED_CURRENCIES.map((code) => (
+                <option key={code} value={code}>
+                  {code}
+                </option>
+              ))}
+            </select>
+          </div>
           <Input
             id="amount"
-            name="amount"
+            // Döviz seçiliyse bu alan ORİJİNAL tutarı tutuyor; sunucuya giden
+            // TL tutarı aşağıdaki gizli input'tan gidiyor.
+            name={isForeign ? undefined : "amount"}
             type="number"
             inputMode="decimal"
             step="0.01"
@@ -446,10 +537,42 @@ export function QuickEntryForm({
             autoFocus
             required
           />
-          {draft?.currency === "foreign" && (
-            <p role="alert" className="text-muted-foreground text-xs">
-              {t("voice.foreignCurrency")}
-            </p>
+          {isForeign && (
+            <>
+              <input type="hidden" name="amount" value={tryEquivalent ?? ""} />
+              <input type="hidden" name="original_amount" value={amountValue} />
+              <input type="hidden" name="original_currency" value={currency} />
+              <input type="hidden" name="fx_rate" value={fxRate} />
+              <input type="hidden" name="fx_rate_date" value={fxRateDate} />
+              <div className="flex items-center gap-2">
+                <Label htmlFor="fx-rate" className="text-muted-foreground shrink-0 text-xs">
+                  {t("form.fxRateLabel", { currency })}
+                </Label>
+                <input
+                  id="fx-rate"
+                  type="number"
+                  inputMode="decimal"
+                  step="0.000001"
+                  min="0"
+                  value={fxRate}
+                  onChange={(e) => setFxRate(e.target.value)}
+                  className="border-input bg-background min-h-touch w-full rounded-md border px-2 py-1 text-sm"
+                  required
+                />
+              </div>
+              <p className="text-muted-foreground text-xs">
+                {fxState === "loading"
+                  ? t("form.fxLoading")
+                  : fxState === "missing"
+                    ? t("form.fxMissing")
+                    : tryEquivalent !== null
+                      ? t("form.fxEquivalent", {
+                          amount: formatCurrency(tryEquivalent, locale),
+                          date: fxRateDate,
+                        })
+                      : t("form.fxHint")}
+              </p>
+            </>
           )}
         </div>
 
@@ -471,7 +594,11 @@ export function QuickEntryForm({
             name={recurrence === "none" ? "occurred_at" : "next_due_date"}
             type="date"
             value={dateValue}
-            onChange={(e) => setDateValue(e.target.value)}
+            onChange={(e) => {
+              setDateValue(e.target.value);
+              // Kur işlemin YAPILDIĞI günün kuru — tarih değişince yenilenmeli.
+              void loadFxRate(currency, e.target.value);
+            }}
             required
           />
         </div>

@@ -49,6 +49,12 @@ const voiceEntrySchema = z.object({
   // "" = nakit/banka. Dolu bir id o karta borç yazar (src/lib/cashflow.ts
   // bunu bakiyeden hemen düşmez, bkz. isCardDebt).
   credit_card_id: z.string().optional().transform((v) => (v ? v : null)),
+  // Döviz — `amount` yine TL (client orijinal × kurdan hesaplıyor), bunlar
+  // "aslında ne harcandı" kaydı. Dördü birlikte ya da hiçbiri (DB CHECK).
+  original_amount: z.number().positive().max(10_000_000).nullable().optional(),
+  original_currency: z.string().nullable().optional(),
+  fx_rate: z.number().positive().nullable().optional(),
+  fx_rate_date: z.string().nullable().optional(),
 });
 
 export type VoiceEntryInput = z.infer<typeof voiceEntrySchema>;
@@ -87,6 +93,10 @@ export async function addVoiceEntries(
     installment_index: number | null;
     installment_count: number | null;
     credit_card_id: string | null;
+    original_amount: number | null;
+    original_currency: string | null;
+    fx_rate: number | null;
+    fx_rate_date: string | null;
   };
 
   // Tüm kalemler tek insert'te gidiyor: kısmen yazılmış bir liste
@@ -115,6 +125,13 @@ export async function addVoiceEntries(
         installment_index: row.index,
         installment_count: row.count,
         credit_card_id: creditCardId,
+        // Taksitli dövizli bir alışverişte orijinal tutar TÜM seriye değil,
+        // her satıra bölünmüş hâliyle yazılamaz — bu yüzden döviz bilgisi
+        // yalnızca taksitsiz kalemlerde tutuluyor.
+        original_amount: null,
+        original_currency: null,
+        fx_rate: null,
+        fx_rate_date: null,
       }));
     }
 
@@ -133,6 +150,10 @@ export async function addVoiceEntries(
         installment_index: null,
         installment_count: null,
         credit_card_id: creditCardId,
+        original_amount: item.original_amount ?? null,
+        original_currency: item.original_currency ?? null,
+        fx_rate: item.fx_rate ?? null,
+        fx_rate_date: item.fx_rate_date ?? null,
       },
     ];
   });

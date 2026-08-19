@@ -184,7 +184,14 @@ export function VoiceEntryButton({
           setSingleDraft(result.items[0]);
           return;
         }
-        setReviewItems(result.items.map((item) => ({ ...item, selected: item.currency === "TRY" })));
+        // Kuru getirilebilen dövizli kalemler de varsayılan seçili — kur
+        // rotada ekleniyor (src/app/api/voice/route.ts).
+        setReviewItems(
+          result.items.map((item) => ({
+            ...item,
+            selected: item.currency === "TRY" || (item.fx_rate !== null && item.fx_rate > 0),
+          })),
+        );
       } catch (err) {
         pendingAudioRef.current = null;
         setUploading(false);
@@ -246,13 +253,17 @@ export function VoiceEntryButton({
     const result = await addVoiceEntries(
       selected.map((item) => ({
         kind: item.kind,
-        amount: item.amount!,
+        amount: tryAmountOf(item)!,
         category: item.category,
         description: item.description,
         occurred_at: item.occurred_at ?? todayDateString(),
         recurrence: item.recurrence,
         installmentCount: item.installmentCount,
         credit_card_id: item.credit_card_id,
+        original_amount: item.currency === "TRY" ? null : item.amount,
+        original_currency: item.currency === "TRY" ? null : item.currency,
+        fx_rate: item.currency === "TRY" ? null : item.fx_rate,
+        fx_rate_date: item.currency === "TRY" ? null : item.fx_rate_date,
       })),
     );
     setSaving(false);
@@ -265,11 +276,20 @@ export function VoiceEntryButton({
     setReviewItems(null);
   }
 
+  // Bir kalemin deftere yazılacak TL tutarı. Dövizli kalemde kur yoksa null —
+  // o kalem seçilemiyor, çünkü uydurma kurla kayıt yapmak yasak (kural 5).
+  function tryAmountOf(item: ReviewItem): number | null {
+    if (item.amount === null || item.amount <= 0) return null;
+    if (item.currency === "TRY") return item.amount;
+    if (item.fx_rate === null || item.fx_rate <= 0) return null;
+    return Math.round(item.amount * item.fx_rate * 100) / 100;
+  }
+
   const selectedCount = reviewItems?.filter((i) => i.selected).length ?? 0;
   // Yabancı para birimi duyulan kalemler kaydedilemez: kur çevirisi kasıtlı
   // olarak yapılmıyor (CLAUDE.md kural 5), o yüzden listede uyarıyla
   // gösteriliyor ve tutarını kullanıcı kendisi girene kadar seçilemiyorlar.
-  const hasForeign = reviewItems?.some((i) => i.currency === "foreign") ?? false;
+  const hasForeign = reviewItems?.some((i) => i.currency !== "TRY") ?? false;
   const categoryOptions = [
     ...ENTRY_CATEGORIES,
     ...(customCategories ?? [])
@@ -357,7 +377,7 @@ export function VoiceEntryButton({
                   <div className="flex items-center gap-3">
                     <Checkbox
                       checked={item.selected}
-                      disabled={item.currency === "foreign"}
+                      disabled={tryAmountOf(item) === null}
                       onCheckedChange={() => updateItem(i, { selected: !item.selected })}
                       aria-label={item.description || t("itemLabel", { index: i + 1 })}
                     />
@@ -378,9 +398,6 @@ export function VoiceEntryButton({
                       onChange={(e) =>
                         updateItem(i, {
                           amount: e.target.value === "" ? null : Number(e.target.value),
-                          // Tutarı elle girmek "kuru ben çevirdim" demek —
-                          // kalem artık kaydedilebilir.
-                          currency: "TRY",
                         })
                       }
                       className={cn(fieldClass, "w-24 shrink-0 text-right text-sm font-semibold")}
@@ -429,11 +446,20 @@ export function VoiceEntryButton({
                     />
                   </div>
 
-                  {item.currency === "foreign" && (
-                    <p className="text-signal-caution-foreground text-xs">
-                      {t("foreignRowHint", { amount: String(item.amount ?? "") })}
-                    </p>
-                  )}
+                  {item.currency !== "TRY" &&
+                    (tryAmountOf(item) !== null ? (
+                      <p className="text-muted-foreground text-xs">
+                        {t("foreignConverted", {
+                          original: `${item.amount} ${item.currency}`,
+                          amount: formatCurrency(tryAmountOf(item)!, locale),
+                          date: item.fx_rate_date ?? "",
+                        })}
+                      </p>
+                    ) : (
+                      <p className="text-signal-caution-foreground text-xs">
+                        {t("foreignNoRate", { currency: item.currency })}
+                      </p>
+                    ))}
                   {item.installmentCount ? (
                     <p className="text-muted-foreground text-xs">
                       {t("installments", { count: item.installmentCount })} ·{" "}

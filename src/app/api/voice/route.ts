@@ -4,6 +4,7 @@ import { getCategories } from "@/lib/categories-data";
 import { getCreditCards } from "@/lib/credit-cards-data";
 import { ENTRY_CATEGORIES } from "@/lib/ledger";
 import { fromIntlTag } from "@/lib/locale";
+import { fetchFxRate } from "@/lib/providers/tcmb-fx";
 
 // Gemini'nin kabul ettiği ses türleri. Client kaydı göndermeden önce WAV'a
 // çeviriyor (Android Chrome MediaRecorder'ı audio/webm, iOS Safari audio/mp4
@@ -177,5 +178,24 @@ export async function POST(request: Request) {
     );
   }
 
-  return Response.json({ ...result, cards });
+  // DÖVİZ KURUNU BURADA EKLİYORUZ. Model yalnızca "ne duyduğunu" söylüyor
+  // (ör. currency: "EUR"), çeviriyi asla yapmıyor — kuru getirmek sunucunun
+  // işi (CLAUDE.md kural 5). Kuru burada iliştirince form tamamen dolu
+  // açılıyor: kullanıcı tutarı, para birimini, kuru ve TL karşılığını
+  // kaydetmeden önce bir arada görüyor.
+  const items = Array.isArray((result as { items?: unknown }).items)
+    ? ((result as { items: Record<string, unknown>[] }).items)
+    : [];
+  const enriched = await Promise.all(
+    items.map(async (item) => {
+      const currency = typeof item.currency === "string" ? item.currency : "TRY";
+      if (currency === "TRY") return item;
+      const occurred = typeof item.occurred_at === "string" ? item.occurred_at : todayDate;
+      const fx = await fetchFxRate(currency, occurred);
+      // Kur bulunamazsa alan boş kalıyor; form kullanıcıdan kuru istiyor.
+      return fx ? { ...item, fx_rate: fx.rate, fx_rate_date: fx.asOf } : item;
+    }),
+  );
+
+  return Response.json({ ...result, items: enriched, cards });
 }

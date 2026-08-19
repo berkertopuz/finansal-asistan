@@ -262,8 +262,15 @@
         "saveFailed": "Could not save, please try again.",
         "genericInvalid": "Invalid details.",
         "notFound": "Entry not found.",
-        "subscriptionMustRecur": "A subscription cannot be one-off — pick a recurrence."
-      }
+        "subscriptionMustRecur": "A subscription cannot be one-off — pick a recurrence.",
+        "fxIncomplete": "Currency details are incomplete — amount, currency and rate are all required."
+      },
+      "currencyLabel": "Currency",
+      "fxRateLabel": "1 {currency} =",
+      "fxLoading": "Fetching rate…",
+      "fxMissing": "That day's rate could not be fetched. Enter the rate your bank applied.",
+      "fxEquivalent": "Will be recorded as {amount} (using the {date} rate).",
+      "fxHint": "Enter the amount and rate; the TRY equivalent is calculated."
     },
     "fixedItems": {
       "expenseTitle": "Fixed expenses",
@@ -343,8 +350,9 @@
       "installments": "{count} instalments",
       "editHint": "You can correct any item before saving.",
       "itemLabel": "Item {index}",
-      "foreignRowHint": "A foreign currency was heard ({amount}). No conversion was applied — enter the amount in TRY.",
-      "heard": "What I heard:"
+      "heard": "What I heard:",
+      "foreignConverted": "{original} → {amount} (using the {date} rate)",
+      "foreignNoRate": "Could not fetch the {currency} rate — add this item manually."
     },
     "statementUpload": "Upload statement"
   },

@@ -10,6 +10,13 @@ import { z } from "npm:zod@^4";
 export const VOICE_KINDS = ["income", "expense", "subscription"] as const;
 export const VOICE_RECURRENCES = ["none", "weekly", "monthly", "yearly"] as const;
 
+// TCMB'nin yayımladığı para birimleri (src/lib/providers/tcmb-fx.ts ile elle
+// senkron — iki runtime, ortak paket yok). Model bu listenin dışına çıkamıyor.
+export const VOICE_CURRENCIES = [
+  "USD", "EUR", "GBP", "CHF", "JPY", "AUD", "CAD", "SEK", "NOK", "DKK",
+  "SAR", "AED", "KWD", "QAR", "RON", "RUB", "CNY", "PKR", "KRW", "AZN", "KZT",
+] as const;
+
 // TEK İŞLEM DEĞİL, LİSTE. İlk sürüm tek bir işlem döndürüyordu ve gerçek
 // kullanımda hemen kırıldı: "100 lira sigara, 50 lira ekmek, 15 lira su"
 // dendiğinde model üç işlemi tek bir nesneye sığdıramayıp şemayı ihlal etti
@@ -21,10 +28,12 @@ export const voiceItemSchema = z.object({
   kind: z.enum(VOICE_KINDS),
   // Her zaman pozitif — işaret kind'dan türer (DB'de CHECK amount > 0).
   amount: z.number().nullable(),
-  // "TRY" | "foreign". Yabancı para birimi duyulursa çevirmek YASAK
-  // (CLAUDE.md kural 5: kur uydurma yok) — işaretlenir, arayüz kullanıcıya
-  // tutarı kendisi girmesini söyler.
-  currency: z.enum(["TRY", "foreign"]),
+  // Duyulan para biriminin ISO kodu ("TRY", "EUR", "USD"…). Önceden yalnızca
+  // "TRY" | "foreign" idi ve hangi döviz olduğu kayboluyordu; artık kod
+  // taşındığı için form o para birimini seçili açıp o günün TCMB kurunu
+  // çekebiliyor. Çevirmeyi model YAPMIYOR (CLAUDE.md kural 5) — sadece ne
+  // duyduğunu söylüyor, kuru sunucu getiriyor.
+  currency: z.string(),
   category: z.string(),
   description: z.string(),
   occurred_at: z.string().nullable(), // YYYY-MM-DD
@@ -74,7 +83,7 @@ export function buildVoiceResponseSchema(
   const itemProperties = {
     kind: { type: "STRING", enum: [...VOICE_KINDS] },
     amount: { type: "NUMBER", nullable: true },
-    currency: { type: "STRING", enum: ["TRY", "foreign"] },
+    currency: { type: "STRING", enum: ["TRY", ...VOICE_CURRENCIES] },
     category: { type: "STRING", enum: [...categories] },
     description: { type: "STRING" },
     occurred_at: { type: "STRING", nullable: true },

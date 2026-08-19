@@ -154,6 +154,11 @@ function projectedCardPaymentEntry(cardId: string, cardName: string, paymentDate
     installment_index: null,
     installment_count: null,
     skip_dates: [],
+    // Sentetik satır — döviz alanları hiçbir zaman okunmuyor.
+    original_amount: null,
+    original_currency: null,
+    fx_rate: null,
+    fx_rate_date: null,
   };
 }
 

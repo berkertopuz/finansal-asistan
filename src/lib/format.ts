@@ -126,3 +126,21 @@ export function formatRelative(
   const diffDays = Math.round(diffHours / 24);
   return `${diffDays} ${units.days}`;
 }
+
+// Kaydın ORİJİNAL para birimindeki tutarı — TL tutarının altında ikinci satır
+// olarak gösteriliyor. Intl'in kendi para birimi biçimlendirmesi kullanılıyor
+// (manuel string birleştirme değil, CLAUDE.md'deki tr-TR locale kuralı):
+// sembolün yeri ve binlik ayırıcı para birimine göre değişiyor.
+export function formatForeignAmount(amount: number, currency: string, locale: AppLocale): string {
+  try {
+    return new Intl.NumberFormat(toIntlTag(locale), {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    // Tanınmayan bir kod gelirse (olmaması gerekir, DB'de whitelist var)
+    // biçimlendirme yüzünden satırı çökertme.
+    return `${amount} ${currency}`;
+  }
+}

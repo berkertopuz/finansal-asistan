@@ -262,8 +262,15 @@
         "saveFailed": "Kaydedilemedi, tekrar dene.",
         "genericInvalid": "Geçersiz bilgiler.",
         "notFound": "Kayıt bulunamadı.",
-        "subscriptionMustRecur": "Abonelik tek seferlik olamaz — bir tekrar aralığı seç."
-      }
+        "subscriptionMustRecur": "Abonelik tek seferlik olamaz — bir tekrar aralığı seç.",
+        "fxIncomplete": "Döviz bilgileri eksik — tutar, para birimi ve kur birlikte gerekli."
+      },
+      "currencyLabel": "Para birimi",
+      "fxRateLabel": "1 {currency} =",
+      "fxLoading": "Kur alınıyor…",
+      "fxMissing": "O tarihin kuru alınamadı. Bankanın uyguladığı kuru kendin yaz.",
+      "fxEquivalent": "Deftere {amount} olarak yazılacak ({date} kuruyla).",
+      "fxHint": "Tutarı ve kuru gir; TL karşılığı hesaplanacak."
     },
     "fixedItems": {
       "expenseTitle": "Sabit giderler",
@@ -343,8 +350,9 @@
       "installments": "{count} taksit",
       "editHint": "Kalemleri kaydetmeden önce düzeltebilirsin.",
       "itemLabel": "{index}. kalem",
-      "foreignRowHint": "Yabancı para birimi duyuldu ({amount}). Kur çevirisi yapılmadı — tutarı TL olarak yaz.",
-      "heard": "Duyduğum:"
+      "heard": "Duyduğum:",
+      "foreignConverted": "{original} → {amount} ({date} kuruyla)",
+      "foreignNoRate": "{currency} kuru alınamadı — bu kalemi elle ekle."
     },
     "statementUpload": "Ekstre yükle"
   },

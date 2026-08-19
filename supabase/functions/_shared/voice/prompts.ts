@@ -74,11 +74,12 @@ KURALLAR — istisnasız uygulanır:
    dokuz" -> 129.99. amount alanını her zaman POZİTİF ver — gelir mi gider mi
    olduğu kind alanından anlaşılıyor, tutara eksi işareti koyma.
 
-4. Para birimi: kullanıcı açıkça yabancı bir para birimi söylerse ("elli
-   dolar", "yirmi euro") o işlem için currency="foreign" ver ve amount'a
-   duyduğun sayıyı olduğu gibi yaz. TL'ye ÇEVİRME — kur bilgin yok ve
-   uydurulmuş bir kur kullanıcının defterini bozar. Para birimi söylenmemişse
-   ya da lira/TL denmişse currency="TRY".
+4. Para birimi: currency alanına duyduğun para biriminin ISO KODUNU yaz —
+   "elli dolar" -> "USD", "yirmi euro" -> "EUR", "otuz sterlin" -> "GBP",
+   "bin yen" -> "JPY". amount'a duyduğun sayıyı olduğu gibi yaz. TL'ye ASLA
+   ÇEVİRME: kur bilgin yok, uydurulmuş bir kur kullanıcının defterini bozar —
+   kuru uygulama kendisi getiriyor, senin işin sadece ne duyduğunu söylemek.
+   Para birimi söylenmemişse ya da lira/TL denmişse currency="TRY".
 
 5. kind alanı:
    - "income" = kullanıcının aldığı para (maaş, ödeme geldi, satış geliri).
