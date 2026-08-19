@@ -268,17 +268,40 @@ export function QuickEntryForm({
   //
   // setState YOK burada: hepsi await'in ötesinde çalışıyor
   // (react-hooks/set-state-in-effect).
-  const fxBootstrappedRef = useRef(false);
+  // Taslak dövizli geldi ama kuru yoksa burada tamamlıyoruz. Bu olmadan form
+  // "USD seçili ama kur boş" halinde açılıyor ve Kaydet, dördü birlikte dolu
+  // olmalı kuralına takılıp "döviz bilgileri eksik" diyordu.
+  //
+  // İlk sürüm bir ref + setTimeout kullanıyordu ve HİÇ ÇALIŞMIYORDU: React
+  // StrictMode effect'i iki kez koşuyor — birinci koşu ref'i işaretleyip
+  // zamanlayıcıyı kuruyor, cleanup onu iptal ediyor, ikinci koşu ref işaretli
+  // olduğu için erken dönüyor. Zamanlayıcı hiç ateşlenmiyordu.
+  //
+  // Şimdi fetch doğrudan burada ve setState'lerin HEPSİ await'in ötesinde
+  // (react-hooks/set-state-in-effect bunu istiyor). fxRate bağımlılıkta
+  // olduğu için kur bir kez geldiğinde effect tekrar tetiklenmiyor.
   useEffect(() => {
-    if (fxBootstrappedRef.current) return;
     if (!isForeign || fxRate || !dateValue) return;
-    fxBootstrappedRef.current = true;
-    // Bir sonraki tick'e erteleniyor: çağrı effect gövdesinde SENKRON
-    // çalışırsa React kural olarak cascading render uyarısı veriyor
-    // (react-hooks/set-state-in-effect) ve haklı — kur getirmenin boyamayla
-    // aynı karede başlaması gerekmiyor.
-    const timer = setTimeout(() => void loadFxRate(currency, dateValue, false), 0);
-    return () => clearTimeout(timer);
+    let cancelled = false;
+    fetch(`/api/fx-rate?currency=${currency}&date=${dateValue}`)
+      .then((res) => res.json())
+      .then((data: { rate: FxRate | null }) => {
+        if (cancelled) return;
+        if (data.rate) {
+          setFxRate(String(data.rate.rate));
+          setFxRateDate(data.rate.asOf);
+          setFxState("idle");
+        } else {
+          setFxRateDate(dateValue);
+          setFxState("missing");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setFxState("missing");
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [isForeign, fxRate, currency, dateValue]);
 
   const formRef = useRef<HTMLFormElement>(null);
@@ -837,7 +860,7 @@ export function QuickEntryForm({
       <Button
         type="submit"
         size="touch"
-        disabled={pending}
+        disabled={pending || (isForeign && tryEquivalent === null)}
         className="w-full"
         onClick={(e) => {
           // Editing a recurring rule (not a brand-new one, and not a single
