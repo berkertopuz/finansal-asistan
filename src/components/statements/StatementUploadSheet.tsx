@@ -42,7 +42,45 @@ const entriesFetcher = (url: string) => fetch(url).then((res) => res.json());
 const STATEMENT_IMPORTS_KEY = "/api/statement-imports";
 const statementImportsFetcher = (url: string) => fetch(url).then((res) => res.json());
 
-function toReviewRows(rows: StatementRow[], existing: Entry[]): ReviewRow[] {
+// TAKSİTLİ satırlarda mükerrer tespiti TARİHE BAKMAZ, seri kimliğine bakar.
+//
+// Sebep: aynı gerçek dünya olayı iki farklı şekilde modelleniyor. Kullanıcı
+// 5.000 TL'lik 6 taksitli bir alışverişi elle girdiğinde src/lib/installments.ts
+// tek bir gruba 6 satır yazıyor ve tarihleri ARDIŞIK aylara koyuyor
+// (anchor + i ay). Ekstredeki taksit satırı ise her ay ORİJİNAL ALIŞVERİŞ
+// TARİHİNİ taşıyor (bkz. supabase/functions/_shared/statements/prompts.ts
+// kural 7 — gerçek bir QNB ekstresinde Mayıs-Haziran dönemine ait ekstrede
+// 21/04 tarihli taksit satırları görüldü) ve tek üyeli kendi grubuna yazılıyor
+// (src/lib/actions/statements.ts).
+//
+// Eski kural (aynı tarih + aynı tutar) bu yüzden serinin yalnızca 1. taksitiyle
+// tesadüfen eşleşiyordu ve iki durumda kırılıyordu:
+//   - Son taksit kuruş kalanını yutuyor: 5.000/6 -> 833,33 ama son 833,35.
+//     Fark 0,02, tolerans "< 0,01" olduğu için eşleşme yok -> MÜKERRER.
+//     (1.000/3 gibi bazı vakalar kayan nokta şansıyla geçiyordu — yani tutar
+//     toleransı zaten güvenilmezdi.)
+//   - Kullanıcının girdiği alışveriş tarihi bankanın işlem tarihinden farklıysa
+//     hiçbir taksit eşleşmiyordu.
+//
+// Yeni kural: aynı kart + aynı taksit sayısı + aynı taksit sırası. Tutar hâlâ
+// kontrol ediliyor ama toleransı kuruş dağıtımından TÜRETİLİYOR: dağıtım en
+// fazla (count-1) kuruş sapma üretebildiği için tolerans count kuruş. Böylece
+// yuvarlama farkı eşleşmeyi bozmuyor, ama gerçekten farklı tutarlı bir
+// alışveriş de yanlışlıkla mükerrer sayılmıyor.
+function isInstallmentDuplicate(row: StatementRow, existing: Entry[], creditCardId: string): boolean {
+  if (row.taksit_index === null || row.taksit_sayisi === null) return false;
+  const tolerance = row.taksit_sayisi * 0.01;
+  return existing.some(
+    (e) =>
+      (e.kind === "expense" || e.kind === "subscription") &&
+      e.credit_card_id === creditCardId &&
+      e.installment_count === row.taksit_sayisi &&
+      e.installment_index === row.taksit_index &&
+      Math.abs(e.amount - row.tutar) <= tolerance,
+  );
+}
+
+function toReviewRows(rows: StatementRow[], existing: Entry[], creditCardId: string): ReviewRow[] {
   return rows.map((row) => {
     // kind === "expense" only would miss a row that started as an import
     // (kind="expense") and was later converted into a real subscription
@@ -50,12 +88,14 @@ function toReviewRows(rows: StatementRow[], existing: Entry[]): ReviewRow[] {
     // "kart harcamalarından abonelik" edit flow) or was already tracked as
     // one: re-uploading the same statement would silently offer it again as
     // a "new" charge instead of flagging it.
-    const possibleDuplicate = existing.some(
-      (e) =>
-        (e.kind === "expense" || e.kind === "subscription") &&
-        e.occurred_at === row.tarih &&
-        Math.abs(e.amount - row.tutar) < 0.01,
-    );
+    const possibleDuplicate =
+      isInstallmentDuplicate(row, existing, creditCardId) ||
+      existing.some(
+        (e) =>
+          (e.kind === "expense" || e.kind === "subscription") &&
+          e.occurred_at === row.tarih &&
+          Math.abs(e.amount - row.tutar) < 0.01,
+      );
     // "ucret" (faiz/KKDF/BSMV) gerçek bir masraf — varsayılan olarak seçili
     // gelir. "odeme" (kartın kendisine yapılan ödeme) ise yeni bir harcama
     // değil, zaten borcu doğuran asıl harcama ayrı bir satırda sayılıyor —
@@ -144,7 +184,7 @@ export function StatementUploadSheet({
         setUploading(false);
         return;
       }
-      setReviewRows(toReviewRows(result.rows, existingEntries ?? []));
+      setReviewRows(toReviewRows(result.rows, existingEntries ?? [], card.id));
       setStatementDate(result.header?.statementDate ?? null);
       setStatementDateAutoDetected(Boolean(result.header?.statementDate));
       setPaymentDueDate(result.header?.paymentDueDate ?? null);

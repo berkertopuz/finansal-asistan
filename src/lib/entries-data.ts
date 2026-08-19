@@ -24,13 +24,25 @@ export async function getEntries(supabase: SupabaseClient): Promise<Entry[]> {
     await materializeDueOccurrences(user.id);
   }
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("entries")
     .select(
-      "id, kind, amount, currency, category, description, recurrence, next_due_date, occurred_at, credit_card_id, created_at, template_id, portfolio_position_id, installment_group_id, installment_index, installment_count, skip_dates",
+      "id, kind, amount, currency, category, description, recurrence, next_due_date, occurred_at, purchased_at, credit_card_id, created_at, template_id, portfolio_position_id, installment_group_id, installment_index, installment_count, skip_dates",
     )
     .order("occurred_at", { ascending: false })
     .order("created_at", { ascending: false });
+
+  // Hata SESSİZCE yutulmuyordu ve bu tehlikeliydi: select listesi ile şemanın
+  // uyuşmadığı her durumda (ör. bir migration henüz uygulanmamışsa —
+  // purchased_at eklenirken gerçekten yaşandı, "column entries.purchased_at
+  // does not exist") bu fonksiyon boş dizi döndürüyor ve uygulama kullanıcıya
+  // "hiç kaydın yok" gösteriyordu. Bir finans uygulamasında verinin
+  // silinmiş görünmesi, hata görünmesinden çok daha kötü. Davranışı
+  // (boş diziye düşmek) koruyoruz ki tek bir okuma hatası tüm sayfayı
+  // çökertmesin, ama artık sunucu logunda gürültülü bir iz bırakıyor.
+  if (error) {
+    console.error("getEntries: entries select failed — kayıtlar BOŞ döndü", error);
+  }
 
   return (data as Entry[]) ?? [];
 }

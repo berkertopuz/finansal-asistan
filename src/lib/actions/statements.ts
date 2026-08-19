@@ -132,12 +132,31 @@ export async function importStatementEntries(
     // önlüyor — o satır sadece taksit rozetsiz, normal bir gider olarak
     // eklenir.
     const hasInstallment = row.taksit_index !== null && row.taksit_sayisi !== null;
+
+    // TAKSİT SATIRLARINDA TARİH KAYMASI DÜZELTMESİ.
+    //
+    // Bankalar taksitli bir alışverişi her ekstrede ORİJİNAL ALIŞVERİŞ
+    // TARİHİYLE tekrar yazıyor (gerçek bir QNB ekstresinde doğrulandı:
+    // Mayıs-Haziran dönemine ait ekstrede 21/04 tarihli "2/3" satırları var).
+    // Eskiden o tarih doğrudan occurred_at'e yazılıyordu ve Mart'ta alınan
+    // bir şeyin Temmuz'da gelen 5. taksiti MART'ın harcamasına ekleniyordu —
+    // yani geçmiş ayların toplamı her yeni ekstre yüklendikçe büyüyordu.
+    //
+    // Artık iki tarih ayrı: tutar ekstrenin dönemine (statement_date) düşüyor,
+    // asıl alışveriş tarihi purchased_at'te saklanıyor. Yalnızca İLK TAKSİTTEN
+    // SONRAKİ taksitlerde kaydırıyoruz — ilk taksitte alışveriş zaten bu
+    // dönemde yapılmış, kaydırmak yanlış olurdu (ve DB'nin
+    // purchased_at < occurred_at kuralını da ihlal ederdi).
+    const isLaterInstallment = hasInstallment && row.taksit_index! > 1;
+    const shiftToPeriod = isLaterInstallment && row.tarih < parsedStatementDate.data;
+
     return {
       user_id: user.id,
       kind: "expense" as const,
       amount: row.tutar,
       category: row.kategori,
-      occurred_at: row.tarih,
+      occurred_at: shiftToPeriod ? parsedStatementDate.data : row.tarih,
+      purchased_at: shiftToPeriod ? row.tarih : null,
       credit_card_id: parsedCardId.data,
       statement_import_id: statementImport.id,
       description: row.aciklama || null,

@@ -23,7 +23,16 @@ export type Entry = {
   description: string | null;
   recurrence: EntryRecurrence;
   next_due_date: string | null;
+  // "Bu tutar hangi döneme düşüyor" — Defter listesi, v_monthly_surplus ve
+  // Analiz sayfası bunu toplar. Anlamı purchased_at eklenirken DEĞİŞMEDİ.
   occurred_at: string;
+  // Asıl alışverişin yapıldığı tarih, occurred_at'ten farklı olduğunda; aynıysa
+  // null. Bugün yalnızca ekstreden içe aktarılan ve ilk taksitten sonraki
+  // taksit satırlarında dolu: bankalar taksitli bir alışverişi her ekstrede
+  // orijinal alışveriş tarihiyle tekrar yazıyor, ama o tutar ekstrenin
+  // dönemine düşüyor (bkz. supabase/migrations/20260819120000_entries_purchased_at.sql).
+  // DB seviyesinde purchased_at < occurred_at zorunlu.
+  purchased_at: string | null;
   // Which card this row concerns:
   // - kind='expense'/'subscription': null means cash/debit (reduces cash
   //   immediately, today's default behavior); set means charged to that

@@ -143,6 +143,9 @@ function projectedCardPaymentEntry(cardId: string, cardName: string, paymentDate
     recurrence: "none",
     next_due_date: null,
     occurred_at: toDateString(paymentDate),
+    // Sanal bir olayın "asıl alışveriş tarihi" diye bir şeyi yok — bu satır
+    // bir alışverişi değil, projeksiyondaki bir kart ödemesini temsil ediyor.
+    purchased_at: null,
     credit_card_id: cardId,
     created_at: "",
     template_id: null,
