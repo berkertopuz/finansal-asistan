@@ -47,6 +47,88 @@
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
 
+  /* Analiz sayfasının grafik paleti (src/app/(app)/analiz).
+   *
+   * İki slot, iki işi birden yapıyor: gelir/gider ayrımı (kategorik, kimlik)
+   * ve artış/azalış kutupları (diverging, polarite). Anlam iki grafikte de
+   * aynı yönde: TEAL = cüzdana iyi (gelir, harcamanın azalması), TURUNCU =
+   * cüzdana kötü (gider, harcamanın artması).
+   *
+   * Bu değerler GÖZ KARARI SEÇİLMEDİ — dataviz doğrulayıcısıyla iki modda da
+   * tam geçti (kendi yüzeylerimize karşı: açık #ffffff, koyu #171f33):
+   *   açık: CVD ΔE 10.2 (hedef >=8), normal görüş ΔE 28.0 (taban >=15), kontrast >=3:1
+   *   koyu: CVD ΔE  9.6,              normal görüş ΔE 24.1,              kontrast >=3:1
+   * Marka token'ı --brand (#0e9f6e) açık modda doğrudan kullanılabildi; koyu
+   * moddaki --brand (#4edea3) KULLANILAMADI: OKLCH L 0.809, koyu modun
+   * parlaklık bandının (0.48-0.67) dışında kalıyor, o yüzden aynı hue'nun
+   * daha koyu bir adımı seçildi. Bu dosyada bir değeri değiştirirsen
+   * doğrulayıcıyı yeniden çalıştır. */
+  --viz-income: #0e9f6e;
+  --viz-spending: #c2410c;
+  /* Kategorik seri slotları — taksit planları gibi KİMLİK taşıyan çoklu
+   * serilerde. Sıra SABİT ve asla döngüye girmez (5'ten fazla plan varsa
+   * kuyruk "Diğer"e katlanır, yeni hue üretilmez — dataviz rehberinin
+   * pazarlıksız kuralı). İlk iki slot gelir/gider ile aynı hue: bir grafikte
+   * ikisi birlikte görünmüyor, ve sayfanın renk dili tutarlı kalıyor.
+   * Doğrulayıcı, bu 5'lik set için açık modda TÜM kontrolleri geçti
+   * (en kötü komşu CVD ΔE 10.2, normal görüş ΔE 26.1, kontrast >=3:1). */
+  --viz-series-1: #0e9f6e;
+  --viz-series-2: #c2410c;
+  --viz-series-3: #2563eb;
+  --viz-series-4: #be185d;
+  --viz-series-5: #6d28d9;
+
+  /* Diverging orta noktası ve vurgusuz (de-emphasis) marklar — nötr gri,
+   * asla bir hue: orta noktada renk olması "sıfır"ı bir şeymiş gibi gösterir. */
+  --viz-neutral: #cbd5cf;
+
+  /* KATEGORİ paleti — 8 slot, her biri BİR KATEGORİYE sabit atanmış
+   * (src/lib/analysis-colors.ts). Sıraya göre DEĞİL: market bu ay birinci de
+   * olsa beşinci de olsa aynı rengi taşıyor. Bu, rehberin pazarlıksız
+   * kuralı ("color follows the entity, never its rank") ve aynı zamanda
+   * sayfanın renkli görünmesinin doğru yolu — tek hue'nun 5 tonu yerine 8
+   * ayrı hue.
+   *
+   * Doğrulayıcı iki modda da TÜM kontrolleri geçti (bizim yüzeylerimize
+   * karşı: açık #ffffff, koyu #171f33), komşu (adjacent) pairlist'te:
+   *   açık: en kötü komşu CVD ΔE 9.1, normal görüş ΔE 19.6
+   *   koyu: en kötü komşu CVD ΔE 8.4, normal görüş ΔE 19.3, kontrast >=3:1
+   * Açık modda üç slot (#1baf7a, #eda100, #e87ba4) yüzeye karşı 3:1'in
+   * altında ve doğrulayıcı "relief required: visible labels or table view"
+   * uyarısı veriyor — şart KARŞILANIYOR: kategori listesinin her satırında
+   * kategori adı ve tutar yazılı, ayrıca tablo görünümü var. Kimlik hiçbir
+   * satırda renge tek başına bırakılmıyor.
+   *
+   * Slot SIRASI CVD güvenlik mekanizması, kozmetik değil — bir slotu
+   * değiştirirsen doğrulayıcıyı yeniden çalıştır. */
+  --viz-cat-1: #2a78d6;
+  --viz-cat-2: #eb6834;
+  --viz-cat-3: #1baf7a;
+  --viz-cat-4: #eda100;
+  --viz-cat-5: #e87ba4;
+  --viz-cat-6: #008300;
+  --viz-cat-7: #4a3aa7;
+  --viz-cat-8: #e34948;
+
+  /* DEĞİŞİM (delta) renkleri — bir önceki döneme göre artış/azalış.
+   * Kırmızı = arttı (cüzdana kötü), yeşil = azaldı (iyi).
+   *
+   * Bu, projenin "alarm kırmızısı yok" kuralının BİLİNÇLİ bir istisnası.
+   * O kural (bkz. aşağıdaki signal paleti notu ve CLAUDE.md'nin yumuşatılmış
+   * sinyal dili) YATIRIM sinyalleri için var: kullanıcıyı kırmızı bir "SAT"
+   * ile panikletmemek. Kendi harcamasının geçen aya göre artması farklı bir
+   * şey — orada kırmızı/yeşil evrensel finans dili ve kullanıcı açıkça bunu
+   * istedi. Yatırım yüzeylerinde signal-* paleti hâlâ geçerli.
+   *
+   * Bunlar METİN rengi (ikon + işaretli tutarın yanında), o yüzden kategorik
+   * palet kontrolleri değil WCAG metin kontrastı ölçüldü — AA (>=4.5:1):
+   *   açık: #b91c1c 6.47 · #047857 5.48   (kart #ffffff üzerinde)
+   *   koyu: #f87171 5.93 · #4edea3 9.61   (kart #171f33 üzerinde)
+   * Renk tek başına anlam taşımıyor: her satırda yön oku VE işaretli tutar
+   * var (rehberin durum rengi kuralı: icon + label, asla renk tek başına). */
+  --viz-delta-up: #b91c1c;
+  --viz-delta-down: #047857;
+
   /* Softened signal palette — plan F.2: no red "SAT" button, no alarm colors. */
   --signal-buy-bg: #ecfdf5;
   --signal-buy-foreground: #047857;
@@ -97,6 +179,37 @@
     --signal-hold-foreground: #cbd5e1;
     --signal-caution-bg: #2a1a05;
     --signal-caution-foreground: #fbbf24;
+
+    /* Koyu mod grafik paleti — açık modun otomatik çevirisi DEĞİL, koyu
+     * yüzey (#171f33) için ayrıca seçilip doğrulanmış adımlar (bkz. :root'taki
+     * uzun not). Aynı iki hue, koyu bandın içine indirilmiş hali. */
+    --viz-income: #26aa76;
+    --viz-spending: #db7024;
+    --viz-neutral: #3a4358;
+    /* Koyu yüzey (#171f33) için ayrıca seçilip doğrulanmış 5 slot — açık
+     * modun çevirisi değil. Tüm kontroller geçti (en kötü komşu CVD ΔE 9.6,
+     * normal görüş ΔE 19.9, kontrast >=3:1). */
+    --viz-series-1: #26aa76;
+    --viz-series-2: #db7024;
+    --viz-series-3: #4a86e8;
+    --viz-series-4: #e0538c;
+    --viz-series-5: #8d6ae8;
+
+    /* Kategori paletinin koyu adımları — açık modun çevirisi değil, koyu
+     * yüzey için ayrıca doğrulandı (tüm kontroller geçti, 8 slotun hepsi
+     * yüzeye karşı >=3:1). */
+    --viz-cat-1: #3987e5;
+    --viz-cat-2: #d95926;
+    --viz-cat-3: #199e70;
+    --viz-cat-4: #c98500;
+    --viz-cat-5: #d55181;
+    --viz-cat-6: #008300;
+    --viz-cat-7: #9085e9;
+    --viz-cat-8: #e66767;
+
+    /* Koyu yüzeyde okunacak adımlar — WCAG AA ölçüldü (bkz. :root notu). */
+    --viz-delta-up: #f87171;
+    --viz-delta-down: #4edea3;
   }
 }
 
@@ -143,6 +256,12 @@
   --color-signal-hold-foreground: var(--signal-hold-foreground);
   --color-signal-caution-bg: var(--signal-caution-bg);
   --color-signal-caution-foreground: var(--signal-caution-foreground);
+
+  --color-viz-income: var(--viz-income);
+  --color-viz-spending: var(--viz-spending);
+  --color-viz-neutral: var(--viz-neutral);
+  --color-viz-delta-up: var(--viz-delta-up);
+  --color-viz-delta-down: var(--viz-delta-down);
 
   --spacing-touch: var(--touch-target);
 

@@ -18,7 +18,7 @@
     "home": "Ana Sayfa",
     "ledger": "Defter",
     "portfolio": "Portföy",
-    "recommendations": "Öneriler",
+    "analysis": "Analiz",
     "settings": "Ayarlar"
   },
   "disclaimer": {
@@ -261,7 +261,8 @@
         "noSession": "Oturum bulunamadı, tekrar giriş yap.",
         "saveFailed": "Kaydedilemedi, tekrar dene.",
         "genericInvalid": "Geçersiz bilgiler.",
-        "notFound": "Kayıt bulunamadı."
+        "notFound": "Kayıt bulunamadı.",
+        "subscriptionMustRecur": "Abonelik tek seferlik olamaz — bir tekrar aralığı seç."
       }
     },
     "fixedItems": {
@@ -275,13 +276,12 @@
     },
     "subscriptions": {
       "summaryTitle": "Abonelikler",
-      "monthlyTotal": "Aylık toplam",
-      "yearlyTotal": "Yıllık toplam",
       "viewAll": "Tüm abonelikleri gör",
       "add": "Abonelik ekle",
       "recurringSectionTitle": "Tekrarlayan kurallar",
       "categoryTaggedSectionTitle": "Kart harcamalarından abonelik kategorili işlemler",
-      "categoryTaggedSectionHint": "Ekstre içe aktarmadan gelen, \"Abonelik\" olarak sınıflandırılmış tek seferlik harcamalar — otomatik tekrarlayan bir kural değiller."
+      "categoryTaggedSectionHint": "Ekstre içe aktarmadan gelen, \"Abonelik\" olarak sınıflandırılmış tek seferlik harcamalar — otomatik tekrarlayan bir kural değiller.",
+      "paidThisMonth": "Bu ay ödenen"
     },
     "categories": {
       "addLabel": "+ Etiket",
@@ -452,5 +452,110 @@
     "title": "Bağlantı yok",
     "description": "İnternet bağlantısı bulunamadı. Bağlantın geri geldiğinde tekrar deneyebilirsin.",
     "retry": "Tekrar dene"
+  },
+  "analysis": {
+    "title": "Analiz",
+    "subtitle": "Paran nereye gidiyor",
+    "windowLabel": "Son {count} ay",
+    "empty": {
+      "title": "Henüz analiz edilecek veri yok",
+      "body": "Defter'e gelir/gider ekle ya da bir kart ekstresi yükle — birkaç işlemden sonra bu sayfa dolmaya başlar."
+    },
+    "kpi": {
+      "spentThisMonth": "Bu ay harcanan",
+      "paceFaster": "Geçmiş {count} ayın aynı gününe göre %{percent} fazla",
+      "paceSlower": "Geçmiş {count} ayın aynı gününe göre %{percent} az",
+      "paceNoBaseline": "Kıyaslanacak geçmiş ay verisi yok",
+      "netThisMonth": "Bu ay net",
+      "netPositive": "Gelirin giderini aşıyor",
+      "netNegative": "Giderin gelirini aşıyor",
+      "installmentThisMonth": "Bu ayın taksit yükü",
+      "installmentShare": "Bu ayın harcamasının %{percent}'i taksit",
+      "installmentNone": "Bu ay ödenen taksit yok",
+      "installmentFromEarlier": "{amount}'si geçmiş alışverişlerden"
+    },
+    "flow": {
+      "title": "Gelir ve gider",
+      "description": "Aylık toplamlar. Aradaki makas, o ay ne kadar tasarruf ettiğin.",
+      "income": "Gelir",
+      "spending": "Gider",
+      "cumulativeTitle": "Kümülatif tasarruf",
+      "cumulativeDescription": "Pencere boyunca biriken net (gelir eksi gider). Portföy değeri ve kart borcu bu eğriye girmez — net servet değil, tasarruf.",
+      "cumulative": "Birikim",
+      "net": "Net"
+    },
+    "categories": {
+      "title": "Kategori kırılımı",
+      "description": "Bu ayın harcaması, büyükten küçüğe.",
+      "noData": "Bu ay kategorilere ayrılmış harcama yok.",
+      "tableView": "Tablo görünümü",
+      "category": "Kategori",
+      "amount": "Tutar",
+      "share": "Pay"
+    },
+    "changes": {
+      "title": "Geçen aya göre",
+      "description": "Her kategorinin geçen ay ve bu ay tutarı, yanında değişim. 100 TL altındaki dalgalanmalar gösterilmez.",
+      "noData": "Kıyaslanacak yeterli veri yok — bunun için birbirini izleyen iki tam ay gerekiyor.",
+      "lastMonth": "Geçen ay",
+      "thisMonth": "Bu ay",
+      "newThisMonth": "Geçen ay yoktu",
+      "goneThisMonth": "Bu ay yok"
+    },
+    "merchants": {
+      "title": "Paran nereye gidiyor",
+      "description": "Son {count} ayda en çok para giden yerler.",
+      "byAmount": "Tutara göre",
+      "byCount": "Sıklığa göre",
+      "visits": "{count} işlem",
+      "average": "ortalama {amount}",
+      "noData": "Satıcı analizi için açıklamalı işlem gerekiyor — kart ekstresi yüklemek en hızlı yolu.",
+      "groupingNote": "Aynı markanın farklı yazımları tek satırda toplanır; gösterilen ad ekstrede geçen haliyle."
+    },
+    "installments": {
+      "title": "Taksit yükü",
+      "description": "Her renk ayrı bir alışveriş. Bir kolona dokun (ya da üzerine gel) hangi alışverişin kaçıncı taksiti olduğunu gör.",
+      "noData": "Kayıtlı taksitli alışveriş yok.",
+      "total": "Toplam kalan",
+      "other": "Diğer alışverişler",
+      "unnamed": "Taksitli alışveriş {index}",
+      "position": "{position}. taksit"
+    },
+    "subscriptions": {
+      "title": "Abonelikler",
+      "paidThisMonth": "Bu ay ödenen",
+      "paidThisMonthHint": "Bu aya tarihli abonelik satırlarının toplamı — Abonelikler sayfasındaki rakamın aynısı.",
+      "oneOffInside": "Bunun içinde tek seferlik çekimler",
+      "averageLoad": "Aylık ortalama yük",
+      "averageLoadHint": "Tekrarlayan kuralların aylığa çevrilmiş toplamı. Bu ay ödenenden farklı olabilir: yıllık bir abonelik yalnızca yıldönümü ayında tahsil edilir.",
+      "rulesYearly": "Kuralların yıllık toplamı",
+      "ruleCount": "{count} kural",
+      "perMonth": "/ay",
+      "none": "Kayıtlı abonelik yok."
+    },
+    "weekday": {
+      "title": "Haftanın günleri",
+      "description": "Son 3 ayda haftanın her günü için toplam harcama. Sabit giderler (kira, faturalar, süren taksitler) girmez — tarihlerini sen seçmiyorsun.",
+      "day": {
+        "mon": "Pzt",
+        "tue": "Sal",
+        "wed": "Çar",
+        "thu": "Per",
+        "fri": "Cum",
+        "sat": "Cmt",
+        "sun": "Paz"
+      },
+      "noData": "Yeterli veri yok."
+    },
+    "noTimeOfDayNote": "Saat bazlı analiz yok: banka ekstreleri ve defter kayıtları yalnızca tarih taşıyor, işlem saati hiçbir kaynakta bulunmuyor.",
+    "commitment": {
+      "title": "Taahhütlü ve bu ayın kararları",
+      "description": "Kategoriye göre değil yapıya göre: kira, faturalar, abonelikler ve süren taksitler bu ay karar verilmedi — geri kalanı bu ayın kendi kararları.",
+      "committed": "Taahhütlü",
+      "committedHint": "Kira, faturalar, abonelikler, süren taksitler",
+      "discretionary": "Bu ayın kararları",
+      "discretionaryHint": "Tek seferlik alışverişler ve yeni başlayan taksitler",
+      "noData": "Bu ay harcama yok."
+    }
   }
 }

@@ -16,6 +16,19 @@ function todayDateString(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+// Bulunduğumuz ayın 1'i. Bir şablonun takvimi değiştiğinde bayat dönem
+// satırlarını temizlemek için kullanılıyor ve tarihi KASITLI olarak burası:
+// materializeDueOccurrences (src/lib/recurrence-materialize.ts) da üretime
+// tam olarak ayın 1'inden başlıyor ("The lower bound is always the *start of
+// the current* month, never the template's own occurred_at"). Temizleme
+// penceresi üretme penceresiyle aynı olmak zorunda — aksi halde ikisinin
+// arasında kalan günlerde, artık geçerli olmayan bir desenden üretilmiş
+// satırlar hayatta kalıyor.
+function monthStartDateString(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+}
+
 async function buildEntrySchema() {
   const t = await getTranslations("ledger.form.errors");
   return z
@@ -76,6 +89,33 @@ async function buildEntrySchema() {
       // (EntryTable titleField="description") — boş bir "abonelik" satırı
       // orada isimsiz görünürdü. Client zaten <input required> ile bunu
       // engelliyor, bu sunucu tarafındaki backstop.
+      // TEK SEFERLİK ABONELİK OLAMAZ. Bir "abonelik" ya tekrarlayan bir
+      // kuraldır (recurrence <> 'none'), ya da o kuralın ürettiği bir dönem
+      // satırıdır (template_id dolu) — ikisi de değilse ortada hiçbir kurala
+      // ait olmayan, hiçbir listeye düşmeyen bir satır kalıyor.
+      //
+      // Gerçek veride tam bu oldu: kullanıcının veritabanında kind='subscription'
+      // + recurrence='none' + template_id=null üç satır vardı (ANTHROPIC,
+      // GOOGLE One, MCAFEE) ve Abonelikler sayfasının İKİ listesinin de
+      // arasından düşüyorlardı (üstteki templatesOnly, alttaki o zaman
+      // kind='expense' arıyordu). Kullanıcı onları hiç göremediği hâlde Analiz
+      // sayfasının abonelik toplamında görüyordu.
+      //
+      // Bugünkü form bu durumu zaten üretemiyor (QuickEntryForm kind'ı
+      // category+recurrence'tan TÜRETİYOR: "abonelik + tek seferlik" seçilirse
+      // kind 'expense' olur) ve ekstre içe aktarma her zaman kind='expense'
+      // yazıyor — yani o üç satır eski veri. Bu kontrol formu değil SUNUCU
+      // SINIRINI koruyor: bir server action doğrudan çağrılabilir, ve bu
+      // sınıfın bir daha oluşmayacağını form katmanına güvenerek varsaymak
+      // aynı hatanın ikinci kez birikmesine kapı bırakırdı.
+      //
+      // template_id burada okunamıyor (bu şema formdan gelen alanları
+      // doğruluyor, mevcut satırı değil) — dönem satırlarının düzenlenmesi
+      // updateEntry içinde ayrıca ele alınıyor: form o satırlarda tekrar
+      // seçicisini canlı göstermiyor (bkz. QuickEntryForm'daki template_id notu).
+      if (data.kind === "subscription" && data.recurrence === "none") {
+        ctx.addIssue({ code: "custom", path: ["recurrence"], message: t("subscriptionMustRecur") });
+      }
       if (data.kind === "subscription" && !data.description) {
         ctx.addIssue({ code: "custom", path: ["description"], message: t("descriptionRequired") });
       }
@@ -355,12 +395,29 @@ export async function updateEntry(
   // shouldn't get rewritten), so this always deletes future rows regardless
   // of applyToAllOccurrences — materializeDueOccurrences regenerates them
   // on the next fetch, already carrying this request's new field values too.
+  //
+  // PENCERE AYIN 1'İ, "bugün" DEĞİL. Eskiden `>= todayDateString()` idi ve
+  // bu, bulunduğumuz ayın ERKEN günlerine düşmüş bayat satırları hayatta
+  // bırakıyordu. Gerçek veride yaşandı: ekstreden gelen tek seferlik bir
+  // Apple aboneliği (₺537,59, 4 Mayıs tarihli) önce aylığa çevrildi ->
+  // materialization 4 Ağustos için bir dönem satırı üretti, aylık toplam
+  // doğru şekilde ₺537,59 oldu. Sonra aynı kural YILLIĞA çevrildi: yeni desen
+  // Ağustos'ta hiçbir şey üretmiyor (yıldönümü mayısta), ama 4 Ağustos
+  // satırı bugünden (19 Ağustos) önce olduğu için silinmedi ve v_monthly_surplus
+  // yalnızca bu aya tarihli somut satırları topladığı için aylık toplam HİÇ
+  // DEĞİŞMEDİ — kullanıcı bildirdi.
+  //
+  // Doğru pencere materialization'ın ürettiği pencerenin aynısı olmak zorunda:
+  // o da ayın 1'inden başlıyor (bkz. recurrence-materialize.ts'teki rangeStart
+  // notu). Aynı pencereyi silip aynı pencereyi yeniden üretmek, iki tarafın
+  // asla ayrışamamasını garanti ediyor. Geçmiş AYLAR dokunulmadan kalıyor —
+  // onlar gerçekten olmuş dönemler.
   if (scheduleChanged) {
     const { error: rescheduleError } = await supabase
       .from("entries")
       .delete()
       .eq("template_id", id)
-      .gte("occurred_at", todayDateString());
+      .gte("occurred_at", monthStartDateString());
     if (rescheduleError) {
       console.error("updateEntry: failed to clear stale occurrences after schedule change", rescheduleError);
     }
@@ -401,6 +458,27 @@ export async function updateEntry(
     const { error: cascadeError } = await cascadeQuery;
     if (cascadeError) {
       console.error("updateEntry: failed to propagate to generated rows", cascadeError);
+    }
+  } else if (applyToAllOccurrences && rowBeforeUpdate?.recurrence !== "none") {
+    // TEKRARLAYAN BİR KURAL TEK SEFERLİĞE ÇEVRİLDİ ve kullanıcı "Tüm kayıtlar
+    // (geçmiş dahil)" dedi -> o kuralın ÜRETTİĞİ satırların hepsi silinir.
+    //
+    // Eskiden bu dal hiç yoktu: yukarıdaki cascade `if (isRecurring)` ile
+    // korunuyor, tek seferliğe çevirmek isRecurring'i false yaptığı için blok
+    // tamamen atlanıyordu. scheduleChanged (yukarıda) yalnızca GELECEK
+    // satırları siliyor, dolayısıyla geçmiş dönem satırları yerinde kalıyor ve
+    // template_id'leri artık şablon olmayan bir satırı gösteriyordu — yani
+    // ortada, hiçbir kurala ait olmayan, kullanıcının "tek bir gider" olarak
+    // gördüğü kaydın onlarca kopyası kalıyordu. Kullanıcı bildirdi:
+    // "tek seferlik yaptığımda tüm kayıtlara uygula dediğimde diğer kayıtları
+    // silmesi gerekmez mi? çünkü artık tek seferlik bir gider olmuş oldu."
+    //
+    // "Sadece gelecek kayıtlar" seçildiğinde GEÇMİŞ satırlar KORUNUYOR: onlar
+    // gerçekten olmuş ödemeler, tarihleriyle birlikte defterin geçmişi.
+    // Silmek muhasebe geçmişini yok etmek olurdu.
+    const { error: dropError } = await supabase.from("entries").delete().eq("template_id", id);
+    if (dropError) {
+      console.error("updateEntry: failed to drop generated rows after converting to one-off", dropError);
     }
   }
 

@@ -1,11 +1,11 @@
-import { getLocale, getTranslations } from "next-intl/server";
+import { getTranslations } from "next-intl/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EntryTable } from "@/components/ledger/EntryTable";
 import { QuickAddFAB } from "@/components/ledger/QuickAddFAB";
+import { SubscriptionBreakdown } from "@/components/analysis/SubscriptionBreakdown";
 import { createClient } from "@/lib/supabase/server";
 import { getEntries } from "@/lib/entries-data";
-import { formatCurrency } from "@/lib/format";
-import type { AppLocale } from "@/lib/locale";
+import { monthKeyOfDate, subscriptionBreakdown } from "@/lib/analysis";
 
 export default async function AbonelikPage() {
   const supabase = await createClient();
@@ -21,8 +21,14 @@ export default async function AbonelikPage() {
     .select("subscription_total")
     .maybeSingle();
   const monthlyTotal = Number((data as { subscription_total: number } | null)?.subscription_total ?? 0);
-  const yearlyTotal = monthlyTotal * 12;
-  const locale = (await getLocale()) as AppLocale;
+  // Kuralların periyot kırılımı ve aylığa çevrilmiş yükü. subscription_total
+  // "bu aya TARİHLİ abonelik satırları" demek — aylık bir ORAN değil; eskiden
+  // bu sayı "Aylık toplam" diye etiketlenip 12 ile çarpılarak "Yıllık toplam"
+  // üretiliyordu ve yıllık aboneliklerde tamamen yanlış çıkıyordu. Gerçek
+  // veride görüldü: yıllık ₺400'lük bir netflix aboneliği "aylık ₺400, yıllık
+  // ₺4.800" olarak gösteriliyordu (kullanıcı bildirdi). Doğrusu: bu ay ödenen
+  // ₺400, aylık ortalama yük ₺33,33, kuralların yıllık toplamı ₺400.
+  const breakdown = subscriptionBreakdown(initialData, monthKeyOfDate(new Date()));
   const t = await getTranslations("ledger.subscriptions");
 
   return (
@@ -34,19 +40,12 @@ export default async function AbonelikPage() {
               {t("summaryTitle")}
             </CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-xs text-muted-foreground">{t("monthlyTotal")}</p>
-              <p className="text-lg font-semibold text-foreground">
-                {formatCurrency(monthlyTotal, locale)}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">{t("yearlyTotal")}</p>
-              <p className="text-lg font-semibold text-foreground">
-                {formatCurrency(yearlyTotal, locale)}
-              </p>
-            </div>
+          <CardContent>
+            {/* Analiz sayfasıyla AYNI bileşen: "bu ay ödenen" + "aylık ortalama
+                yük" + periyot dönüşümleri. İki yüzeyin aynı sayıyı iki farklı
+                şekilde hesaplaması bu oturumda zaten bir hataya yol açtı, o
+                yüzden gösterim de tek yerden geliyor. */}
+            <SubscriptionBreakdown breakdown={breakdown} monthlyTotal={monthlyTotal} />
           </CardContent>
         </Card>
       </div>
@@ -63,23 +62,39 @@ export default async function AbonelikPage() {
         titleField="description"
       />
 
-      {/* Ekstre içe aktarmadan gelen "abonelik" kategorili tek seferlik
-          harcamalar (src/lib/actions/statements.ts) her zaman kind="expense",
-          recurrence="none" — yukarıdaki tekrarlayan-kural listesine hiç
-          girmezler (templatesOnly=true orada), o yüzden ayrı bir bölüm:
-          kullanıcı tek bir ekstre satırından "bu her ay tekrar edecek" diye
-          otomatik bir kural uydurmadan, kart harcamalarındaki abonelik
-          benzeri işlemleri yine de görebilsin. */}
+      {/* "abonelik" kategorili, tekrarlayan bir kural OLMAYAN satırlar.
+          Kullanıcı tek bir ekstre satırından "bu her ay tekrar edecek" diye
+          otomatik bir kural uydurmadan, abonelik benzeri işlemleri yine de
+          görebilsin.
+
+          kind ARTIK İKİ DEĞER: bu listenin eski hâli yalnızca kind="expense"
+          bakıyordu ve buradaki yorum "ekstreden gelen satırlar HER ZAMAN
+          kind='expense'" varsayıyordu. O varsayım gerçek veride bozuldu:
+          kullanıcının veritabanında kind='subscription' + recurrence='none'
+          satırlar vardı (ANTHROPIC, GOOGLE One, MCAFEE — muhtemelen bir kart
+          harcaması "aboneliğe çevir" akışıyla dönüştürülürken kind değişip
+          recurrence 'none' kaldığı için). Bu satırlar İKİ listeye de
+          girmiyordu: üstteki templatesOnly olduğu için, buradaki de kind
+          eşleşmediği için. Sonuç: kullanıcı "aboneliklerim" sayfasında hiç
+          göremediği kalemleri Analiz sayfasının abonelik toplamında görüyordu
+          (1.635,07 TL) ve haklı olarak veritabanında silinmemiş kayıt olduğunu
+          düşündü — oysa satırlar duruyordu, sadece hiçbir liste onları
+          göstermiyordu.
+
+          standaloneOnly: yukarıdaki kural listesinde görünen bir şablonun bu
+          ayki somut satırı buraya DA düşmesin (aynı aboneliği iki kez
+          listelemek olurdu). */}
       <h2 className="px-4 text-sm font-medium text-foreground md:px-0">
         {t("categoryTaggedSectionTitle")}
       </h2>
       <p className="px-4 text-xs text-muted-foreground md:px-0">{t("categoryTaggedSectionHint")}</p>
       <EntryTable
-        kind="expense"
+        kind={["expense", "subscription"]}
         category="abonelik"
         initialData={initialData}
         showKindColumn={false}
         monthFilter={false}
+        standaloneOnly
         titleField="description"
       />
 

@@ -1,17 +1,23 @@
 import type { LucideIcon } from "lucide-react";
-import { Home, NotebookText, PieChart, Settings, Sparkles } from "lucide-react";
+import { ChartColumnBig, Home, NotebookText, PieChart, Settings } from "lucide-react";
 
 export type NavItem = {
   href: string;
   // Key into the "nav" message namespace (messages/{locale}.json).
-  labelKey: "home" | "ledger" | "portfolio" | "recommendations" | "settings";
+  labelKey: "home" | "ledger" | "portfolio" | "analysis" | "settings";
   icon: LucideIcon;
 };
 
+// Öneriler (/oneriler) sekmesi v2'ye ertelendi ve yerini Analiz aldı. Öneri
+// motorunun geri kalanı (edge function'lar, recommendations/market_events
+// tabloları, pg_cron işleri, src/lib/recommendations*.ts, API route'ları)
+// KASITLI olarak yerinde bırakıldı — çalışan ve test edilmiş bir motoru
+// silmek v2'de sıfırdan yazmak anlamına gelirdi. Şu an yalnızca kullanıcıya
+// açılan yüzey kapalı: sekme yok, sayfa yok, ana sayfadaki sinyal şeridi yok.
 export const NAV_ITEMS: NavItem[] = [
   { href: "/", labelKey: "home", icon: Home },
   { href: "/defter", labelKey: "ledger", icon: NotebookText },
+  { href: "/analiz", labelKey: "analysis", icon: ChartColumnBig },
   { href: "/portfoy", labelKey: "portfolio", icon: PieChart },
-  { href: "/oneriler", labelKey: "recommendations", icon: Sparkles },
   { href: "/ayarlar", labelKey: "settings", icon: Settings },
 ];

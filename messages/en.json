@@ -18,7 +18,7 @@
     "home": "Home",
     "ledger": "Ledger",
     "portfolio": "Portfolio",
-    "recommendations": "Recommendations",
+    "analysis": "Analysis",
     "settings": "Settings"
   },
   "disclaimer": {
@@ -261,7 +261,8 @@
         "noSession": "No session found, please log in again.",
         "saveFailed": "Could not save, please try again.",
         "genericInvalid": "Invalid details.",
-        "notFound": "Entry not found."
+        "notFound": "Entry not found.",
+        "subscriptionMustRecur": "A subscription cannot be one-off — pick a recurrence."
       }
     },
     "fixedItems": {
@@ -275,13 +276,12 @@
     },
     "subscriptions": {
       "summaryTitle": "Subscriptions",
-      "monthlyTotal": "Monthly total",
-      "yearlyTotal": "Yearly total",
       "viewAll": "View all subscriptions",
       "add": "Add subscription",
       "recurringSectionTitle": "Recurring rules",
       "categoryTaggedSectionTitle": "Subscription-tagged card charges",
-      "categoryTaggedSectionHint": "One-off expenses imported from a statement and classified as \"Subscription\" — these aren't an automatic recurring rule."
+      "categoryTaggedSectionHint": "One-off expenses imported from a statement and classified as \"Subscription\" — these aren't an automatic recurring rule.",
+      "paidThisMonth": "Paid this month"
     },
     "categories": {
       "addLabel": "+ Tag",
@@ -452,5 +452,110 @@
     "title": "No connection",
     "description": "No internet connection found. You can try again once you're back online.",
     "retry": "Try again"
+  },
+  "analysis": {
+    "title": "Analysis",
+    "subtitle": "Where your money goes",
+    "windowLabel": "Last {count} months",
+    "empty": {
+      "title": "Nothing to analyse yet",
+      "body": "Add income or expenses in the Ledger, or upload a card statement — this page fills up after a few transactions."
+    },
+    "kpi": {
+      "spentThisMonth": "Spent this month",
+      "paceFaster": "{percent}% more than the same day of the last {count} months",
+      "paceSlower": "{percent}% less than the same day of the last {count} months",
+      "paceNoBaseline": "No previous months to compare against",
+      "netThisMonth": "Net this month",
+      "netPositive": "Income exceeds spending",
+      "netNegative": "Spending exceeds income",
+      "installmentThisMonth": "Instalments this month",
+      "installmentShare": "{percent}% of this month's spending is instalments",
+      "installmentNone": "No instalments due this month",
+      "installmentFromEarlier": "{amount} from earlier purchases"
+    },
+    "flow": {
+      "title": "Income and spending",
+      "description": "Monthly totals. The gap between them is what you saved that month.",
+      "income": "Income",
+      "spending": "Spending",
+      "cumulativeTitle": "Cumulative savings",
+      "cumulativeDescription": "Net accumulated over the window (income minus spending). Portfolio value and card debt are not in this curve — it is savings, not net worth.",
+      "cumulative": "Accumulated",
+      "net": "Net"
+    },
+    "categories": {
+      "title": "Category breakdown",
+      "description": "This month's spending, largest first.",
+      "noData": "No categorised spending this month.",
+      "tableView": "Table view",
+      "category": "Category",
+      "amount": "Amount",
+      "share": "Share"
+    },
+    "changes": {
+      "title": "Versus last month",
+      "description": "Last month and this month per category, with the change beside it. Swings under 100 TL are hidden.",
+      "noData": "Not enough data to compare — this needs two consecutive full months.",
+      "lastMonth": "Last month",
+      "thisMonth": "This month",
+      "newThisMonth": "None last month",
+      "goneThisMonth": "None this month"
+    },
+    "merchants": {
+      "title": "Where your money goes",
+      "description": "Most money spent over the last {count} months.",
+      "byAmount": "By amount",
+      "byCount": "By frequency",
+      "visits": "{count} transactions",
+      "average": "{amount} average",
+      "noData": "Merchant analysis needs transactions with descriptions — uploading a card statement is the fastest way.",
+      "groupingNote": "Different spellings of the same brand are grouped; the name shown is as it appears on the statement."
+    },
+    "installments": {
+      "title": "Instalment load",
+      "description": "Each colour is a separate purchase. Tap a column (or hover) to see which purchase and which instalment.",
+      "noData": "No instalment purchases on record.",
+      "total": "Total remaining",
+      "other": "Other purchases",
+      "unnamed": "Instalment purchase {index}",
+      "position": "instalment {position}"
+    },
+    "subscriptions": {
+      "title": "Subscriptions",
+      "paidThisMonth": "Paid this month",
+      "paidThisMonthHint": "Total of subscription rows dated this month — the same figure as on the Subscriptions page.",
+      "oneOffInside": "Of which one-off charges",
+      "averageLoad": "Average monthly load",
+      "averageLoadHint": "Recurring rules converted to a monthly figure. It can differ from what was paid this month: a yearly subscription is only charged in its anniversary month.",
+      "rulesYearly": "Yearly total of the rules",
+      "ruleCount": "{count} rules",
+      "perMonth": "/mo",
+      "none": "No subscriptions on record."
+    },
+    "weekday": {
+      "title": "Days of the week",
+      "description": "Total spending per day of the week over the last 3 months. Fixed costs (rent, bills, ongoing instalments) are excluded — you do not choose their dates.",
+      "day": {
+        "mon": "Mon",
+        "tue": "Tue",
+        "wed": "Wed",
+        "thu": "Thu",
+        "fri": "Fri",
+        "sat": "Sat",
+        "sun": "Sun"
+      },
+      "noData": "Not enough data."
+    },
+    "noTimeOfDayNote": "No time-of-day analysis: bank statements and ledger records carry only a date — the transaction time is not available in any source.",
+    "commitment": {
+      "title": "Committed and this month's choices",
+      "description": "By structure, not by category: rent, bills, subscriptions and ongoing instalments weren't decided this month — the rest is.",
+      "committed": "Committed",
+      "committedHint": "Rent, bills, subscriptions, ongoing instalments",
+      "discretionary": "This month's choices",
+      "discretionaryHint": "One-off purchases and newly started instalments",
+      "noData": "No spending this month."
+    }
   }
 }

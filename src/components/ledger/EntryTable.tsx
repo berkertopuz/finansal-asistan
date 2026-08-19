@@ -114,6 +114,7 @@ export function EntryTable({
   defaultSortField = "occurred_at",
   showMonthSummary = false,
   templatesOnly = false,
+  standaloneOnly = false,
   titleField = "category",
 }: {
   kind?: EntryKind | EntryKind[];
@@ -147,6 +148,13 @@ export function EntryTable({
   // that would either double-count a period or, worse, let editing a
   // template's row look like it edits one month's transaction.
   templatesOnly?: boolean;
+  // true: yalnızca KENDİ BAŞINA duran satırlar (template_id === null) —
+  // tekrarlayan bir şablondan üretilmiş dönem satırları hariç. Abonelikler
+  // sayfasının ikinci listesi bunu kullanıyor: o liste "abonelik benzeri tek
+  // seferlik kart harcamaları" için, oysa bir şablonun bu ayki satırı zaten
+  // üstteki kural listesinde görünüyor; ikisini birden göstermek aynı
+  // aboneliği iki kez listelemek olurdu.
+  standaloneOnly?: boolean;
   // "category" (default) is the bold mobile-row title everywhere else, but
   // on Abonelikler every row already shares the same category ("abonelik")
   // — repeating it as the title on every single row says nothing, while the
@@ -258,12 +266,13 @@ export function EntryTable({
         (kinds ? kinds.includes(e.kind) : true) &&
         (!category || e.category === category) &&
         (templatesOnly ? e.recurrence !== "none" : e.recurrence === "none") &&
+        (!standaloneOnly || e.template_id === null) &&
         (!monthFilter || monthMatches(e)),
     );
     let planned = kinds ? plannedRows.filter((e) => kinds.includes(e.kind)) : plannedRows;
     if (category) planned = planned.filter((e) => e.category === category);
     return [...real, ...planned];
-  }, [data, kinds, category, month, monthFilter, templatesOnly, plannedRows]);
+  }, [data, kinds, category, month, monthFilter, templatesOnly, standaloneOnly, plannedRows]);
 
   // Kalan taksit borcu — grup başına, henüz olmamış (occurred_at bugünden
   // ileri) satırların toplamı. `data` (SWR'ın ham, ay/kind filtresiz listesi)

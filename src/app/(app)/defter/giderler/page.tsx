@@ -75,7 +75,14 @@ export default async function GiderlerPage() {
           </CardHeader>
           <CardContent className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-muted-foreground">{t("subscriptions.monthlyTotal")}</p>
+              {/* "Bu ay ödenen", "Aylık toplam" DEĞİL: subscription_total bu aya
+                  TARİHLİ abonelik satırlarının toplamı, aylık bir oran değil.
+                  Eski etiket yıllık aboneliklerde yanlıştı — yılda bir kez ₺400
+                  çeken bir abonelik "aylık ₺400" gibi okunuyordu (kullanıcı
+                  bildirdi; aynı hata Abonelikler sayfasında da vardı, orada
+                  ayrıca "aylık ortalama yük" kırılımı gösteriliyor). Bu kart
+                  tek sayılık bir teaser, tam kırılım linkin ucunda. */}
+              <p className="text-xs text-muted-foreground">{t("subscriptions.paidThisMonth")}</p>
               <p className="text-lg font-semibold text-foreground">
                 {formatCurrency(subscriptionTotal, locale)}
               </p>
