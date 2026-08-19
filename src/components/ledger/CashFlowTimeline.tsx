@@ -26,6 +26,7 @@ import {
   formatShortDate,
 } from "@/lib/format";
 import type { Entry } from "@/lib/ledger";
+import { projectRemainingInstallments } from "@/lib/installments";
 import type { AppLocale } from "@/lib/locale";
 import type { CreditCard } from "@/lib/credit-cards-data";
 import { cn } from "@/lib/utils";
@@ -71,6 +72,13 @@ export function CashFlowTimeline({
 }) {
   const { data } = useSWR<Entry[]>(ENTRIES_KEY, fetcher, { fallbackData: initialData });
   const entries = useMemo(() => data ?? [], [data]);
+  // Ekstreden gelen serilerin kalan taksitleri okuma anında türetiliyor —
+  // ileriye bakan bakiye eğrisi bu kesinleşmiş borçları görmezse kullanıcıya
+  // olduğundan iyi bir gelecek gösterir (bkz. src/lib/installments.ts).
+  const entriesWithProjection = useMemo(
+    () => [...entries, ...projectRemainingInstallments(entries)],
+    [entries],
+  );
   const { data: creditCards } = useSWR<CreditCard[]>(CREDIT_CARDS_KEY, creditCardsFetcher);
   const cards = useMemo(() => creditCards ?? [], [creditCards]);
   const locale = useLocale() as AppLocale;
@@ -118,8 +126,8 @@ export function CashFlowTimeline({
   }, []);
 
   const { points, events, todayIndex } = useMemo(
-    () => projectBalance(entries, days, new Date(), cards, showHistory ? days : 0),
-    [entries, days, cards, showHistory],
+    () => projectBalance(entriesWithProjection, days, new Date(), cards, showHistory ? days : 0),
+    [entriesWithProjection, days, cards, showHistory],
   );
   const totalDays = points.length - 1;
   const windowStart = points[0].date;

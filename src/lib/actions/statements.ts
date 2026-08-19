@@ -161,6 +161,14 @@ export async function importStatementEntries(
       statement_import_id: statementImport.id,
       description: row.aciklama || null,
       recurrence: "none" as const,
+      // Kalan taksitler buraya YAZILMIYOR. Denendi ve geri alındı: ekstre
+      // otorite, projeksiyon tahmin — tahmini deftere önceden yazınca gerçek
+      // satır geldiğinde onu uzlaştırmak gerekiyor ve "atla" da "ekle" de
+      // yanlış cevap veriyor (11. taksit 300, banka 12.'yi 400 yazarsa: atlarsan
+      // 100 TL sessizce kaybolur, eklersen 300 fazla sayılır). Kalan taksitler
+      // artık OKUMA anında türetiliyor — bkz. projectRemainingInstallments
+      // (src/lib/installments.ts). Böylece uzlaştırma diye bir problem kalmıyor:
+      // gerçek satır geldiğinde normal şekilde girer, sentez kendiliğinden durur.
       installment_group_id: hasInstallment ? crypto.randomUUID() : null,
       installment_index: hasInstallment ? row.taksit_index : null,
       installment_count: hasInstallment ? row.taksit_sayisi : null,

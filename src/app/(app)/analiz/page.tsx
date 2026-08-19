@@ -1,7 +1,6 @@
 import { getLocale, getTranslations } from "next-intl/server";
 import { ArrowDownRight, ArrowUpRight, Clock } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { FlowChart } from "@/components/analysis/FlowChart";
 import { DayOfWeekProfile } from "@/components/analysis/DayOfWeekProfile";
 import { CategoryBreakdown } from "@/components/analysis/CategoryBreakdown";
 import { CategoryChangeList } from "@/components/analysis/CategoryChangeList";
@@ -11,6 +10,7 @@ import { CommitmentMeter } from "@/components/analysis/CommitmentMeter";
 import { SubscriptionBreakdown } from "@/components/analysis/SubscriptionBreakdown";
 import { createClient } from "@/lib/supabase/server";
 import { getEntries } from "@/lib/entries-data";
+import { projectRemainingInstallments } from "@/lib/installments";
 import { formatCurrency, formatPercentAbs, formatSignedCurrency } from "@/lib/format";
 import type { AppLocale } from "@/lib/locale";
 import {
@@ -62,7 +62,16 @@ export default async function AnalizPage() {
   const split = commitmentSplit(entries, currentMonth);
   const merchantsByAmount = topMerchants(entries, { months: habitMonths, by: "amount" });
   const merchantsByCount = topMerchants(entries, { months: habitMonths, by: "count" });
-  const installments = installmentPlans(entries, currentMonth, INSTALLMENT_MONTHS);
+  // SADECE taksit grafiği projeksiyonlu veriyle çalışıyor: ekstre "11/12"
+  // dediyse 12. taksit kesinleşmiş bir borç ve ileriye bakan bu grafikte
+  // görünmeli. Sayfadaki diğer analizler (kategori kırılımı, harcama hızı,
+  // geçen aya göre) bilerek gerçekleşmiş satırlarla kalıyor — onlar geçmişi
+  // raporluyor, tahmin karıştırmak yanıltıcı olurdu.
+  const installments = installmentPlans(
+    [...entries, ...projectRemainingInstallments(entries)],
+    currentMonth,
+    INSTALLMENT_MONTHS,
+  );
   const installmentShare = installmentShareOfMonth(entries, currentMonth);
   // Abonelikler sayfasıyla AYNI kaynak (v_monthly_surplus) — bkz. karttaki not.
   // Ardışık okuma kasıtlı: getEntries() bu ayın şablon satırlarını
@@ -124,12 +133,14 @@ export default async function AnalizPage() {
           // Yön göstergesi renk + İKON + metin: renk asla tek başına anlam
           // taşımıyor (rehberin erişilebilirlik kuralı).
           tone={pace.deltaRatio === null ? "neutral" : pace.deltaRatio >= 0 ? "bad" : "good"}
+          direction={pace.deltaRatio === null ? undefined : pace.deltaRatio >= 0 ? "up" : "down"}
         />
         <StatTile
           label={t("kpi.netThisMonth")}
           value={formatSignedCurrency(thisMonthFlow.net, locale)}
           hint={thisMonthFlow.net >= 0 ? t("kpi.netPositive") : t("kpi.netNegative")}
           tone={thisMonthFlow.net >= 0 ? "good" : "bad"}
+          direction={thisMonthFlow.net >= 0 ? "up" : "down"}
         />
         <StatTile
           label={t("kpi.installmentThisMonth")}
@@ -152,21 +163,12 @@ export default async function AnalizPage() {
         />
       </div>
 
-      {/* Gelir/gider trendi yalnızca 3+ ay veri varken ve KENDİ kartında.
-          İki noktalı bir çizgi trend göstermiyor (kullanıcı bildirdi), ve
-          aylık gelir/gider TOPLAMI zaten Ana Sayfa ile Defter'de var — burada
-          değerli olan tek şey birden fazla ayın birlikte okunduğu eğri. */}
-      {flows.length >= 3 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">{t("flow.title")}</CardTitle>
-            <CardDescription>{t("flow.description")}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <FlowChart flows={flows} />
-          </CardContent>
-        </Card>
-      )}
+      {/* Gelir/gider eğrisi KASITLI olarak burada değil (kullanıcı kararı):
+          aylık gelir, gider ve net zaten Ana Sayfa'nın özetinde ve Defter'de
+          okunuyor — Analiz'in işi o toplamları tekrar etmek değil, onların
+          ARDINDAKİ deseni (kategori, satıcı, taksit, taahhüt) göstermek.
+          `flows` yine hesaplanıyor: yukarıdaki "Bu ay net" kutusu ve
+          hasAnyData kontrolü ondan besleniyor. */}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
@@ -210,23 +212,36 @@ export default async function AnalizPage() {
         </CardContent>
       </Card>
 
-      {installmentTotal > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">{t("installments.title")}</CardTitle>
-            <CardDescription>{t("installments.description")}</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
+      {/* Kart, ödenecek taksit YOKKEN de duruyor. Eskiden installmentTotal
+          sıfırsa tamamen gizleniyordu ve bu gerçek bir kafa karışıklığına yol
+          açtı: kullanıcı grafiğin silindiğini sandı. Boş bir kart, yok olan
+          bir karttan iyi — üstelik "taksit yükün yok" başlı başına iyi bir
+          haber ve görülmeye değer. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">{t("installments.title")}</CardTitle>
+          {/* Açıklama grafiği tarif ediyor ("bir kolona dokun") — ortada kolon
+              yokken göstermek yanıltıcı olurdu. */}
+          {installmentTotal > 0 && <CardDescription>{t("installments.description")}</CardDescription>}
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          {installmentTotal > 0 ? (
+            <>
+              <p className="text-sm text-muted-foreground">
+                {t("installments.total")}:{" "}
+                <span className="font-medium tabular-nums text-foreground">
+                  {formatCurrency(installmentTotal, locale)}
+                </span>
+              </p>
+              <InstallmentChart plans={installments.plans} months={installments.months} />
+            </>
+          ) : (
             <p className="text-sm text-muted-foreground">
-              {t("installments.total")}:{" "}
-              <span className="font-medium tabular-nums text-foreground">
-                {formatCurrency(installmentTotal, locale)}
-              </span>
+              {t("installments.empty", { count: INSTALLMENT_MONTHS })}
             </p>
-            <InstallmentChart plans={installments.plans} months={installments.months} />
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>
@@ -283,15 +298,25 @@ function StatTile({
   value,
   hint,
   tone,
+  direction,
   footnote,
 }: {
   label: string;
   value: string;
   hint: string;
+  /** Sayı kullanıcının lehine mi aleyhine mi — RENGİ belirler. */
   tone: "good" | "bad" | "neutral";
+  /**
+   * Sayının kendi YÖNÜ — oku belirler. tone'dan AYRI olmak zorunda: ikisi
+   * aynı sanılıp ok tone'dan türetiliyordu ve "Bu ay net" pozitifken
+   * (tone="good") aşağı ok çiziliyordu, yani metin "gelirin giderini aşıyor"
+   * derken ok düşüş gösteriyordu. Harcama kutusunda tesadüfen örtüşüyorlardı
+   * (artan harcama = yukarı = kötü), o yüzden hata gözden kaçmıştı.
+   */
+  direction?: "up" | "down";
   footnote?: string;
 }) {
-  const Icon = tone === "bad" ? ArrowUpRight : tone === "good" ? ArrowDownRight : null;
+  const Icon = direction === "up" ? ArrowUpRight : direction === "down" ? ArrowDownRight : null;
   // Kırmızı/yeşil — turuncu değil. Buradaki "bad/good" da bir DEĞİŞİM ifade
   // ediyor ("geçmiş 3 aya göre %X fazla", "gideri gelirini aşıyor"), yani
   // CategoryChangeList ile aynı kavram; aynı kavramın sayfada iki farklı rengi

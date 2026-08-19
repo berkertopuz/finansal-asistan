@@ -532,16 +532,6 @@
       "installmentNone": "No instalments due this month",
       "installmentFromEarlier": "{amount} from earlier purchases"
     },
-    "flow": {
-      "title": "Income and spending",
-      "description": "Monthly totals. The gap between them is what you saved that month.",
-      "income": "Income",
-      "spending": "Spending",
-      "cumulativeTitle": "Cumulative savings",
-      "cumulativeDescription": "Net accumulated over the window (income minus spending). Portfolio value and card debt are not in this curve — it is savings, not net worth.",
-      "cumulative": "Accumulated",
-      "net": "Net"
-    },
     "categories": {
       "title": "Category breakdown",
       "description": "This month's spending, largest first.",
@@ -577,7 +567,8 @@
       "total": "Total remaining",
       "other": "Other purchases",
       "unnamed": "Instalment purchase {index}",
-      "position": "instalment {position}"
+      "position": "instalment {position}",
+      "empty": "You have no instalments due in the next {count} months."
     },
     "subscriptions": {
       "title": "Subscriptions",

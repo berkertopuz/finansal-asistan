@@ -532,16 +532,6 @@
       "installmentNone": "Bu ay ödenen taksit yok",
       "installmentFromEarlier": "{amount}'si geçmiş alışverişlerden"
     },
-    "flow": {
-      "title": "Gelir ve gider",
-      "description": "Aylık toplamlar. Aradaki makas, o ay ne kadar tasarruf ettiğin.",
-      "income": "Gelir",
-      "spending": "Gider",
-      "cumulativeTitle": "Kümülatif tasarruf",
-      "cumulativeDescription": "Pencere boyunca biriken net (gelir eksi gider). Portföy değeri ve kart borcu bu eğriye girmez — net servet değil, tasarruf.",
-      "cumulative": "Birikim",
-      "net": "Net"
-    },
     "categories": {
       "title": "Kategori kırılımı",
       "description": "Bu ayın harcaması, büyükten küçüğe.",
@@ -577,7 +567,8 @@
       "total": "Toplam kalan",
       "other": "Diğer alışverişler",
       "unnamed": "Taksitli alışveriş {index}",
-      "position": "{position}. taksit"
+      "position": "{position}. taksit",
+      "empty": "Önümüzdeki {count} ayda ödenecek taksitin yok."
     },
     "subscriptions": {
       "title": "Abonelikler",
