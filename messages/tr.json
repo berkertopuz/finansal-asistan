@@ -424,6 +424,7 @@
       "ucret": "Ücret"
     },
     "postImportPayment": {
+      "autoRecordedNote": "Ekstreye göre bu dönem {count} ödeme zaten yapılmış, toplam {total} — bu otomatik kaydedildi. Aşağıdaki alan ayrı, YENİ bir ödeme için; şu an ayrıca ödeme yapmadıysan boş bırakıp atlayabilirsin.",
       "prompt": "Bu ekstre için ödeme kaydetmek ister misin?",
       "dueDate": "Son ödeme tarihi: {date}",
       "amountLabel": "Ödenen tutar",
@@ -475,11 +476,15 @@
     "nameLabel": "Kart adı",
     "statementDayLabel": "Ekstre günü",
     "paymentDayLabel": "Ödeme günü",
+    "startingDebtLabel": "Mevcut borcunuz var mı? (isteğe bağlı)",
+    "startingDebtHint": "Bu kartta uygulamayı kullanmaya başlamadan önce oluşmuş bir borç varsa girin — borç takibinin doğru sayıdan başlaması için bir defalık başlangıç bakiyesi olarak eklenir.",
+    "startingDebtDescription": "Devreden bakiye",
     "statementDayShort": "Ekstre: her ayın <hl>{day}</hl>'i",
     "paymentDayShort": "Ödeme: her ayın <hl>{day}</hl>'i",
     "remindersLabel": "Hatırlatmalar açık",
     "uploadStatement": "Ekstre yükle",
     "currentDebtLabel": "Güncel borç",
+    "overpaidLabel": "Fazla ödendi",
     "debtExplanation": "Kart harcamaların eksi yaptığın ödemeler. Nakit akışı, aksini söylemediğin sürece bu borcun ödeme gününde tamamen ödeneceğini varsayar — erken ya da kısmi bir ödeme girersen buna göre güncellenir.",
     "payDebt": {
       "button": "Borç öde",

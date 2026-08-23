@@ -352,16 +352,26 @@ export function CreditCardsManager({
                       harflerle, tutar altında büyük puntoyla. */}
                   <div className="flex flex-wrap items-end justify-between gap-3 border-t border-foreground/10 pt-4">
                     <div className="flex flex-col gap-0.5">
+                      {/* Negatif debt = kartın borcundan fazlası ödenmiş
+                          (fazla ödeme ekstreden otomatik card_payment
+                          olarak da gelebiliyor artık — bkz.
+                          StatementUploadSheet.tsx). "Güncel borç: -500 TL"
+                          okumak kafa karıştırıyordu; işareti etikete
+                          taşıyıp tutarı hep pozitif gösteriyoruz. */}
                       <span className="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">
-                        {t("currentDebtLabel")}
+                        {t(debt < 0 ? "overpaidLabel" : "currentDebtLabel")}
                       </span>
                       <span
                         className={cn(
                           "font-heading text-2xl font-semibold tabular-nums",
-                          debt > 0 ? "text-signal-caution-foreground" : "text-foreground",
+                          debt > 0
+                            ? "text-signal-caution-foreground"
+                            : debt < 0
+                              ? "text-signal-buy-foreground"
+                              : "text-foreground",
                         )}
                       >
-                        {formatCurrency(debt, locale)}
+                        {formatCurrency(Math.abs(debt), locale)}
                       </span>
                     </div>
                     {/* Checkbox + etiket yerine tek bir durum düğmesi: açıkken
@@ -467,6 +477,23 @@ export function CreditCardsManager({
                   required
                 />
               </div>
+            </div>
+            {/* İsteğe bağlı — bu kart uygulamaya girmeden önce zaten bir
+                borcu varsa, tek seferlik bir başlangıç bakiyesi olarak
+                eklenir (bkz. addCreditCard). Boş bırakılırsa borç 0'dan
+                başlar, önceki davranışın aynısı. */}
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="starting-debt">{t("startingDebtLabel")}</Label>
+              <Input
+                id="starting-debt"
+                name="starting_debt"
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min="0"
+                autoComplete="off"
+              />
+              <p className="text-xs text-muted-foreground">{t("startingDebtHint")}</p>
             </div>
             {state?.error && <p className="text-sm text-signal-caution-foreground">{state.error}</p>}
             <DialogFooter>

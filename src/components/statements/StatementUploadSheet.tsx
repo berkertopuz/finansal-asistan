@@ -259,11 +259,22 @@ export function StatementUploadSheet({
   const [statementDateAutoDetected, setStatementDateAutoDetected] = useState(false);
   const [paymentDueDate, setPaymentDueDate] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
-  // İçe aktarma başarılı olduktan sonra gösterilen isteğe bağlı adım —
-  // kullanıcı bu ekstre için ne kadar ödediğini (tam/kısmi/asgari) burada
-  // bildirir; "Atla" da tamamen geçerli bir seçim (borç Kartlar sayfasında
-  // creditCardDebtBalance ile zaten görünür kalır, sonra da ödenebilir).
+  // İçe aktarma başarılı olduktan sonra, hâlâ kalan bir borç varsa
+  // gösterilen isteğe bağlı adım — kullanıcı bu dönem için AYRICA ne kadar
+  // ödediğini/ödeyeceğini (tam/kısmi/asgari) burada bildirir; "Atla" da
+  // tamamen geçerli bir seçim (borç Kartlar sayfasında creditCardDebtBalance
+  // ile zaten görünür kalır, sonra da ödenebilir). Ekstredeki "odeme"
+  // satırları bu adımdan AYRI ve otomatik zaten card_payment olarak
+  // eklendiği için (handleImport), kalan borç 0 ya da altındaysa (o dönem
+  // zaten tam/fazla ödenmiş) bu adım hiç gösterilmiyor — sorulacak bir şey
+  // kalmıyor.
   const [postImportTotal, setPostImportTotal] = useState<number | null>(null);
+  // Az önce otomatik eklenen ödeme sayısı/toplamı — postImportPayment
+  // adımının üstünde "bu, ayrı bir yeni ödeme" notunu göstermek için.
+  const [autoRecordedPayments, setAutoRecordedPayments] = useState<{ count: number; total: number }>({
+    count: 0,
+    total: 0,
+  });
   const [payAmount, setPayAmount] = useState("");
   const [payDate, setPayDate] = useState(() => toDateString(new Date()));
   const [payError, setPayError] = useState<string | undefined>();
@@ -465,8 +476,17 @@ export function StatementUploadSheet({
       const priorDebt = creditCardDebtBalance(existingEntries ?? [], activeCard.id);
       const selectedTotal = selected.reduce((sum, r) => sum + r.tutar, 0);
       const paymentsTotal = paymentRows.reduce((sum, r) => sum + r.tutar, 0);
-      const totalDebt = Math.max(priorDebt + selectedTotal - paymentsTotal, 0);
+      const totalDebt = priorDebt + selectedTotal - paymentsTotal;
+      if (totalDebt <= 0) {
+        // Ekstredeki ödemeler bu dönemin borcunu zaten tam (ya da
+        // fazlasıyla) kapattı — sorulacak bir şey kalmadı, adımı hiç
+        // gösterme. creditCardDebtBalance'ın kendisi (Kartlar sayfası)
+        // negatifse "fazla ödendi" olarak zaten görünür kalıyor.
+        onClose();
+        return;
+      }
       setPostImportTotal(totalDebt);
+      setAutoRecordedPayments({ count: paymentRows.length, total: paymentsTotal });
       setPayAmount(totalDebt.toFixed(2));
       setPayDate(toDateString(new Date()));
     } else {
@@ -507,6 +527,18 @@ export function StatementUploadSheet({
         <div className="flex flex-col gap-4 px-4 pb-6">
           {postImportTotal !== null ? (
             <div className="flex flex-col gap-3">
+              {/* Ekstredeki "odeme" satırları burada sorulan alanla AYNI
+                  şey değil — o zaten otomatik ve kendi (geçmiş) tarihiyle
+                  kaydedildi. Bu not olmadan art arda görününce "bunu az
+                  önce sormadı mı" izlenimi veriyordu. */}
+              {autoRecordedPayments.count > 0 && (
+                <p className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+                  {t("postImportPayment.autoRecordedNote", {
+                    count: autoRecordedPayments.count,
+                    total: formatCurrency(autoRecordedPayments.total, locale),
+                  })}
+                </p>
+              )}
               <p className="text-sm text-foreground">{t("postImportPayment.prompt")}</p>
               {paymentDueDate && (
                 <p className="text-xs text-muted-foreground">

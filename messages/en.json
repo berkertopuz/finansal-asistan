@@ -424,6 +424,7 @@
       "ucret": "Fee"
     },
     "postImportPayment": {
+      "autoRecordedNote": "{count, plural, one {A payment of {total} was already made this period} other {{count} payments totaling {total} were already made this period}} — this was recorded automatically. The field below is for a separate, new payment; leave it blank and skip if you haven't paid anything further right now.",
       "prompt": "Want to log a payment for this statement?",
       "dueDate": "Due date: {date}",
       "amountLabel": "Amount paid",
@@ -475,11 +476,15 @@
     "nameLabel": "Card name",
     "statementDayLabel": "Statement day",
     "paymentDayLabel": "Payment day",
+    "startingDebtLabel": "Already have a balance on this card? (optional)",
+    "startingDebtHint": "If this card already had a balance before you started using the app, enter it here — it's added once as a starting balance so debt tracking begins from the right number.",
+    "startingDebtDescription": "Opening balance",
     "statementDayShort": "Statement: <hl>{day}</hl> of each month",
     "paymentDayShort": "Payment: <hl>{day}</hl> of each month",
     "remindersLabel": "Reminders on",
     "uploadStatement": "Upload statement",
     "currentDebtLabel": "Current debt",
+    "overpaidLabel": "Overpaid",
     "debtExplanation": "Your card charges minus the payments you've made. Cash flow assumes this debt gets paid off in full on the payment day unless you say otherwise — an early or partial payment you log adjusts that.",
     "payDebt": {
       "button": "Pay debt",

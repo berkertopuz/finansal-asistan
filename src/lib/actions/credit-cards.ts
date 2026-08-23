@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { DEFAULT_CATEGORY, toDateString } from "@/lib/ledger";
 import type { CreditCard } from "@/lib/credit-cards-data";
 
 // `card`: yeni oluşturulan satır. Ekstre yükleme akışı (PDF önce, kart
@@ -19,6 +20,15 @@ async function buildCardSchema() {
     name: z.string().trim().min(1, { message: t("nameRequired") }).max(50, { message: t("nameTooLong") }),
     statement_day: z.coerce.number().int().min(1).max(31, { message: t("dayInvalid") }),
     payment_day: z.coerce.number().int().min(1).max(31, { message: t("dayInvalid") }),
+    // İsteğe bağlı — boş string'i (formun dokunulmamış hali) undefined'a
+    // düşürüyoruz, aksi halde z.coerce.number() onu 0'a çevirip alanı hep
+    // "dolu" gibi geçerdi (0 girmekle boş bırakmak arasında fark kalmazdı,
+    // aşağıdaki "> 0 ise satır ekle" kontrolü için önemli değil ama niyeti
+    // net tutmak için ayırıyoruz).
+    starting_debt: z.preprocess(
+      (v) => (v === "" || v === null ? undefined : v),
+      z.coerce.number().min(0).max(10_000_000, { message: t("genericInvalid") }).optional(),
+    ),
   });
 }
 
@@ -27,11 +37,13 @@ export async function addCreditCard(
   formData: FormData,
 ): Promise<CreditCardState> {
   const t = await getTranslations("creditCards.errors");
+  const tCommon = await getTranslations("creditCards");
   const schema = await buildCardSchema();
   const parsed = schema.safeParse({
     name: formData.get("name"),
     statement_day: formData.get("statement_day"),
     payment_day: formData.get("payment_day"),
+    starting_debt: formData.get("starting_debt"),
   });
 
   if (!parsed.success) {
@@ -60,6 +72,29 @@ export async function addCreditCard(
 
   if (error) {
     return { error: t("saveFailed") };
+  }
+
+  // Kart uygulamaya girmeden ÖNCE zaten bir borcu varsa, creditCardDebtBalance
+  // (src/lib/cashflow.ts) bunu bilemez — o yalnızca entries'teki satırları
+  // toplar, sıfırdan başladığını varsayar. Kullanıcı bir başlangıç bakiyesi
+  // girdiyse, bunu normal bir "harcama" gibi (kart borcunu artıran) tek
+  // seferlik bir satır olarak ekliyoruz — yeni bir kolon/formül gerekmiyor,
+  // mevcut hesaplama bu satırı diğer her satır gibi doğru sayıyor. Ekstre/
+  // taksit'e bağlı değil, tarih kartın oluşturulduğu gün.
+  if (parsed.data.starting_debt && parsed.data.starting_debt > 0) {
+    const { error: startingDebtError } = await supabase.from("entries").insert({
+      user_id: user.id,
+      kind: "expense" as const,
+      amount: parsed.data.starting_debt,
+      category: DEFAULT_CATEGORY,
+      occurred_at: toDateString(new Date()),
+      credit_card_id: data.id,
+      description: tCommon("startingDebtDescription"),
+      recurrence: "none" as const,
+    });
+    if (startingDebtError) {
+      console.error("addCreditCard: starting debt entry insert failed", startingDebtError);
+    }
   }
 
   revalidatePath("/defter/giderler/kartlar");

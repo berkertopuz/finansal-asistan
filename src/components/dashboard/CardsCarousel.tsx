@@ -71,8 +71,10 @@ export function CardsCarousel() {
                 <CardIcon className="size-4 shrink-0 opacity-70" />
               </div>
               <div>
-                <p className="text-[10px] opacity-70">{t("currentDebtLabel")}</p>
-                <p className="text-sm font-semibold">{formatCurrency(debt, locale)}</p>
+                {/* Negatif debt = fazla ödenmiş (bkz. CreditCardsManager.tsx'teki
+                    aynı düzeltme) — işareti etikete taşıyıp tutarı pozitif göster. */}
+                <p className="text-[10px] opacity-70">{t(debt < 0 ? "overpaidLabel" : "currentDebtLabel")}</p>
+                <p className="text-sm font-semibold">{formatCurrency(Math.abs(debt), locale)}</p>
               </div>
             </Link>
           );
