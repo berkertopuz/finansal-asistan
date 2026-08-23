@@ -32,12 +32,48 @@ import { MASK_MARKER_RE, maskPersonalData } from "./mask";
 // tamamen normal — onu reddetmek her sayfada işlem kaybettirirdi.
 const DATE_SRC = String.raw`(?:0?[1-9]|[12]\d|3[01])[./-](?:0?[1-9]|1[0-2])[./-](?:\d{4}|\d{2})`;
 export const DATE_RE = new RegExp(DATE_SRC);
-export const DATE_RE_GLOBAL = new RegExp(DATE_SRC, "g");
-const LEADING_DATE_RE = new RegExp(String.raw`^${DATE_SRC}`);
+
+// İşlem tarihi YAZIYLA da yazılabiliyor: gerçek bir Yapı Kredi World
+// ekstresinde işlem tablosunun tarih kolonu tamamen "27 Temmuz 2026"
+// biçimindeydi ve sayısal desen HİÇBİR satırı eşlemedi — 40+ işlemli bir
+// ekstre "okunamadı" hatasına düştü. Bu bir bankanın etiket tercihi değil,
+// tarihin ikinci bir yazım biçimi; o yüzden şekil testine dahil.
+//
+// Burada ay adı DOĞRULANIYOR (WRITTEN_DATE_RE'nin aksine — oradaki gerekçe
+// için aşağıya bakın). Asimetri kasıtlı: özet kovasında yanlış pozitif
+// LLM'e fazladan bir aday satır göndermek demek, işlem kovasında ise
+// UYDURMA BİR İŞLEM üretmek ve splitOnDates'i yanlış yerden bölmek demek.
+// Ay adı listesi banka başına konfigürasyon SAYILMAZ: 12 ad Türkçe'nin
+// kendisine ait, hiçbir bankaya göre değişmiyor.
+//
+// Büyük harf varyantları (`AĞUSTOS`) `i` bayrağıyla geliyor, ama Türkçe'nin
+// noktalı/noktasız i'si basit kıvrımdan (case folding) geçmiyor: "MAYIS"
+// /mayıs/i ile eşleşmez. O yüzden sorunlu harfler açık sınıf olarak yazıldı.
+const TURKISH_MONTHS_SRC = [
+  "Ocak",
+  "Şubat",
+  "Mart",
+  "N[iİ]san",
+  "May[ıI]s",
+  "Haz[iİ]ran",
+  "Temmuz",
+  "Ağustos",
+  "Eylül",
+  "Ek[iİ]m",
+  "Kas[ıI]m",
+  "Aral[ıI]k",
+].join("|");
+const WRITTEN_TRANSACTION_DATE_SRC = String.raw`(?:0?[1-9]|[12]\d|3[01])\s+(?:${TURKISH_MONTHS_SRC})\s+(?:19|20)\d{2}`;
+
+// İşlem satırı testi iki biçimi de kabul eder; hangisinin kullanıldığı
+// bankaya göre değişen bir tercih ve bizi ilgilendirmiyor.
+const ANY_DATE_SRC = String.raw`(?:${DATE_SRC}|${WRITTEN_TRANSACTION_DATE_SRC})`;
+export const DATE_RE_GLOBAL = new RegExp(ANY_DATE_SRC, "gi");
+const LEADING_DATE_RE = new RegExp(String.raw`^${ANY_DATE_SRC}`, "i");
 
 // Yalnızca bir tarihten (ve olası noktalama/boşluktan) oluşan parça — çok
 // tarihli satır düzenlerinde ortaya çıkar, bkz. splitOnDates.
-const BARE_DATE_RE = new RegExp(String.raw`^${DATE_SRC}[\s.,;|-]*$`);
+const BARE_DATE_RE = new RegExp(String.raw`^${ANY_DATE_SRC}[\s.,;|-]*$`, "i");
 
 // Bir işlem satırının önüne eklenecek en fazla çıplak tarih sayısı. İki tarih
 // kolonu (işlem + valör) bilinen bir düzen; üçüncüsü bir düzen değil, bozuk
@@ -91,13 +127,21 @@ const IDENTITY_BLOCK_RE = /TCKN\s*:|T\.C\.\s*Kimlik/i;
 // Ekstrenin ÜST ÖZET BLOĞU, ham glyph akışında tek bir tarihle başlayan uzun
 // bir dizi olarak geliyor ("13/06/2026Dönem Borcu:12.345,67 TLAsgari Ödeme
 // Tutarı:4.938,00 TL..." — gerçek bir QNB ekstresinde gözlendi) ve şekil
-// testini (tarihle başla + tutar içer) geçiyor. Ayırt edici, bankadan bağımsız
-// izi: içinde arka arkaya birden fazla "etiket:değer" yapışması var. Gerçek bir
-// işlem açıklamasında bu kalıp ya hiç yok ya da bir kez var (ör. "HTTPS:
-// ECOMMERCE.ATVO" — iki nokta rakamla değil harfle devam ettiği için zaten
-// sayılmıyor), o yüzden eşik ikiye çekildi.
-const LABEL_VALUE_GLUE_RE = /\p{L}\s*:\s*\d/gu;
-const MAX_LABEL_VALUE_GLUE = 1;
+// testini (tarihle başla + tutar içer) geçiyor.
+//
+// Ayırt edici, bankadan bağımsız iz: özet bloğunda HER tutar bir etikete
+// yapışıktır, dolayısıyla İLK tutar da öyledir. Bir işlem satırında ise ilk
+// tutar merchant açıklamasının ardından gelir, etiketi yoktur.
+//
+// Bu test eskiden "satırda 1'den fazla etiket:değer yapışması varsa at"
+// şeklinde bir SAYIMDI. Sayım, döviz detayı taşıyan işlem satırlarını
+// kesiyordu: gerçek bir Yapı Kredi ekstresinde "... GB50,00 İşlem Tutarı:
+// 50,00 TRY USD Karşılığı : 1,06 USD" iki yapışma içeriyor ve eşiği aşıyordu
+// — yani tam da CLAUDE.md'nin döviz bölümünün önemsediği satırlar (yurt dışı
+// harcaması, orijinal tutar + kur) sessizce düşüyordu. İlk tutara bakmak
+// aynı özet bloklarını eliyor ama kuyruktaki etiketli detayları serbest
+// bırakıyor: ikisini ayıran şey yapışmanın SAYISI değil, NEREDE olduğu.
+const LABELED_FIRST_AMOUNT_RE = /\p{L}\s*:\s*$/u;
 
 export type ClassifiedLines = {
   /** Tarihle başlayıp tutar içeren aday işlem satırları, maskelenmiş. */
@@ -158,9 +202,15 @@ export function normalizeTransactionLine(line: string): string | null {
   if (!LEADING_DATE_RE.test(line)) return null;
 
   let lastAmountEnd = -1;
+  let firstAmountStart = -1;
   for (const match of line.matchAll(AMOUNT_RE_GLOBAL)) {
     if (match.index > AMOUNT_SCAN_LIMIT) break;
+    if (firstAmountStart === -1) firstAmountStart = match.index;
     lastAmountEnd = match.index + match[0].length;
+  }
+  // İlk tutar bir etikete yapışıksa bu bir işlem değil, özet bloğu.
+  if (firstAmountStart !== -1 && LABELED_FIRST_AMOUNT_RE.test(line.slice(0, firstAmountStart))) {
+    return null;
   }
   if (lastAmountEnd === -1) return null;
 
@@ -168,7 +218,6 @@ export function normalizeTransactionLine(line: string): string | null {
   // Kırpmadan SONRA hâlâ bir kimlik bloğu işareti kaldıysa bu satır bir işlem
   // satırı değil — tamamen at.
   if (IDENTITY_BLOCK_RE.test(trimmed)) return null;
-  if ((trimmed.match(LABEL_VALUE_GLUE_RE) ?? []).length > MAX_LABEL_VALUE_GLUE) return null;
   return trimmed;
 }
 

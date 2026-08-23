@@ -11,6 +11,33 @@ export type ExtractedStatement = {
   transactionCount: number;
 };
 
+/**
+ * PDF geçerli ama bizim harcamaya razı olduğumuzdan fazla iş istiyor.
+ * "Bozuk dosya"dan (extractFailed) ayrı bir hata: kullanıcıya farklı bir şey
+ * söylemek gerekiyor, ve bu yol bir SALDIRI göstergesi de olabilir.
+ */
+export class StatementTooComplexError extends Error {
+  constructor(reason: string) {
+    super(`statement too complex: ${reason}`);
+    this.name = "StatementTooComplexError";
+  }
+}
+
+// DoS BÜTÇESİ — bu boru hattı, kimliği doğrulanmış ama güvenilmeyen bir
+// kullanıcının yüklediği dosyayı Next sunucu sürecinde ayrıştırıyor.
+// pdf.js'in getOperatorList()'i sayfa başına tüm içerik akışını çözüyor ve
+// fontları yüklüyor; 10 MB'lık bir PDF sıkıştırılmış bir sayfa ağacında on
+// binlerce sayfa taşıyabilir (ya da bir açılma bombası olabilir). Sınır
+// olmadan tek bir istek süreci CPU/bellek olarak tüketip TÜM kullanıcıları
+// etkiler. Sayfa sayısı tek başına yetmez — tek bir sayfa milyonlarca glyph
+// içerebilir — o yüzden karakter bütçesi de var.
+//
+// Değerler gerçek ekstrelere göre: korpustaki en büyüğü 5 sayfa. 60 sayfa,
+// çok kartlı/çok işlemli bir yıllık dökümü bile rahat geçirirken kötüye
+// kullanımı erken durduruyor.
+const MAX_PDF_PAGES = 60;
+const MAX_EXTRACTED_CHARS = 4_000_000;
+
 // TASARIM NOTU — banka başına konfigürasyon neden KALDIRILDI
 //
 // Bu dosya eskiden dört tane banka-özel knob taşıyordu: TABLE_START_PATTERNS
@@ -265,6 +292,9 @@ async function extractRawGlyphStream(pdf: PDFDocumentLike): Promise<RawGlyphStre
     }
     safeText += "\n";
     aggressiveText += "\n";
+    if (safeText.length > MAX_EXTRACTED_CHARS) {
+      throw new StatementTooComplexError(`glyph stream exceeded ${MAX_EXTRACTED_CHARS} chars`);
+    }
   }
   return { safeText, markedText: aggressiveText, codeWidths };
 }
@@ -304,6 +334,10 @@ function repairSubsetFont(stream: RawGlyphStream): string {
 // yere ortak bir arayüzden geçirmek olurdu.
 export async function extractStatementText(pdfBuffer: ArrayBuffer): Promise<ExtractedStatement> {
   const pdf = await getDocumentProxy(new Uint8Array(pdfBuffer));
+  if (pdf.numPages > MAX_PDF_PAGES) {
+    throw new StatementTooComplexError(`${pdf.numPages} pages > ${MAX_PDF_PAGES}`);
+  }
+
   let fullText = repairSubsetFont(await extractRawGlyphStream(pdf));
   let positionedLines = await extractPositionedLines(pdf);
 
@@ -318,10 +352,36 @@ export async function extractStatementText(pdfBuffer: ArrayBuffer): Promise<Extr
     positionedLines = positionedLines.map(decodeEbcdic);
   }
 
-  const lines = classifyLines({
+  let lines = classifyLines({
     transactionCandidates: splitOnDates(fullText),
     summaryCandidates: positionedLines,
   });
+
+  // YEDEK YOL — glyph akışı hiç işlem vermediyse konumlu satırları dene.
+  //
+  // İşlem satırları normalde ham glyph akışından gelir (QNB'nin kırık fontunu
+  // kurtarmanın tek yolu bu). Ama o akışın satır sonu yok: satırlaştırma
+  // tamamen splitOnDates'in tarihi tanımasına bağlı ve tanıyamadığında ortaya
+  // SIFIR aday çıkıyor — kullanıcı "bu ekstre okunamadı" duvarına tosluyor.
+  // Gerçek bir Yapı Kredi ekstresinde tam olarak bu oldu (tarih yazıyla
+  // yazılmıştı) ve o sırada konumlu satırlar KUSURSUZDU: her işlem tek satır,
+  // tarih başta, tutar sonda. Yani veri elimizdeydi, sadece yanlış yoldan
+  // bakıyorduk.
+  //
+  // Yedek yol birincil DEĞİL çünkü konumlu yolda Türkçe harfler bozuk çıkıyor
+  // (bkz. layout.ts). Sırayla denemek ikisinin de güçlü yanını koruyor.
+  //
+  // GİZLİLİK: bu bir gevşetme DEĞİL. Aday satırların kaynağı değişiyor,
+  // süzgeç aynı kalıyor — normalizeTransactionLine (tarihle başla + tutar
+  // içer) + maskeleyici + trimIdentityTail. Ad/adres satırları tarihle
+  // başlamadığı için burada da düşüyorlar; üç gerçek ekstre üzerinde bu yol
+  // zorlanarak ölçüldü, üçünde de sıfır kişisel veri sızıntısı.
+  if (lines.transactions.length === 0) {
+    lines = classifyLines({
+      transactionCandidates: positionedLines,
+      summaryCandidates: positionedLines,
+    });
+  }
 
   return {
     markdown: buildStatementMarkdown(lines),

@@ -48,3 +48,7 @@ next-env.d.ts
 # Claude Code yerel dosyaları (launch.json paylaşılabilir, bunlar değil)
 .claude/settings.local.json
 .claude/worktrees/
+
+# ekstre test korpusu — gerçek kişisel veri, repoya girmez (bkz. fixtures/README.md)
+/tests/statement-import/fixtures/*
+!/tests/statement-import/fixtures/README.md
