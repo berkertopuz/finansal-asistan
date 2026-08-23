@@ -172,6 +172,33 @@ export function normalizeTransactionLine(line: string): string | null {
   return trimmed;
 }
 
+/**
+ * Maskelenmiş bir işlem satırında, TUTARDAN SONRA kalan bir maske etiketinden
+ * itibaren satırı keser.
+ *
+ * Neden gerekiyor: ham glyph akışında satır sonu yok (bkz. extract.ts), o
+ * yüzden bir işlem satırı, kendisinden sonra gelen BÖLÜM BAŞLIĞINI kendi
+ * kuyruğuna yutabiliyor. Gerçek bir Akbank Axess ekstresinde bu, ödeme
+ * satırının ardından gelen "**** **** **** 8808 AD SOYAD Harcamaları"
+ * başlığıydı: MAX_TAIL_AFTER_AMOUNT penceresine giriyor, tarih/tutar testini
+ * bozmuyor ve kart hamilinin adını LLM'e taşıyordu.
+ *
+ * Kesme noktası olarak maske etiketi kullanılıyor çünkü bu blokların
+ * bankadan bağımsız ortak izi o: kimlik bloğu bir kart numarası / TCKN /
+ * IBAN ile başlıyor, ad hemen ardından geliyor. Yalnızca TUTARDAN SONRAKİ
+ * etiketler kesiyor — tutardan ÖNCE geçen bir kart numarası ("[KART] Ödeme")
+ * işlem açıklamasının parçası olabilir ve orada kesmek tutarı kaybettirirdi.
+ */
+export function trimIdentityTail(maskedLine: string): string {
+  let lastAmountEnd = 0;
+  for (const match of maskedLine.matchAll(AMOUNT_RE_GLOBAL)) {
+    lastAmountEnd = match.index + match[0].length;
+  }
+  const marker = MASK_MARKER_RE.exec(maskedLine.slice(lastAmountEnd));
+  if (!marker) return maskedLine;
+  return maskedLine.slice(0, lastAmountEnd + marker.index).trim();
+}
+
 function nextSummaryValue(text: string): RegExpExecArray | null {
   return (
     [DATE_RE, WRITTEN_DATE_RE, AMOUNT_RE]
@@ -269,7 +296,9 @@ export function extractSummaryFields(maskedLine: string): string[] {
  * ya bir kimlik satırıdır ya da şüphelidir — ikisinde de LLM'e gitmemesi
  * doğru. İşlem kovasında ise satır KORUNUR (maskeli haliyle): merchant
  * açıklamasında Luhn'dan geçen uzun bir referans numarası olabilir, o
- * satırın tutarı/tarihi hâlâ geçerli veri.
+ * satırın tutarı/tarihi hâlâ geçerli veri. Ama tutardan SONRA kalan bir
+ * maske etiketi kimlik bloğunun başlangıcıdır ve oradan sonrası kesilir
+ * (bkz. trimIdentityTail) — o kuyrukta zaten işlem verisi yok.
  */
 export function classifyLines(params: {
   transactionCandidates: string[];
@@ -279,7 +308,7 @@ export function classifyLines(params: {
   for (const line of params.transactionCandidates) {
     const normalized = normalizeTransactionLine(line);
     if (normalized === null) continue;
-    transactions.push(maskPersonalData(normalized));
+    transactions.push(trimIdentityTail(maskPersonalData(normalized)));
   }
 
   // Maskeleme ALAN AYIKLAMADAN ÖNCE yapılıyor: maske etiketleri

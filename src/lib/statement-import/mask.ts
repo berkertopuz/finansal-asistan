@@ -65,7 +65,23 @@ function isLuhnValid(digits: string): boolean {
 // ("5218 45** **** 1234") — Luhn'dan geçmez (yıldızlar yüzünden), o yüzden
 // ayrı bir desen gerekiyor. Yıldız sayısı/gruplama bankaya göre değişebildiği
 // için gruplar gevşek tanımlı.
-const MASKED_PAN_RE = /\b\d{4}[\s-]?\d{0,2}\*{2,}[\s*-]*\d{4}\b/g;
+//
+// BAŞTAKİ RAKAM GRUBU OPSİYONEL. İlk sürüm `\b\d{4}` ile BAŞLIYORDU, yani
+// yalnızca BIN'i açıkta bırakan düzeni ("5218 07** **** 8808") tanıyordu.
+// Gerçek bir Akbank Axess ekstresinde kart numarası tamamen yıldızlı
+// yazılıyor ("**** **** **** 8808") ve desen HİÇ eşleşmiyordu — üstelik o
+// dizinin hemen ardından kart hamilinin adı geliyor, yani maskeleyicinin
+// kaçırdığı yer tam da adın LLM'e sızdığı yerdi (bkz. classify.ts'teki
+// trimIdentityTail). Baştaki `\b`, opsiyonel grubun İÇİNE alındı: yıldız bir
+// kelime karakteri olmadığı için dışarıda kalsaydı desen yıldızla başlayan
+// biçimde hiçbir zaman tutmazdı.
+//
+// Yıldızla BAŞLAYAN dalda eşik 2 değil 4 yıldız: baştaki rakam grubu yokken
+// "\*{2,}" bir dipnot işaretini de yakalıyordu ("Dipnot ** 2025 yılı için
+// geçerlidir" -> "Dipnot [KART] yılı..."), çünkü ardından gelen 4 haneli yıl
+// PAN'ın son dörtlüsü gibi görünüyor. Tamamen yıldızlı bir PAN'da en az bir
+// dolu grup (4 yıldız) her zaman var, dipnot işaretinde yok.
+const MASKED_PAN_RE = /(?:\b\d{4}[\s-]?\d{0,2}\*{2,}|\*{4,})[\s*-]*\d{4}\b/g;
 
 // IBAN: TR + 2 kontrol hanesi + 22 hane (boşluklu ya da boşluksuz yazılabilir).
 const IBAN_RE = /\bTR\s?\d{2}(?:\s?\d){22}\b/gi;

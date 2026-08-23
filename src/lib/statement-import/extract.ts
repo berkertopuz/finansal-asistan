@@ -1,5 +1,6 @@
 import { getDocumentProxy } from "unpdf";
 import { classifyLines, splitOnDates } from "./classify";
+import { decodeEbcdic, looksLikeEbcdic } from "./ebcdic";
 import { extractPositionedLines } from "./layout";
 import { buildStatementMarkdown } from "./markdown";
 
@@ -221,7 +222,26 @@ function isGlyphArray(value: unknown): value is Glyph[] {
 // kuruyoruz — çünkü QNB'de bu bandın unicode tahmini bazen kontrol
 // karakterine, bazen yanlış ama okunaklı görünen bir harfe düşüyor, salt
 // "kontrol karakteri mi" testi ikincisini yakalayamıyor.
-async function extractRawText(pdf: PDFDocumentLike): Promise<string> {
+//
+// Bu fonksiyon yalnızca ÇIKARIR, onarmaz: iki okumayı da (güvenli + agresif)
+// ve genişlik tablosunu ham haliyle döndürür, hangisinin kullanılacağına
+// repairSubsetFont karar verir. Onarımın burada değil dışarıda durmasının
+// sebebi, ikinci bir onarımın (EBCDIC, bkz. ebcdic.ts) var olması: ikisi de
+// aynı sınıf problemi çözüyor ("PDF'in kodları Unicode'a çözülmüyor") ve
+// extractStatementText'te yan yana okunmaları gerekiyor. Biri glyph
+// metadata'sına muhtaç olduğu için burada, diğeri düz metin üzerinde
+// çalıştığı için orada duruyor olsaydı, aynı iş iki farklı katmana
+// dağılmış olurdu.
+type RawGlyphStream = {
+  /** EVRENSEL güvenli kuralla kurulmuş metin — banka tespiti bunun üzerinden. */
+  safeText: string;
+  /** originalCharCode < 32 olan HER glyph'in PUA işaretine çevrildiği metin. */
+  markedText: string;
+  /** İşaretlenen kodların font genişlikleri — "Ğ" genişlik tahmini için. */
+  codeWidths: Map<number, number>;
+};
+
+async function extractRawGlyphStream(pdf: PDFDocumentLike): Promise<RawGlyphStream> {
   let safeText = "";
   let aggressiveText = "";
   const codeWidths = new Map<number, number>();
@@ -246,7 +266,17 @@ async function extractRawText(pdf: PDFDocumentLike): Promise<string> {
     safeText += "\n";
     aggressiveText += "\n";
   }
-  return safeText.includes("QNB") ? resolveQnbMarkers(aggressiveText, codeWidths) : safeText;
+  return { safeText, markedText: aggressiveText, codeWidths };
+}
+
+// ONARIM 1/2 — belge başına yeniden numaralanan alt-küme fontu (QNB).
+// Girdisi ham glyph akışı, çünkü hem orijinal karakter koduna hem font
+// genişliğine ihtiyacı var; bu yüzden yalnızca işlem metnine uygulanabiliyor
+// (konumlu satırlar getTextContent'ten geliyor, orada bu metadata yok).
+function repairSubsetFont(stream: RawGlyphStream): string {
+  return stream.safeText.includes("QNB")
+    ? resolveQnbMarkers(stream.markedText, stream.codeWidths)
+    : stream.safeText;
 }
 
 // PDF'in TÜM metnini (`fullText` ve `positionedLines`) yalnızca bu fonksiyon
@@ -257,17 +287,36 @@ async function extractRawText(pdf: PDFDocumentLike): Promise<string> {
 // bunun dışında hiçbir şeye erişemez, LLM'e yalnızca bu gider.
 //
 // İki metin çıkarma yolu kullanılır, ikisi de aynı PDF üzerinde:
-//   - Ham glyph akışı (extractRawText) → İŞLEM satırları. QNB'nin kırık
-//     fontunu kurtarmanın tek yolu bu, karşılığında konum bilgisi yok; ama
-//     her işlem satırı tarihle başladığı için splitOnDates deterministik ve
-//     banka-bağımsız bir satırlaştırma sağlıyor.
+//   - Ham glyph akışı (extractRawGlyphStream) → İŞLEM satırları. QNB'nin
+//     kırık fontunu kurtarmanın tek yolu bu, karşılığında konum bilgisi yok;
+//     ama her işlem satırı tarihle başladığı için splitOnDates deterministik
+//     ve banka-bağımsız bir satırlaştırma sağlıyor.
 //   - Konumlu metin (extractPositionedLines) → ÖZET satırları. Etiketin
 //     nerede bitip adres bloğunun nerede başladığını bilmek için gerçek
 //     satır yapısı gerekiyor; bunu yalnızca getTextContent'in x/y'si veriyor.
+//
+// Akış kasıtlı olarak üç adım: ÇIKAR → METİN KATMANINI ONAR → SINIFLANDIR.
+// İki onarım da (alt-küme fontu, EBCDIC) burada, aynı katmanda yan yana
+// duruyor. Ortak bir "codec" arayüzüne SOKULMADILAR: girdileri gerçekten
+// farklı (biri glyph metadata'sı, diğeri düz metin) ve elimizde her
+// türden birer örnek var — üçüncü bir onarım geldiğinde doğru soyutlamanın
+// ne olduğu belli olur, o zamana kadar zorlamak sadece metadata'yı gereksiz
+// yere ortak bir arayüzden geçirmek olurdu.
 export async function extractStatementText(pdfBuffer: ArrayBuffer): Promise<ExtractedStatement> {
   const pdf = await getDocumentProxy(new Uint8Array(pdfBuffer));
-  const fullText = await extractRawText(pdf);
-  const positionedLines = await extractPositionedLines(pdf);
+  let fullText = repairSubsetFont(await extractRawGlyphStream(pdf));
+  let positionedLines = await extractPositionedLines(pdf);
+
+  // ONARIM 2/2 — AFP kökenli ekstrelerde metin katmanı EBCDIC; pdf.js ham
+  // kodu Latin-1 olarak veriyor ("ðóaðòaòðòõ" = "03/02/2025"). Bu haliyle
+  // şekil whitelist'i sıfır satır eşliyor (belgede hiç ASCII rakam yok), o
+  // yüzden sınıflandırmadan ÖNCE çözmek gerekiyor. Düz metin üzerinde
+  // çalıştığı için — ONARIM 1'in aksine — her iki çıkarma yoluna da
+  // uygulanabiliyor. Tespit de çözüm de bankadan bağımsız, bkz. ebcdic.ts.
+  if (looksLikeEbcdic(fullText)) {
+    fullText = decodeEbcdic(fullText);
+    positionedLines = positionedLines.map(decodeEbcdic);
+  }
 
   const lines = classifyLines({
     transactionCandidates: splitOnDates(fullText),
