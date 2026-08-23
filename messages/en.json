@@ -412,6 +412,8 @@
     "suggestDaysUpdate": "This statement shows a statement day of {statementDay} and a payment day of {paymentDay} — update the card's info?",
     "noTransactionsFound": "No transactions found in this statement.",
     "possibleDuplicate": "Might be a duplicate",
+    "paymentWillBeAdded": "Will be recorded as a card payment",
+    "paymentAlreadyRecorded": "Already recorded, will be skipped",
     "importSelected": "{count, plural, one {Add # entry} other {Add # entries}}",
     "periodLabel": "{month} statement — cut {statementDate}, due {paymentDate}",
     "statementDateMissing": "The statement cut-off date couldn't be read from this PDF — pick the period it belongs to.",

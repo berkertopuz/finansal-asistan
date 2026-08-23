@@ -412,6 +412,8 @@
     "suggestDaysUpdate": "Bu ekstreye göre ekstre günü {statementDay}, ödeme günü {paymentDay} — kart bilgilerini güncelle?",
     "noTransactionsFound": "Bu ekstrede işlem bulunamadı.",
     "possibleDuplicate": "Mükerrer olabilir",
+    "paymentWillBeAdded": "Borç ödemesi olarak eklenecek",
+    "paymentAlreadyRecorded": "Zaten kayıtlı, atlanacak",
     "importSelected": "{count} kaydı ekle",
     "periodLabel": "{month} ekstresi — kesim {statementDate}, son ödeme {paymentDate}",
     "statementDateMissing": "Ekstre kesim tarihi bu PDF'ten okunamadı — hangi döneme ait olduğunu seç.",

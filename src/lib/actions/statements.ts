@@ -28,6 +28,15 @@ const importRowSchema = z.object({
   replaces_entry_id: z.string().uuid().nullable().optional(),
 });
 
+// Ekstredeki "odeme" (kartın kendisine yapılan gerçek ödeme) satırları —
+// StatementUploadSheet.tsx zaten kartın kendi card_payment kayıtlarıyla
+// eşleşenleri (alreadyRecorded) eleyip yalnızca yenilerini gönderiyor.
+// Kategori/taksit yok — bir ödeme ne kategorize edilir ne taksitlenir.
+const paymentRowSchema = z.object({
+  tarih: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  tutar: z.number().positive().max(10_000_000),
+});
+
 // Kullanıcının inceleme ekranında işaretleyip onayladığı satırlar — hangi
 // satırların "harcama" mı "ödeme/ücret" mi olduğu, mükerrer olup olmadığı
 // zaten StatementUploadSheet.tsx'te (client) elenmiş; buraya gelen her satır
@@ -71,12 +80,16 @@ const importRowSchema = z.object({
 // zaten yüklemeden önce de bunu uyarıyor, bu son güvenlik ağı.
 export async function importStatementEntries(
   rows: unknown[],
+  paymentRows: unknown[],
   cardId: string,
   statementDate: string,
   paymentDueDate?: string | null,
 ): Promise<ImportStatementState> {
   const t = await getTranslations("statements.errors");
-  const parsed = z.array(importRowSchema).min(1).safeParse(rows);
+  // .min(1) kaldırıldı: bir ekstre yalnızca "odeme" satırlarından oluşabilir
+  // (o dönem hiç harcama olmamış). Aşağıda ikisi birden boşsa ayrıca reddediliyor.
+  const parsed = z.array(importRowSchema).safeParse(rows);
+  const parsedPayments = z.array(paymentRowSchema).safeParse(paymentRows);
   const parsedCardId = z.string().uuid().safeParse(cardId);
   const parsedStatementDate = z
     .string()
@@ -88,7 +101,16 @@ export async function importStatementEntries(
     .nullable()
     .optional()
     .safeParse(paymentDueDate);
-  if (!parsed.success || !parsedCardId.success || !parsedStatementDate.success || !parsedDueDate.success) {
+  if (
+    !parsed.success ||
+    !parsedPayments.success ||
+    !parsedCardId.success ||
+    !parsedStatementDate.success ||
+    !parsedDueDate.success
+  ) {
+    return { error: t("genericInvalid") };
+  }
+  if (parsed.data.length === 0 && parsedPayments.data.length === 0) {
     return { error: t("genericInvalid") };
   }
 
@@ -114,7 +136,12 @@ export async function importStatementEntries(
       credit_card_id: parsedCardId.data,
       statement_date: parsedStatementDate.data,
       payment_due_date: parsedDueDate.data ?? null,
-      imported_count: parsed.data.length,
+      // Ödeme satırları da dahil — statement_imports_imported_count_check
+      // (> 0) yalnızca odeme'den oluşan bir ekstrede de sağlanmalı.
+      // imported_total kasıtlı olarak harcama/ücret toplamı kalıyor: bir
+      // ödemeyi "harcama"ymış gibi bu toplama katmak alreadyImportedWarning'i
+      // ("N işlem, X TL") borç ödemesini yeni bir masrafmış gibi gösterirdi.
+      imported_count: parsed.data.length + parsedPayments.data.length,
       imported_total: importedTotal,
     })
     .select("id")
@@ -218,24 +245,48 @@ export async function importStatementEntries(
     }
   }
 
-  if (insertRows.length === 0) {
-    revalidatePath("/defter");
-    revalidatePath("/defter/giderler/kartlar");
-    revalidatePath("/");
-    return { success: true, imported: replacements.length };
+  // Ekstredeki "odeme" (Ödemeniz) satırları — kartın kendisine yapılan
+  // gerçek ödeme, bir gider değil. Bankanın kendi tarih/tutarıyla
+  // card_payment olarak yazılır (payCreditCardDebt'in elle akışıyla aynı
+  // kind — src/lib/actions/credit-cards.ts); cashflow.ts bunu nakitten
+  // düşer, creditCardDebtBalance kartın borcundan düşer. Diğer expense
+  // satırları gibi statement_import_id'ye bağlı: bu ekstre geri alınırsa
+  // (undoStatementImport) ON DELETE CASCADE bu ödemeyi de siler.
+  const paymentInsertRows = parsedPayments.data.map((row) => ({
+    user_id: user.id,
+    kind: "card_payment" as const,
+    amount: row.tutar,
+    occurred_at: row.tarih,
+    credit_card_id: parsedCardId.data,
+    statement_import_id: statementImport.id,
+    recurrence: "none" as const,
+  }));
+
+  if (insertRows.length > 0) {
+    const { error } = await supabase.from("entries").insert(insertRows);
+    if (error) {
+      console.error("importStatementEntries: entries insert failed, rolling back statement_imports", error);
+      await supabase.from("statement_imports").delete().eq("id", statementImport.id);
+      return { error: t("saveFailed") };
+    }
   }
 
-  const { error } = await supabase.from("entries").insert(insertRows);
-  if (error) {
-    console.error("importStatementEntries: entries insert failed, rolling back statement_imports", error);
-    await supabase.from("statement_imports").delete().eq("id", statementImport.id);
-    return { error: t("saveFailed") };
+  if (paymentInsertRows.length > 0) {
+    const { error } = await supabase.from("entries").insert(paymentInsertRows);
+    if (error) {
+      console.error(
+        "importStatementEntries: card_payment insert failed, rolling back statement_imports",
+        error,
+      );
+      await supabase.from("statement_imports").delete().eq("id", statementImport.id);
+      return { error: t("saveFailed") };
+    }
   }
 
   revalidatePath("/defter");
   revalidatePath("/defter/giderler/kartlar");
   revalidatePath("/");
-  return { success: true, imported: insertRows.length };
+  return { success: true, imported: insertRows.length + paymentInsertRows.length + replacements.length };
 }
 
 // Bir ekstre yüklemesini tamamen geri alır — Kartlar sayfasındaki geçmiş

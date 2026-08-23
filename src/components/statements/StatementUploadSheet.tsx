@@ -42,6 +42,12 @@ type ReviewRow = StatementRow & {
   // Bu satır, kullanıcının elle girdiği dövizli bir kaydın ekstredeki
   // karşılığıysa o kayıt. İçe aktarma onu EKLEMİYOR, üstüne yazıyor.
   replaces: { id: string; label: string } | null;
+  // Yalnızca tur === "odeme" satırları için anlamlı. Bu ödeme banka
+  // tarafında zaten bir card_payment satırıyla kayıtlıysa (kullanıcı bir
+  // önceki ekstrenin ardından "Tam ödedim" akışıyla aynı olayı elle
+  // kaydetmişse) tekrar eklenmez — aksi halde aynı ödeme iki kez düşülüp
+  // borç olduğundan az görünürdü.
+  alreadyRecorded: boolean;
 };
 
 // Yurt dışında kartla yapılan bir harcamada kullanıcı TCMB kuruyla giriyor,
@@ -55,6 +61,24 @@ const FX_DATE_WINDOW_DAYS = 3;
 
 function daysBetween(a: string, b: string): number {
   return Math.abs(Date.parse(a + "T00:00:00") - Date.parse(b + "T00:00:00")) / 86_400_000;
+}
+
+// Ekstrenin "odeme" satırı (bankaya yapılan gerçek ödeme) bu karta zaten
+// kayıtlı bir card_payment'la mı örtüşüyor? Tarih penceresi bankanın işlem
+// tarihiyle kullanıcının "Tam ödedim" akışında seçtiği tarih arasındaki
+// olağan kaymayı (birkaç iş günü) kapsıyor için gevşek; tutarda ise
+// tolerans yok — bir ödeme miktarı kur/komisyon gibi tahmine dayalı
+// değil, tam eşleşmesi gerekiyor.
+const PAYMENT_DATE_WINDOW_DAYS = 5;
+
+function isPaymentAlreadyRecorded(row: StatementRow, existing: Entry[], creditCardId: string): boolean {
+  return existing.some(
+    (e) =>
+      e.kind === "card_payment" &&
+      e.credit_card_id === creditCardId &&
+      Math.abs(e.amount - row.tutar) < 0.01 &&
+      daysBetween(e.occurred_at, row.tarih) <= PAYMENT_DATE_WINDOW_DAYS,
+  );
 }
 
 // Ekstre satırının karşılık geldiği, elle girilmiş dövizli kaydı bulur.
@@ -164,7 +188,14 @@ function toReviewRows(rows: StatementRow[], existing: Entry[], creditCardId: str
     // rakamı geçiyor. İşaretlenmezse tahmin defterde kalır.
     const selected =
       (row.tur === "harcama" || row.tur === "ucret") && (!possibleDuplicate || replaces !== null);
-    return { ...row, selected, possibleDuplicate: possibleDuplicate && !replaces, replaces };
+    const alreadyRecorded = row.tur === "odeme" && isPaymentAlreadyRecorded(row, existing, creditCardId);
+    return {
+      ...row,
+      selected,
+      possibleDuplicate: possibleDuplicate && !replaces,
+      replaces,
+      alreadyRecorded,
+    };
   });
 }
 
@@ -395,7 +426,12 @@ export function StatementUploadSheet({
   async function handleImport() {
     if (!reviewRows || !statementDate || !activeCard) return;
     const selected = reviewRows.filter((r) => r.selected);
-    if (selected.length === 0) return;
+    // "odeme" satırları bir seçim değil — banka bu ödemeyi zaten yaptığını
+    // bildiriyor, onay kutusuna bağlı olmadan (zaten hiç gösterilmiyor)
+    // card_payment olarak eklenir. Aynı ödeme daha önce elle ("Tam ödedim")
+    // kaydedildiyse (alreadyRecorded) tekrar eklenmez.
+    const paymentRows = reviewRows.filter((r) => r.tur === "odeme" && !r.alreadyRecorded);
+    if (selected.length === 0 && paymentRows.length === 0) return;
     setImporting(true);
     const result = await importStatementEntries(
       selected.map((r) => ({
@@ -407,6 +443,7 @@ export function StatementUploadSheet({
         taksit_index: r.taksit_index,
         taksit_sayisi: r.taksit_sayisi,
       })),
+      paymentRows.map((r) => ({ tarih: r.tarih, tutar: r.tutar })),
       activeCard.id,
       statementDate,
       paymentDueDate,
@@ -420,13 +457,15 @@ export function StatementUploadSheet({
       // satırların toplamı DEĞİL (bu, kartta bir önceki dönemden kalan
       // ödenmemiş bakiye varsa gerçek borcu olduğundan düşük gösterirdi) —
       // içe aktarmadan HEMEN ÖNCEki gerçek borç (existingEntries, bu importun
-      // henüz eklemediği hâliyle) artı bu importun eklediği toplam, yani
-      // kartın şu anki gerçek güncel borcu. "Tam ödedim" tek dokunuşla bunu
-      // onaylar; kullanıcı isterse (asgari/kısmi ödeme) düzenler ya da adımı
-      // tamamen atlar.
+      // henüz eklemediği hâliyle) artı bu importun eklediği toplam, EKSİ bu
+      // ekstredeki "odeme" satırlarının (bu importun az önce card_payment
+      // olarak eklediği) toplamı — yani kartın şu anki gerçek güncel borcu.
+      // "Tam ödedim" tek dokunuşla bunu onaylar; kullanıcı isterse
+      // (asgari/kısmi ödeme) düzenler ya da adımı tamamen atlar.
       const priorDebt = creditCardDebtBalance(existingEntries ?? [], activeCard.id);
       const selectedTotal = selected.reduce((sum, r) => sum + r.tutar, 0);
-      const totalDebt = priorDebt + selectedTotal;
+      const paymentsTotal = paymentRows.reduce((sum, r) => sum + r.tutar, 0);
+      const totalDebt = Math.max(priorDebt + selectedTotal - paymentsTotal, 0);
       setPostImportTotal(totalDebt);
       setPayAmount(totalDebt.toFixed(2));
       setPayDate(toDateString(new Date()));
@@ -701,58 +740,87 @@ export function StatementUploadSheet({
                 // sadece "sheet sonsuz uzamasın" içindir, butona erişmek
                 // için değil.
                 <div className="flex max-h-[50vh] flex-col gap-2 overflow-y-auto pr-1">
-                  {reviewRows.map((row, i) => (
-                    <label
-                      key={i}
-                      className="flex items-start gap-3 rounded-lg border border-border p-3 text-sm"
-                    >
-                      <Checkbox checked={row.selected} onCheckedChange={() => toggleRow(i)} className="mt-0.5" />
-                      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="truncate font-medium text-foreground">{row.aciklama}</span>
-                          <span className="shrink-0 font-semibold text-foreground">
-                            {formatCurrency(row.tutar, locale)}
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                          <span>{formatDate(row.tarih, locale)}</span>
-                          {row.tur !== "harcama" && <Badge variant="outline">{t(`rowType.${row.tur}`)}</Badge>}
-                          {row.taksit_index && row.taksit_sayisi && (
+                  {reviewRows.map((row, i) =>
+                    // "odeme" satırları harcama değil, bankaya yapılan
+                    // ödeme — onay kutusu/kategori yok, çünkü seçime bağlı
+                    // değil: card_payment olarak otomatik eklenir (bkz.
+                    // handleImport). Burada sadece hangi ödemenin
+                    // eklendiğini (ya da zaten kayıtlı olduğu için
+                    // atlandığını) şeffaf göstermek için var.
+                    row.tur === "odeme" ? (
+                      <div
+                        key={i}
+                        className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 p-3 text-sm"
+                      >
+                        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="truncate font-medium text-foreground">{row.aciklama}</span>
+                            <span className="shrink-0 font-semibold text-signal-buy-foreground">
+                              {formatCurrency(row.tutar, locale)}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                            <span>{formatDate(row.tarih, locale)}</span>
+                            <Badge variant="outline">{t("rowType.odeme")}</Badge>
                             <Badge variant="outline">
-                              {row.taksit_index}/{row.taksit_sayisi}
+                              {t(row.alreadyRecorded ? "paymentAlreadyRecorded" : "paymentWillBeAdded")}
                             </Badge>
-                          )}
-                          {row.replaces && (
-                            <Badge variant="outline" className="gap-1">
-                              {t("replacesManualEntry", { original: row.replaces.label })}
-                            </Badge>
-                          )}
-                          {row.possibleDuplicate && (
-                            <Badge variant="outline" className="gap-1 text-signal-caution-foreground">
-                              <AlertTriangle className="size-3" />
-                              {t("possibleDuplicate")}
-                            </Badge>
-                          )}
-                          {/* AI'nın kategori tahmini — yanlışsa kaydetmeden
-                              önce burada düzeltilebilir, sessizce
-                              güvenilmiyor. */}
-                          <select
-                            value={row.kategori}
-                            onChange={(e) =>
-                              changeCategory(i, e.target.value as (typeof ENTRY_CATEGORIES)[number])
-                            }
-                            className="min-h-touch rounded-md border border-input bg-background px-1.5 py-0.5 text-xs"
-                          >
-                            {ENTRY_CATEGORIES.map((cat) => (
-                              <option key={cat} value={cat}>
-                                {tCategory(cat)}
-                              </option>
-                            ))}
-                          </select>
+                          </div>
                         </div>
                       </div>
-                    </label>
-                  ))}
+                    ) : (
+                      <label
+                        key={i}
+                        className="flex items-start gap-3 rounded-lg border border-border p-3 text-sm"
+                      >
+                        <Checkbox checked={row.selected} onCheckedChange={() => toggleRow(i)} className="mt-0.5" />
+                        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="truncate font-medium text-foreground">{row.aciklama}</span>
+                            <span className="shrink-0 font-semibold text-foreground">
+                              {formatCurrency(row.tutar, locale)}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                            <span>{formatDate(row.tarih, locale)}</span>
+                            {row.tur !== "harcama" && <Badge variant="outline">{t(`rowType.${row.tur}`)}</Badge>}
+                            {row.taksit_index && row.taksit_sayisi && (
+                              <Badge variant="outline">
+                                {row.taksit_index}/{row.taksit_sayisi}
+                              </Badge>
+                            )}
+                            {row.replaces && (
+                              <Badge variant="outline" className="gap-1">
+                                {t("replacesManualEntry", { original: row.replaces.label })}
+                              </Badge>
+                            )}
+                            {row.possibleDuplicate && (
+                              <Badge variant="outline" className="gap-1 text-signal-caution-foreground">
+                                <AlertTriangle className="size-3" />
+                                {t("possibleDuplicate")}
+                              </Badge>
+                            )}
+                            {/* AI'nın kategori tahmini — yanlışsa kaydetmeden
+                                önce burada düzeltilebilir, sessizce
+                                güvenilmiyor. */}
+                            <select
+                              value={row.kategori}
+                              onChange={(e) =>
+                                changeCategory(i, e.target.value as (typeof ENTRY_CATEGORIES)[number])
+                              }
+                              className="min-h-touch rounded-md border border-input bg-background px-1.5 py-0.5 text-xs"
+                            >
+                              {ENTRY_CATEGORIES.map((cat) => (
+                                <option key={cat} value={cat}>
+                                  {tCategory(cat)}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      </label>
+                    ),
+                  )}
                 </div>
               )}
 
