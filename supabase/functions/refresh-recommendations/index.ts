@@ -33,8 +33,22 @@ function formatSnapshotsForPrompt(snapshots: LiveSnapshot[]) {
 // The Next.js route handles session verification, the 1/hour rate limit,
 // and turning this single JSON response into an SSE reveal — this function
 // only does generation, exactly like the two cron-triggered functions.
+// Öneri motoru ilk sürümde KAPALI (bkz.
+// supabase/migrations/20260823120000_disable_recommendation_engine.sql).
+//
+// Kapı BURADA da olmak zorunda, Next rotasındaki eşi yetmez: bu fonksiyon
+// auth:["user"] ile çalışıyor, yani oturumu olan herkes Next'i ATLAYIP
+// doğrudan /functions/v1/refresh-recommendations'a POST atabilir ve bir
+// gpt-4o çağrısı yaktırabilir. Cron/tetikleyici tarafındaki iki kardeşi
+// (generate-signals, generate-buy-suggestions) auth:["secret"] olduğu için
+// migration onları kapatmaya yetiyor — bu fonksiyon istisna.
+const RECOMMENDATION_ENGINE_ENABLED = false;
+
 export default {
   fetch: withSupabase({ auth: ["user"], cors: "disabled" }, async (_req, ctx) => {
+    if (!RECOMMENDATION_ENGINE_ENABLED) {
+      return Response.json({ error: "Not found." }, { status: 404 });
+    }
     try {
       const userId = ctx.userClaims?.id;
       if (!userId) {

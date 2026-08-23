@@ -1,9 +1,19 @@
 import { getTranslations } from "next-intl/server";
 import { createClient } from "@/lib/supabase/server";
 
-// TODO: restore to 60 * 60 * 1000 before real use — 0 while testing so
-// "Yenile" doesn't lock out for an hour on every tap.
-const RATE_LIMIT_MS = 0;
+// Öneri motoru ilk sürümde KAPALI (bkz.
+// supabase/migrations/20260823120000_disable_recommendation_engine.sql).
+//
+// Bu rotayı çağıran arayüz 0619f91'de kaldırıldı, ama BUTONU SİLMEK UCU
+// KAPATMIYOR: bu hâlâ canlı bir HTTP ucu ve oturumu olan biri doğrudan POST
+// atarak gpt-4o çağrısı yaktırabilir. Motorun maliyeti sıfır olacaksa
+// tetikleyicileri kapatmak yetmez, bu kapı da kapanmalı.
+//
+// Rota silinmedi çünkü motorun geri gelip gelmeyeceği kararı verilmedi;
+// geri açmak bu sabiti true yapmak (ve migration'ın tersini yazmak).
+const RECOMMENDATION_ENGINE_ENABLED = false;
+
+const RATE_LIMIT_MS = 60 * 60 * 1000;
 
 type RefreshResult = {
   generated?: number;
@@ -34,6 +44,12 @@ function buildRevealLines(
 // *successful* generation claims the slot; a stale-data skip doesn't
 // punish the user with an hour-long lockout for a gap that isn't theirs.
 export async function POST() {
+  // Oturum kontrolünden ÖNCE: kapalı bir özellik hakkında oturum durumunu
+  // sızdırmanın anlamı yok, ve bu yol hiçbir iş yapmadan dönmeli.
+  if (!RECOMMENDATION_ENGINE_ENABLED) {
+    return Response.json({ error: "Not found." }, { status: 404 });
+  }
+
   const t = await getTranslations("recommendations");
   const supabase = await createClient();
   const {
@@ -80,7 +96,24 @@ export async function POST() {
     return Response.json({ error: result.error ?? t("refreshFailed") }, { status: edgeRes.status });
   }
 
-  if ((result.generated ?? 0) > 0 || result.skipped === "already_at_cap") {
+  // Hız sınırı slotunu KİM harcar: ölçüt "öneri üretildi mi" DEĞİL, "OpenAI
+  // çağrıldı mı". Maliyet çağrı yapıldığı anda oluşuyor, sonucunda değil.
+  //
+  // Eskiden `no_valid_oneriler` slotu harcamıyordu — niyet doğruydu
+  // ("kullanıcıyı kendi suçu olmayan bir boşluk için bir saat kilitleme")
+  // ama sonuç tersine döndü: tek para harcayan yol korumasız kaldı. O
+  // durumda model üretiyor, atıf doğrulaması satırları eliyor, kullanıcı
+  // ekranda hiçbir şey görmediği için tekrar basıyor ve her basış İKİ
+  // gpt-4o çağrısı yakıyor (öneri motorunda bir kez retry var). Kapatan
+  // başka bir fren de yok: canlı öneri kotası dolmadığı için already_at_cap
+  // de devreye girmiyor.
+  //
+  // stale_data_gate ve already_at_cap ise OpenAI çağrısından ÖNCE dönüyor,
+  // yani bedavalar. İlki slotu harcamıyor (veri boşluğu kullanıcının işi
+  // değil, kilitlemek haksız olurdu); ikincisi harcıyor, çünkü zaten 5 canlı
+  // önerisi olan birinin bir saat daha yenilemeye ihtiyacı yok.
+  const calledOpenAi = (result.generated ?? 0) > 0 || result.skipped === "no_valid_oneriler";
+  if (calledOpenAi || result.skipped === "already_at_cap") {
     await supabase
       .from("profiles")
       .update({ last_recommendation_refresh_at: new Date().toISOString() })
