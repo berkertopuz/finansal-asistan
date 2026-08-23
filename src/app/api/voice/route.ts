@@ -25,6 +25,14 @@ const ALLOWED_MIME_TYPES = new Set([
 // da base64 sonrası ikinci bir sınır var).
 const MAX_AUDIO_BYTES = 6 * 1024 * 1024;
 
+// Gövdenin tamamı için sınır (dosya + multipart zarfı + todayDate alanı).
+// `file.size` kontrolü ancak request.formData() gövdeyi TAMAMEN belleğe
+// aldıktan SONRA çalışıyor, yani tek başına bellek koruması değil; bu
+// başlık kontrolü isteği el sıkışma anında kesiyor. Content-Length her zaman
+// gelmiyor (chunked), o durumda aşağıdaki file.size kontrolüne düşülüyor —
+// statements/parse rotasındaki aynı artık risk, aynı gerekçeyle.
+const MAX_REQUEST_BYTES = MAX_AUDIO_BYTES + 64 * 1024;
+
 // Model "dün"ü çözebilmek için bugünün tarihini bilmek zorunda ve bu tarih
 // KULLANICININ saat diliminde olmalı — sunucu UTC'de koşuyor, gece yarısı
 // civarında bir gün kayardı. Bu yüzden tarihi client gönderiyor; burada
@@ -76,6 +84,12 @@ export async function POST(request: Request) {
     return Response.json({ error: t("consentRequired"), consentRequired: true }, { status: 403 });
   }
 
+  // Gövdeyi OKUMADAN önceki tek kontrol — bkz. MAX_REQUEST_BYTES notu.
+  const declaredLength = Number(request.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_REQUEST_BYTES) {
+    return Response.json({ error: t("audioTooLong") }, { status: 413 });
+  }
+
   const formData = await request.formData();
   const file = formData.get("audio");
   const todayDate = formData.get("todayDate");
@@ -87,7 +101,7 @@ export async function POST(request: Request) {
     return Response.json({ error: t("emptyAudio") }, { status: 400 });
   }
   if (file.size > MAX_AUDIO_BYTES) {
-    return Response.json({ error: t("audioTooLong") }, { status: 400 });
+    return Response.json({ error: t("audioTooLong") }, { status: 413 });
   }
   if (typeof todayDate !== "string" || !isPlausibleToday(todayDate)) {
     return Response.json({ error: t("invalidAudio") }, { status: 400 });

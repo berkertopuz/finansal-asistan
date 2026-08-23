@@ -1,11 +1,36 @@
 import { getTranslations } from "next-intl/server";
 import { createClient } from "@/lib/supabase/server";
-import { extractStatementText } from "@/lib/statement-import/extract";
+import { StatementTooComplexError, extractStatementText } from "@/lib/statement-import/extract";
 import { filterValidStatementRows, parseStatementHeader } from "@/lib/statement-import/schema";
 
 // 10MB — bir ekstre PDF'i için cömert bir üst sınır, kazara başka bir
 // dosyanın yüklenmesine karşı bir güvenlik ağı.
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
+
+// Gövdenin tamamı için sınır: dosya + multipart zarfı. `file.size` kontrolü
+// ancak request.formData() gövdeyi TAMAMEN belleğe aldıktan SONRA çalışıyor,
+// yani tek başına bir bellek koruması değil — 1 GB'lık bir gövde, "dosya çok
+// büyük" hatasını görmeden önce çoktan okunmuş olurdu. Content-Length'e
+// bakmak bunu el sıkışma anında kesiyor.
+//
+// Content-Length HER ZAMAN gelmiyor (chunked transfer): o durumda yalnızca
+// aşağıdaki file.size kontrolü kalıyor. Bu kabul edilen bir artık risk —
+// tamamen kapatmak gövdeyi akış halinde okumayı gerektirir, Next'in
+// formData() API'si buna izin vermiyor.
+const MAX_REQUEST_BYTES = MAX_FILE_BYTES + 64 * 1024;
+
+// PDF imzası. `file.type` İSTEMCİDEN geliyor (multipart Content-Type
+// başlığı), yani saldırgan herhangi bir baytı "application/pdf" diye
+// gönderebilir — tek başına bir doğrulama değil, bir ipucu. Gerçek kontrol
+// dosyanın kendi imzası. Spec, imzadan önce bir miktar çöp bayta izin
+// veriyor ve ayrıştırıcılar da tolere ediyor, o yüzden ilk 1 KB taranıyor.
+const PDF_SIGNATURE = "%PDF-";
+const PDF_SIGNATURE_SCAN_BYTES = 1024;
+
+function hasPdfSignature(bytes: Uint8Array): boolean {
+  const head = Buffer.from(bytes.subarray(0, PDF_SIGNATURE_SCAN_BYTES)).toString("latin1");
+  return head.includes(PDF_SIGNATURE);
+}
 
 // Edge function'ın döndürdüğü hata kodu → mesaj kataloğu anahtarı. Dinamik
 // anahtar araması yapılmıyor (next-intl bilinmeyen anahtarda hata atıyor);
@@ -44,19 +69,38 @@ export async function POST(request: Request) {
     return Response.json({ error: t("consentRequired"), consentRequired: true }, { status: 403 });
   }
 
+  // Gövdeyi OKUMADAN önceki tek kontrol — bkz. MAX_REQUEST_BYTES notu.
+  const declaredLength = Number(request.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_REQUEST_BYTES) {
+    return Response.json({ error: t("fileTooLarge") }, { status: 413 });
+  }
+
   const formData = await request.formData();
   const file = formData.get("file");
   if (!(file instanceof File) || file.type !== "application/pdf") {
     return Response.json({ error: t("invalidFile") }, { status: 400 });
   }
   if (file.size > MAX_FILE_BYTES) {
-    return Response.json({ error: t("fileTooLarge") }, { status: 400 });
+    return Response.json({ error: t("fileTooLarge") }, { status: 413 });
+  }
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  // İmza kontrolü ayrıştırıcıdan ÖNCE: pdf.js'e rastgele bayt vermemek,
+  // ayrıştırıcı yüzeyini yalnızca gerçekten PDF olan girdilere daraltıyor.
+  if (!hasPdfSignature(bytes)) {
+    return Response.json({ error: t("invalidFile") }, { status: 400 });
   }
 
   let extracted;
   try {
-    extracted = await extractStatementText(await file.arrayBuffer());
-  } catch {
+    extracted = await extractStatementText(bytes.buffer as ArrayBuffer);
+  } catch (error) {
+    if (error instanceof StatementTooComplexError) {
+      // Sunucu loguna yazılıyor: normal kullanımda görülmemesi gereken bir
+      // yol, tekrarlıyorsa ya gerçekten büyük bir ekstre ya kötüye kullanım.
+      console.warn("[/api/statements/parse] bütçe aşıldı:", error.message);
+      return Response.json({ error: t("tooComplex") }, { status: 413 });
+    }
     return Response.json({ error: t("extractFailed") }, { status: 400 });
   }
 

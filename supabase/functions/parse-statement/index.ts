@@ -44,10 +44,11 @@ export default {
       // sabit bir kod dönüyor, ayrıntı fonksiyon loguna yazılıyor.
       console.error("parse-statement OpenAI çağrısı başarısız:", err);
       const status = (err as { status?: unknown })?.status;
-      // 429 = kota/hız limiti. Bu ayrımı korumak işe yarıyor: kullanıcı bu
-      // uygulamada API anahtarının sahibi, yani "kota bitti" onun
-      // düzeltebileceği bir durum — genel bir "tekrar dene" mesajı yanıltıcı
-      // olurdu.
+      // 429 = kota/hız limiti. Ayrım kullanıcı için DEĞİL (anahtar bizim,
+      // kullanıcının yapabileceği bir şey yok — CLAUDE.md kural 8) log ve
+      // alarm için korunuyor: 429 bizim kapasite sorunumuz, llmFailed başka
+      // bir arıza. Kullanıcıya iki durumda da sadece "birazdan tekrar dene"
+      // deniyor.
       const code = status === 429 ? "quotaExceeded" : "llmFailed";
       return Response.json({ code }, { status: 502 });
     }

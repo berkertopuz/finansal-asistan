@@ -2,7 +2,9 @@
 
 # Finansal Asistan — Proje Brief (Claude Code için)
 
-Kişisel kullanım için Türkçe bir PWA: nakit akışı defteri + haber tetiklemeli yatırım sinyal motoru (BIST, altın, kripto, döviz). Next.js App Router + TypeScript + Tailwind + Supabase + GPT-4o.
+Çok dilli (varsayılan Türkçe) bir PWA: nakit akışı defteri + haber tetiklemeli yatırım sinyal motoru (BIST, altın, kripto, döviz). Next.js App Router + TypeScript + Tailwind + Supabase + GPT-4o.
+
+**Bu bir kişisel kullanım projesi DEĞİL.** Google Play Store'da TWA olarak yayınlanacak, herkese açık kayıt alan çok kiracılı (multi-tenant) bir ürün. Bu, tasarım kararlarını doğrudan değiştiriyor — bkz. kural 8. Kod ya da yorumlarda "kullanıcı = geliştirici" varsayan her şey (ör. "kendi API anahtarına kredi ekle" diyen bir hata mesajı) bir hatadır; geçmişte yazılmış olanları görürsen düzelt.
 
 ## Kesin kurallar (pazarlıksız)
 
@@ -11,11 +13,16 @@ Kişisel kullanım için Türkçe bir PWA: nakit akışı defteri + haber tetikl
 3. **Auth:** Geçerli oturum olmadan hiçbir finansal veri render edilmez. Supabase Auth (email/şifre + Google OAuth). Tüm kullanıcı tablolarında RLS: `auth.uid() = user_id`.
 4. **Arayüz:** shadcn/ui bileşen kütüphanesiyle hem mobil hem masaüstü için modern, responsive tasarım — masaüstü mobilin küçültülmüş hali değil, ayrı düşünülmüş bir layout (örn. mobilde alt tab bar, masaüstünde sol sidebar nav). Mobil: 375px viewport, dokunma hedefleri ≥ 48px, yatay scroll yok, Lighthouse mobil ≥ 90. Gelir/gider ekleme ana ekrandan ≤ 3 dokunuş.
 5. **Fiyat uydurma yasak:** LLM bağlamına giren her fiyat aynı istek döngüsünde canlı API'den gelir. API düşerse o varlık sınıfı için "Veri alınamadı — öneri ertelendi" gösterilir; bayat/uydurma veri asla.
-6. **Tazelik:** Nitelikli olay (BIST-100 ±%2, USD/TRY ±%1.5, faiz kararı, TÜFE) sonrası 24 saat içinde pozisyon sinyalleri yenilenir. Haftada ≥ 5 yeni alım önerisi.
+6. **Tazelik:** ~~Nitelikli olay (BIST-100 ±%2, USD/TRY ±%1.5, faiz kararı, TÜFE) sonrası 24 saat içinde pozisyon sinyalleri yenilenir. Haftada ≥ 5 yeni alım önerisi.~~ **İlk sürümde GEÇERSİZ** — öneri motoru kapalı (bkz. aşağıdaki madde). Motor geri açılırsa bu kural da geri gelir. Fiyat/haber toplama (poll-prices, poll-news, detect-events) çalışmaya devam ediyor, yani tazelik verisi birikiyor.
 7. **Dağıtım:** Bu uygulama Google Play Store'da TWA (Trusted Web Activity) olarak yayınlanacak — henüz yayınlanmadı, yayın tarihi belirsiz. Bu yüzden mobil ekranlar sadece "tarayıcıda iyi görünsün" değil, gerçek bir kurulu uygulama gibi hissettirmeli (dokunma/scroll hissi, offline fallback, PWA manifest/ikon doğruluğu — bkz. "Onaylanmış mimari kararlar"daki TWA notu). Yeni mobil UI eklerken bunu göz önünde bulundur.
+8. **Herkese açık ürün duruşu:** Kayıt herkese açık, yani oturum açmış bir kullanıcı GÜVENİLİR DEĞİLDİR — yalnızca kimliği doğrulanmıştır. Bunun üç sonucu var, üçü de pazarlıksız:
+   - **Kullanıcıdan gelen her dosya düşmandır.** Yüklenen PDF/ses istemci tarafındaki `File.type`'a göre değil, kendi imzasına göre doğrulanır (`file.type` istemcinin yazdığı bir başlık, sahtelenebilir). Ayrıştırıcıya verilmeden önce boyut sınırı hem `Content-Length` başlığında (gövde okunmadan) hem de gerçek bayt boyutunda kontrol edilir. Ayrıştırma işi sınırsız olamaz: sayfa sayısı ve çıkarılan karakter için bütçe vardır (`MAX_PDF_PAGES`, `MAX_EXTRACTED_CHARS`), çünkü bu iş paylaşılan Next sürecinde koşuyor ve tek bir kötü dosya tüm kullanıcıları etkiler.
+   - **Ücretli her çağrı kötüye kullanılabilir.** LLM'e giden her uç (ekstre ayrıştırma, sesli giriş, öneri yenileme) faturayı doğrudan artırıyor ve hiçbiri kullanıcının kendi anahtarını kullanmıyor. Bu uçlar hız/kota sınırı olmadan yayına çıkmaz.
+   - **Hata mesajları kullanıcının geliştirici olduğunu varsayamaz.** "OpenAI hesabına kredi ekle", "Google AI Studio'da faturalandırmayı aç" gibi metinler kişisel kullanım döneminden kalmadır; kullanıcıya sağlayıcı adı, kota mekaniği ya da yapması gereken bir yönetim işi söylenmez — sadece ne olduğu ve ne zaman tekrar deneyeceği söylenir. Sağlayıcı ayrıntısı loga yazılır (bu zaten kural 1'in bir sonucu).
 
 ## Onaylanmış mimari kararlar
 
+- **Öneri motoru ilk sürümde KAPALI.** Öneriler sekmesi 0619f91'de Analiz ile değiştirildi, ama motor arkada çalışmaya devam ediyordu ve bu SESSİZ bir maliyetti: her nitelikli piyasa olayı (`market_events` insert) bir DB tetikleyicisiyle `generate-signals`'a zincirlenip gpt-4o çağırıyor, ayrıca iki günlük cron işi (`generate-signals-daily-safety`, `generate-buy-suggestions-daily`) iki çağrı daha yapıyordu — üretilen satırları gösteren hiçbir ekran olmadan. Kapatma `20260823120000_disable_recommendation_engine.sql` ile: iki cron işi unschedule, `market_events_after_insert` tetikleyicisi drop. **Üçüncü bir kapı gerekti:** `refresh-recommendations` `auth:["user"]` ile çalışıyor, yani arayüzü silmek ucu kapatmıyor — oturumu olan biri doğrudan edge function'a POST atabilirdi. O yüzden hem Next rotasında hem edge function'ın kendisinde `RECOMMENDATION_ENGINE_ENABLED = false` var. (Kardeşleri `auth:["secret"]` olduğu için onlarda gerekmedi.) Kod, tablolar, RLS ve mevcut satırlar SİLİNMEDİ — motorun geri gelip gelmeyeceğine karar verilmedi; geri açmak iki sabiti `true` yapmak ve migration'ın tersini yazmak. Kapsam dışı bırakılanlar kasıtlı: `poll-prices`, `poll-news`, `detect-events` çalışmaya devam ediyor, hiçbiri LLM çağırmıyor ve portföy ekranı taze fiyata muhtaç.
 - **BIST verisi:** Investing.com kazıma YAPMA (T4). Yahoo Finance chart API (`.IS` ticker'ları, örn. `XU100.IS`) — resmi olmayan ama scraping değil, JSON endpoint (T3). `supabase/functions/_shared/providers/` altında değiştirilebilir adaptör (`bist.ts`). Gecikme UI'da açıkça gösterilir.
 - **Altın:** Ayrı bir altın API'si yok — Binance'in PAXGUSDT paritesi (1 PAXG ≈ 1 ons altın) + USDT/TRY çapraz kuru üzerinden gram altın TRY türetiliyor (`binance.ts`, T3 — PAXG spota göre küçük prim/iskontolu işlem görebilir).
 - **Haberler:** NewsAPI değil, Türk RSS beyaz listesi: AA, Bloomberg HT, Dünya, NTV Ekonomi. (Reuters TR listedeydi ama Reuters artık genel erişime açık RSS sunmuyor — 2026-07-18'de doğrulanıp NTV Ekonomi ile değiştirildi.) `fast-xml-parser` ile parse.
@@ -38,7 +45,7 @@ RLS deseni: kullanıcı tablolarında select/insert/update/delete için `auth.ui
 
 ## Ekranlar
 
-5 sekme: Ana Sayfa (`/`), Defter (`/defter`), Portföy (`/portfoy`), Öneriler (`/oneriler`), Ayarlar (`/ayarlar`). `(app)` route group layout'u sunucu tarafında oturum doğrular, yoksa `/giris`'e redirect.
+5 sekme: Ana Sayfa (`/`), Defter (`/defter`), Portföy (`/portfoy`), Analiz (`/analiz`), Ayarlar (`/ayarlar`). Öneriler sekmesi 0619f91'de Analiz ile DEĞİŞTİRİLDİ; öneri motoru ilk sürümde yok (bkz. "Öneri motoru ilk sürümde KAPALI"). `(app)` route group layout'u sunucu tarafında oturum doğrular, yoksa `/giris`'e redirect.
 
 - İlk boyamada görünen sayılar (fazla, ay özeti) → server component
 - Canlı tazelenen veriler (fiyat, sinyal) → client island + SWR 60s
@@ -77,7 +84,7 @@ Kod yorumlarında ve plan güncellemelerinde: T1 (%95+ çalışır), T2 (küçü
 ## Test kriterleri (kabul)
 
 1. Giriş → 1 gelir + 1 abonelik ekle → güncel net fazla; her aksiyon ≤3 dokunuş, toplam <10 sn.
-2. 7 günlük pencerede ≥5 farklı, haber atıflı öneri.
-3. Nitelikli olay sonrası 24 saat içinde her pozisyonda gerekçeli sinyal (kullanıcının seçili dilinde).
+2. ~~7 günlük pencerede ≥5 farklı, haber atıflı öneri.~~ İlk sürümde geçersiz (öneri motoru kapalı).
+3. ~~Nitelikli olay sonrası 24 saat içinde her pozisyonda gerekçeli sinyal (kullanıcının seçili dilinde).~~ İlk sürümde geçersiz (öneri motoru kapalı).
 4. Lighthouse mobil ≥ 90 (375px).
 5. User B olarak User A satırlarına REST sorgusu → boş sonuç.
