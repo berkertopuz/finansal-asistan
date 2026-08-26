@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { safeNextPath } from "@/lib/auth-redirect";
 
 // Handles both the Google OAuth redirect and the email-confirmation link
 // from signUpWithPassword. Both deliver a `code` that gets exchanged for a
@@ -7,7 +8,10 @@ import { createClient } from "@/lib/supabase/server";
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/";
+  // Bu parametre URL'den, yani kullanıcıdan geliyor — origin ile birleştirmek
+  // tek başına yetmez (ters bölü / kontrol karakteri varyantları), aynı
+  // doğrulamadan geçiyor.
+  const next = safeNextPath(searchParams.get("next"));
 
   if (code) {
     const supabase = await createClient();

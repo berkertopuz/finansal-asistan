@@ -16,6 +16,7 @@ type TemplateRow = Pick<
   | "next_due_date"
   | "occurred_at"
   | "credit_card_id"
+  | "group_id"
 > & { skip_dates: string[] };
 
 // How far ahead a template's occurrences get pre-generated as real rows —
@@ -50,7 +51,7 @@ export const materializeDueOccurrences = cache(async (userId: string): Promise<v
   const { data: templates } = await supabase
     .from("entries")
     .select(
-      "id, kind, amount, currency, category, description, recurrence, next_due_date, occurred_at, credit_card_id, skip_dates",
+      "id, kind, amount, currency, category, description, recurrence, next_due_date, occurred_at, credit_card_id, group_id, skip_dates",
     )
     .neq("recurrence", "none");
 
@@ -97,6 +98,11 @@ export const materializeDueOccurrences = cache(async (userId: string): Promise<v
         // src/lib/cashflow.ts's creditCardDebtBalance and its future-cycle
         // projection both see it as card debt, not a direct cash event.
         credit_card_id: tpl.credit_card_id,
+        // ORTAK BÜTÇE: ortak giderlerin çoğu tekrarlayan (kira, elektrik,
+        // aidat). Bu alan kopya listesine girmezse en tipik ortak giderler
+        // her ay SESSİZCE kişisel doğar — şablon ortak işaretli olsa bile
+        // (CLAUDE.md, "Yeni kolon eklerken").
+        group_id: tpl.group_id,
         template_id: tpl.id,
       });
     }

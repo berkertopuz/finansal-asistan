@@ -26,9 +26,14 @@ const QuickEntryForm = dynamic(
 // (defter sayfaları) ve HeroActions (ana sayfa).
 export function QuickAddFAB({
   defaultKind,
+  lockedGroupId,
   renderTrigger,
 }: {
   defaultKind?: EntryKind;
+  // Grup ekranından açıldığında o grup SEÇİLİ ve DEĞİŞTİRİLEMEZ gelir:
+  // kullanıcı zaten "bu gruba gider ekle" diyerek buraya geldi, seçiciyi
+  // tekrar sunmak hem gereksiz bir adım hem de yanlış gruba yazma riski.
+  lockedGroupId?: string;
   // Lets a caller (e.g. the Home hero's pill button) open this exact same
   // Sheet with its own trigger markup instead of the fixed round FAB below —
   // keeps the Sheet/open-state wiring in one place instead of duplicating
@@ -61,7 +66,11 @@ export function QuickAddFAB({
               {t("form.addSheetDescription")}
             </SheetDescription>
           </SheetHeader>
-          <QuickEntryForm onSaved={() => setOpen(false)} defaultKind={defaultKind} />
+          <QuickEntryForm
+            onSaved={() => setOpen(false)}
+            defaultKind={defaultKind}
+            lockedGroupId={lockedGroupId}
+          />
         </SheetContent>
       </Sheet>
     </>

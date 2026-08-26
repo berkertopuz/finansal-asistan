@@ -147,6 +147,9 @@ function projectedCardPaymentEntry(cardId: string, cardName: string, paymentDate
     // bir alışverişi değil, projeksiyondaki bir kart ödemesini temsil ediyor.
     purchased_at: null,
     credit_card_id: cardId,
+    // Sanal bir kart ödemesi hiçbir zaman ortak olamaz: paylaşılan şey
+    // harcamanın kendisi, kartın kapatılması değil.
+    group_id: null,
     created_at: "",
     template_id: null,
     portfolio_position_id: null,

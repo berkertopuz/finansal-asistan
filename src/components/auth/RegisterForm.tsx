@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 
-export function RegisterForm() {
+export function RegisterForm({ next }: { next?: string }) {
   const [state, action, pending] = useActionState(signUpWithPassword, undefined);
   const t = useTranslations("auth");
   const tCommon = useTranslations("common");
@@ -24,6 +24,7 @@ export function RegisterForm() {
   return (
     <div className="mt-6 flex flex-col gap-4">
       <form action={action} className="flex flex-col gap-4">
+        {next ? <input type="hidden" name="next" value={next} /> : null}
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="email">{t("email")}</Label>
           <Input id="email" type="email" name="email" required autoComplete="email" />
@@ -54,6 +55,7 @@ export function RegisterForm() {
       </div>
 
       <form action={signInWithGoogle}>
+        {next ? <input type="hidden" name="next" value={next} /> : null}
         <Button type="submit" variant="outline" size="touch" className="w-full">
           {t("google")}
         </Button>

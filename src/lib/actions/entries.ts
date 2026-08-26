@@ -30,6 +30,27 @@ function monthStartDateString(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
 }
 
+// GRUP. Artık bir kullanıcı birden çok grupta olabildiği için (bir hane +
+// iki tatil) form HANGİ grup olduğunu gönderiyor — "evet/hayır" yetmiyor.
+//
+// İstemciden gelen bir id'ye GÜVENİLMİYOR, ama kontrol burada DEĞİL: asıl
+// kapı RLS. entries_insert_own/entries_update_own'ın with check'i
+// "group_id is null or is_group_member(group_id)" diyor
+// (20260825140000 + 20260826140000). O policy eklenmeden önce bu gerçekten
+// açıktı: oturumu olan biri PostgREST'e doğrudan POST atıp yabancı bir
+// grubun görünümüne satır yazabiliyordu (sızma testinde 201 alındı). Yani
+// bu fonksiyonun işi güvenlik değil, biçim doğrulama ve kind kuralı.
+//
+// Yalnızca harcama gruplanabilir: gelir/yatırım grup toplamının anlamını
+// bozar ve DB CHECK'i (entries_group_kind_check) zaten reddeder — burada
+// erken dönmek o hatayı kullanıcıya "kaydedilemedi" olarak yansıtmaktan
+// daha iyi.
+function resolveGroupId(rawGroupId: FormDataEntryValue | null, kind: string): string | null {
+  if (kind !== "expense" && kind !== "subscription") return null;
+  if (typeof rawGroupId !== "string" || !rawGroupId) return null;
+  return z.string().uuid().safeParse(rawGroupId).success ? rawGroupId : null;
+}
+
 async function buildEntrySchema() {
   const t = await getTranslations("ledger.form.errors");
   return z
@@ -94,6 +115,9 @@ async function buildEntrySchema() {
         .string()
         .optional()
         .transform((v) => (v ? v : undefined)),
+      // GRUP alanı burada DEĞİL: ham FormData'dan okunuyor (resolveGroupId),
+      // çünkü boş string ile "grup yok" arasındaki fark zod'un optional
+      // dönüşümlerinde kolayca kayboluyor ve üyelik doğrulaması zaten RLS'te.
     })
     .superRefine((data, ctx) => {
       const fxFields = [
@@ -186,6 +210,7 @@ export async function addEntry(
 
   const isRecurring = parsed.data.recurrence !== "none";
   const isInstallment = formData.get("isInstallment") === "true";
+  const groupId = resolveGroupId(formData.get("group_id"), parsed.data.kind);
   // income can never carry a card (DB CHECK) — the form never shows the
   // selector for it, this is just the same server-side backstop pattern
   // already used elsewhere in this file.
@@ -222,6 +247,9 @@ export async function addEntry(
         installment_index: row.index,
         installment_count: row.count,
         credit_card_id: creditCardId,
+        // Taksitli bir ortak alışverişte serinin HER satırı ortak — hane
+        // toplamı o ayın taksitini görmek zorunda, sadece ilkini değil.
+        group_id: groupId,
       })),
     );
 
@@ -254,6 +282,7 @@ export async function addEntry(
     recurrence: parsed.data.recurrence,
     next_due_date: isRecurring ? parsed.data.next_due_date! : null,
     credit_card_id: creditCardId,
+    group_id: groupId,
   });
 
   if (error) {
@@ -324,6 +353,7 @@ export async function updateEntry(
     .select("template_id, next_due_date, recurrence, occurred_at")
     .eq("id", id)
     .maybeSingle();
+  const groupId = resolveGroupId(formData.get("group_id"), parsed.data.kind);
   const previousTemplateId = rowBeforeUpdate?.template_id ?? null;
   const previousOccurredAt = rowBeforeUpdate?.occurred_at ?? null;
   const scheduleChanged =
@@ -351,6 +381,12 @@ export async function updateEntry(
       recurrence: parsed.data.recurrence,
       next_due_date: isRecurring ? parsed.data.next_due_date! : null,
       credit_card_id: creditCardId,
+      // Ortak işareti düzenlemede de YAZILIYOR, atlanmıyor: kullanıcı
+      // anahtarı kapattığında (ya da satırı gelire çevirdiğinde)
+      // resolveGroupId null döner ve işaret gerçekten kalkar.
+      // Anahtarı "sadece doluysa yaz" yapmak, bir kez ortak işaretlenen
+      // satırı geri alınamaz hale getirirdi.
+      group_id: groupId,
       // Döviz alanları düzenlemede de yazılıyor: kullanıcı para birimini
       // TL'ye çevirdiyse ÜÇÜ DE null olmalı, yoksa DB CHECK'i (dördü birlikte)
       // ihlal olur ve kayıt reddedilir.
@@ -497,6 +533,11 @@ export async function updateEntry(
         // creditCardDebtBalance and future-cycle projection would keep
         // reading the old card for months already generated before the edit.
         credit_card_id: creditCardId,
+        // Ortak işareti de aynı gerekçeyle taşınıyor: kirayı ortak
+        // işaretlemek (ya da işareti kaldırmak) yalnızca şablona yazılsaydı,
+        // ZATEN ÜRETİLMİŞ aylar eski haliyle kalır ve hane toplamı
+        // aylarca yanlış görünürdü.
+        group_id: groupId,
       })
       .eq("template_id", id);
     if (!applyToAllOccurrences) {
@@ -532,6 +573,87 @@ export async function updateEntry(
   revalidatePath("/defter");
   revalidatePath("/");
   return { success: true };
+}
+
+// Bir kaydın grupla ilişkisini kes — grup ekranından, kaydın SAHİBİ
+// tarafından. Kayıt SİLİNMİYOR: kendi defterinde kişisel bir harcama olarak
+// aynen kalıyor, yalnızca grubun toplamından çıkıyor.
+//
+// Başkasının kaydını gruptan çıkaramazsın ve bu RLS'te duruyor:
+// entries_update_own'ın USING'i auth.uid() = user_id diyor, yani yabancı bir
+// satır için update 0 satır etkiler. Arayüz de zaten çıkarma düğmesini
+// yalnızca kendi satırlarında gösteriyor — ama asıl kapı policy.
+// Bir çift bütçesi uygulamasında "eşimin kaydını sildi/çıkardı" güveni
+// bitiren hata sınıfı (CLAUDE.md, kişiler arası mükerrer notuyla aynı
+// gerekçe), o yüzden bu sınır UI'da değil DB'de tutuluyor.
+export async function detachEntryFromGroup(id: string): Promise<AddEntryState> {
+  const t = await getTranslations("ledger.form.errors");
+  const parsed = z.string().uuid().safeParse(id);
+  if (!parsed.success) {
+    return { error: t("genericInvalid") };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("entries")
+    .update({ group_id: null })
+    .eq("id", parsed.data)
+    .select("id");
+
+  if (error) {
+    console.error("detachEntryFromGroup: güncellenemedi", error);
+    return { error: t("saveFailed") };
+  }
+  // 0 satır = başkasının kaydı (RLS sessizce eledi). Hata vermemesi normal,
+  // kullanıcıya net bir sebep söylüyoruz.
+  if (!data || data.length === 0) {
+    return { error: t("notFound") };
+  }
+
+  revalidatePath("/gruplar", "layout");
+  revalidatePath("/defter");
+  return { success: true };
+}
+
+// Toplu grup atama — grup ekranındaki "harcama ekle" akışı.
+//
+// Ekstreden 40 satır geldikten sonra bunları tek tek düzenleme formundan
+// açmak yorucu; bu akış aynı işi tek onayla yapıyor. Çoklu seçimi defterin
+// kendi tablosuna monte etmek yerine grup ekranına koymanın sebebi: zaten
+// yalnızca KENDİ kayıtlarını atayabiliyorsun (RLS), yani liste doğal olarak
+// sana kapsanıyor ve defterin ana akışına bir "seçim modu" borcu binmiyor.
+//
+// Yetki tek yerde: entries_insert/update_own'ın with check'i hem satırın
+// senin olmasını hem de group_id'nin ÜYESİ OLDUĞUN bir grup olmasını
+// doğruluyor. Yabancı bir satır ya da yabancı bir grup için update sessizce
+// 0 satır etkiler; dönen satır sayısını sayıp kullanıcıya kaçının
+// yazıldığını söylüyoruz.
+export async function assignEntriesToGroup(
+  groupId: string,
+  entryIds: string[],
+): Promise<AddEntryState & { assigned?: number }> {
+  const t = await getTranslations("ledger.form.errors");
+  const parsedGroup = z.string().uuid().safeParse(groupId);
+  const parsedIds = z.array(z.string().uuid()).min(1).max(200).safeParse(entryIds);
+  if (!parsedGroup.success || !parsedIds.success) {
+    return { error: t("genericInvalid") };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("entries")
+    .update({ group_id: parsedGroup.data })
+    .in("id", parsedIds.data)
+    .select("id");
+
+  if (error) {
+    console.error("assignEntriesToGroup: güncellenemedi", error);
+    return { error: t("saveFailed") };
+  }
+
+  revalidatePath("/gruplar", "layout");
+  revalidatePath("/defter");
+  return { success: true, assigned: data?.length ?? 0 };
 }
 
 export async function deleteEntry(

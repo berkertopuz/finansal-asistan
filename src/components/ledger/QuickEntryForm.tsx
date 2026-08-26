@@ -5,7 +5,7 @@ import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR, { mutate } from "swr";
 import { useLocale, useTranslations } from "next-intl";
-import { TrendingDown, TrendingUp } from "lucide-react";
+import { TrendingDown, TrendingUp, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   addEntry,
@@ -15,6 +15,7 @@ import {
 import { addCategory } from "@/lib/actions/categories";
 import type { Category } from "@/lib/categories-data";
 import type { CreditCard } from "@/lib/credit-cards-data";
+import type { Group } from "@/lib/groups-data";
 import {
   DEFAULT_CATEGORY,
   ENTRY_CATEGORIES,
@@ -61,6 +62,13 @@ const creditCardsFetcher = (url: string) =>
     return res.json();
   });
 
+const GROUPS_KEY = "/api/groups";
+const groupsFetcher = (url: string) =>
+  fetch(url).then((res) => {
+    if (!res.ok) throw new Error("failed to fetch groups");
+    return res.json();
+  });
+
 // Local date, not toISOString().slice(0,10) — that reads UTC parts, which
 // drifts a day off around midnight depending on the user's timezone.
 function todayDateInputValue(): string {
@@ -82,11 +90,16 @@ export function QuickEntryForm({
   onSaved,
   editingEntry,
   defaultKind = "expense",
+  lockedGroupId,
   draft,
 }: {
   onSaved: () => void;
   editingEntry?: Entry;
   defaultKind?: EntryKind;
+  // Grup ekranından açıldığında dolu gelir: o grup seçili ve DEĞİŞTİRİLEMEZ.
+  // Kullanıcı zaten "bu gruba gider ekle" diyerek geldi; seçiciyi tekrar
+  // sunmak gereksiz bir adım ve yanlış gruba yazma riski.
+  lockedGroupId?: string;
   // Sesli girişten gelen taslak (src/components/ledger/VoiceEntryButton.tsx).
   // YALNIZCA aşağıdaki useState initializer'larında okunuyor — form mount
   // olduktan sonra taslağın değişmesi diye bir durum yok, QuickAddFAB her
@@ -177,6 +190,10 @@ export function QuickEntryForm({
   // gösterilmiyor, aşağıya bkz.): tek bir satırı düzenlemek zaten sıradan
   // bir düzenleme, "seriyi" düzenlemek diye ayrı bir kavram yok.
   const [isInstallment, setIsInstallment] = useState(draft?.installmentCount != null);
+  // ORTAK BÜTÇE. Varsayılan HER ZAMAN kişisel — yanlışlıkla ortak işaretlenen
+  // bir harcama eşin ekranına düşer ve geri alınamaz, ters yön yalnızca hane
+  // toplamını eksiltir ve düzeltilir (CLAUDE.md, asimetrik hata maliyeti).
+  const [groupId, setGroupId] = useState<string>(lockedGroupId ?? editingEntry?.group_id ?? "");
   const [installmentCount, setInstallmentCount] = useState(draft?.installmentCount ?? 2);
   // "" = Nakit/Banka (bakiyeyi hemen düşürür, varsayılan — 3-dokunuşluk
   // akışı bozmamak için kart seçmek isteğe bağlı bir dokunuş daha). Dolu bir
@@ -189,8 +206,22 @@ export function QuickEntryForm({
   // other field stays uncontrolled (defaultValue) on purpose, this is the
   // one exception.
   const [amountValue, setAmountValue] = useState<string>(
+    // DÖVİZLİ BİR KAYDI DÜZENLERKEN entry.amount YAZILAMAZ. Bu alan para
+    // birimi TRY dışıysa ORİJİNAL tutarı taşıyor (aşağıda doğrudan
+    // original_amount olarak gönderiliyor ve TL karşılığı amount × kur ile
+    // hesaplanıyor), entry.amount ise HER ZAMAN TL. İkisini karıştırmak
+    // sessiz ve büyüyen bir hataydı: 5 € (≈₺285) bir kayıt düzenlemeye
+    // açıldığında para birimi seçici EUR geliyordu ama tutar alanına 285
+    // yazılıyordu, yani form "285 €" harcanmış sanıyor ve kaydedince tutarı
+    // ₺16.000'e çıkarıyordu. Kullanıcı bildirdi: "değeri değiştirmek
+    // istediğimde döviz dolar olarak seçili geliyor ve değer yükseliyor."
+    //
+    // DB CHECK'i dört döviz alanının birlikte dolu ya da birlikte boş
+    // olmasını garanti ediyor, yani original_amount tam olarak
+    // original_currency dolu olduğunda (= seçicinin TRY dışı açıldığı
+    // durumda) dolu — bu yüzden ?? geri düşüşü kesin doğru.
     editingEntry
-      ? String(editingEntry.amount)
+      ? String(editingEntry.original_amount ?? editingEntry.amount)
       : draft?.amount != null
         ? String(draft.amount)
         : "",
@@ -326,6 +357,10 @@ export function QuickEntryForm({
     CREDIT_CARDS_KEY,
     creditCardsFetcher,
   );
+  // Hane yoksa "ortak" anahtarı hiç gösterilmiyor — tek kullanıcılı bir
+  // defterde anlamsız bir alan. Yalnızca VARLIK bilgisi okunuyor; kaydederken
+  // hane id'si sunucuda çözülüyor (src/lib/actions/entries.ts).
+  const { data: groups } = useSWR<Group[]>(GROUPS_KEY, groupsFetcher);
 
   // The currently selected tag always stays visible even while collapsed —
   // otherwise editing a row whose category is a tag past the preview count
@@ -450,6 +485,15 @@ export function QuickEntryForm({
         type="hidden"
         name="credit_card_id"
         value={giderGelirKind === "income" ? "" : creditCardId}
+      />
+      {/* Yalnızca "ortak mı" gönderiliyor — hangi hane olduğu sunucuda
+          çözülüyor. Gelirde her zaman kapalı: hane görünümü ortak GİDER
+          toplamı, gelir oraya girerse anlamını kaybeder (DB CHECK de
+          reddediyor). */}
+      <input
+        type="hidden"
+        name="group_id"
+        value={giderGelirKind === "income" ? "" : groupId}
       />
       {/* Only ever read by updateEntry, and only when the row being edited
           is itself a recurring rule — set imperatively by submitWithScope
@@ -746,6 +790,73 @@ export function QuickEntryForm({
               </option>
             ))}
           </select>
+        </div>
+      )}
+
+      {/* GRUP seçimi. Yalnızca en az bir grubun üyesiysen ve satır gider
+          tarafındaysa görünüyor. "Hiçbiri" varsayılan ve öyle kalmalı:
+          bir gruba yazmak her kayıtta AÇIK bir tercih — paylaşılan bir grupta
+          "her şeyi gördü" sürprizi olmamalı. Tutarın tamamı yine bu kaydı
+          girene yazılıyor; seçim kişisel bakiyeyi, nakit akışını ve Analiz'i
+          hiç değiştirmiyor, yalnızca AYRI bir okuma yolunun filtresi.
+
+          TEK grubu olan kullanıcı için tek bir onay kutusu çiziliyor, çoklu
+          grup çiplere dönüşüyor: 3 dokunuş kuralının bedelini yalnızca
+          birden fazla grubu olan kişi ödüyor. */}
+      {/* KİLİTLİ GRUP. Grup ekranından "gider ekle" ile gelindiğinde hedef
+          zaten belli — seçiciyi sunmak fazladan bir adım ve yanlış gruba
+          yazma riski. Seçici yerine ne olacağını SÖYLÜYORUZ: gizli bir alan
+          bırakıp hiçbir şey göstermemek, kullanıcının kaydın nereye
+          gittiğini bilmemesi demek olurdu. */}
+      {giderGelirKind !== "income" && lockedGroupId && (
+        <div className="flex flex-col gap-1.5">
+          {/* "opsiyonel" DEĞİL: bu bağlamda grup sabit. Aynı etiketi kullanmak
+              kullanıcıya değiştirebileceğini ima ederdi. */}
+          <Label>{t("form.groupFixedLabel")}</Label>
+          <div className="flex min-h-touch items-center gap-2 rounded-md border border-input bg-muted/40 px-3 text-sm">
+            <Users className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            <span className="truncate">
+              {groups?.find((g) => g.id === lockedGroupId)?.name ?? t("form.groupLabel")}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {giderGelirKind !== "income" && !lockedGroupId && groups && groups.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <Label>{t("form.groupLabel")}</Label>
+          {groups.length === 1 ? (
+            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <Checkbox
+                checked={groupId === groups[0].id}
+                onCheckedChange={(checked) => setGroupId(checked === true ? groups[0].id : "")}
+              />
+              {groups[0].name}
+            </label>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {groups.map((group) => {
+                const selected = groupId === group.id;
+                return (
+                  <button
+                    key={group.id}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => setGroupId(selected ? "" : group.id)}
+                    className={cn(
+                      "min-h-touch rounded-full border px-3 py-1.5 text-sm",
+                      selected
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-input text-muted-foreground",
+                    )}
+                  >
+                    {group.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">{t("form.groupHint")}</p>
         </div>
       )}
 

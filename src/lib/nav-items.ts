@@ -1,10 +1,10 @@
 import type { LucideIcon } from "lucide-react";
-import { ChartColumnBig, Home, NotebookText, PieChart, Settings } from "lucide-react";
+import { ChartColumnBig, Home, NotebookText, PieChart, Settings, Users } from "lucide-react";
 
 export type NavItem = {
   href: string;
   // Key into the "nav" message namespace (messages/{locale}.json).
-  labelKey: "home" | "ledger" | "portfolio" | "analysis" | "settings";
+  labelKey: "home" | "ledger" | "portfolio" | "analysis" | "groups" | "settings";
   icon: LucideIcon;
 };
 
@@ -19,5 +19,6 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/defter", labelKey: "ledger", icon: NotebookText },
   { href: "/analiz", labelKey: "analysis", icon: ChartColumnBig },
   { href: "/portfoy", labelKey: "portfolio", icon: PieChart },
+  { href: "/gruplar", labelKey: "groups", icon: Users },
   { href: "/ayarlar", labelKey: "settings", icon: Settings },
 ];

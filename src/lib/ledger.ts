@@ -56,6 +56,12 @@ export type Entry = {
   // (src/lib/recurrence-materialize.ts) keeps tagging every future month's
   // row with the right card.
   credit_card_id: string | null;
+  // ORTAK BÜTÇE. Dolu = bu harcama hanenin ortak görünümüne düşüyor; null =
+  // kişisel (varsayılan). Kişisel bakiyeyi, v_monthly_surplus'ı, cashflow'u
+  // ve Analiz'i HİÇ etkilemiyor — payın tamamı yine kaydı girene yazılıyor,
+  // bu alan yalnızca AYRI bir okuma yolunun (v_group_entries) filtresi.
+  // Yalnızca expense/subscription satırlarında dolu olabilir (DB CHECK).
+  group_id: string | null;
   created_at: string;
   // Set only on a concrete row generated from a recurring template (see
   // src/lib/recurrence-materialize.ts) — null for both one-off entries and

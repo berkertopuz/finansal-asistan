@@ -6,6 +6,7 @@ import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { LOCALE_COOKIE, fromIntlTag } from "@/lib/locale";
+import { safeNextPath } from "@/lib/auth-redirect";
 
 export type AuthFormState = { error?: string; success?: string } | undefined;
 
@@ -61,7 +62,10 @@ export async function signInWithPassword(
     });
   }
 
-  redirect("/");
+  // Davet linkinden gelindiyse oraya geri dön (safeNextPath doğrular —
+  // form alanı kullanıcı tarafından değiştirilebilir, açık yönlendirme
+  // riskine karşı bkz. src/lib/auth-redirect.ts).
+  redirect(safeNextPath(formData.get("next") as string | null));
 }
 
 export async function signUpWithPassword(
@@ -85,9 +89,12 @@ export async function signUpWithPassword(
 
   const supabase = await createClient();
   const siteUrl = await getSiteUrl();
+  // Doğrulama linki de hedefi taşıyor: davetten gelip kayıt olan kişi
+  // e-postadaki linke tıkladığında doğrudan davet sayfasına düşüyor.
+  const next = safeNextPath(formData.get("next") as string | null);
   const { error } = await supabase.auth.signUp({
     ...parsed.data,
-    options: { emailRedirectTo: `${siteUrl}/auth/callback` },
+    options: { emailRedirectTo: `${siteUrl}/auth/callback?next=${encodeURIComponent(next)}` },
   });
 
   if (error) {
@@ -97,12 +104,15 @@ export async function signUpWithPassword(
   return { success: t("signupSuccess") };
 }
 
-export async function signInWithGoogle() {
+// <form action={signInWithGoogle}> olarak çağrılıyor, yani ilk argüman
+// formun FormData'sı — gizli "next" alanı buradan okunuyor.
+export async function signInWithGoogle(formData?: FormData) {
   const supabase = await createClient();
   const siteUrl = await getSiteUrl();
+  const next = safeNextPath(formData?.get("next") as string | null);
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
-    options: { redirectTo: `${siteUrl}/auth/callback` },
+    options: { redirectTo: `${siteUrl}/auth/callback?next=${encodeURIComponent(next)}` },
   });
 
   if (error || !data.url) {

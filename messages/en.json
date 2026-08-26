@@ -19,7 +19,8 @@
     "ledger": "Ledger",
     "portfolio": "Portfolio",
     "analysis": "Analysis",
-    "settings": "Settings"
+    "settings": "Settings",
+    "groups": "Groups"
   },
   "disclaimer": {
     "text": "These recommendations are for informational purposes only and do not constitute investment advice. Please consult a licensed advisor."
@@ -78,6 +79,82 @@
       "empty": "No data yet."
     },
     "categoriesTitle": "My categories"
+  },
+  "groups": {
+    "pageTitle": "Groups",
+    "intro": "A group is a bucket for expenses you want to track together: shared household costs, a trip, a wedding. You can use one on your own too — sharing is optional. Your own ledger and balance stay unchanged.",
+    "nameLabel": "Group name",
+    "namePlaceholder": "e.g. Home, Trip 2026",
+    "create": "Create group",
+    "backToList": "Back to groups",
+    "memberCount": "{count} members",
+    "unnamedMember": "Unnamed member",
+    "inviteCreate": "Create invite link",
+    "inviteHint": "The link is valid for 7 days and can be used once. Share it only with the person you want in this group — anyone holding the link can join.",
+    "inviteCopy": "Copy link",
+    "inviteCopied": "Copied",
+    "inviteExpires": "Valid until {date}",
+    "inviteRevoke": "Revoke",
+    "leave": "Leave group",
+    "leaveConfirm": "If you leave, the entries you marked for this group become personal again; nothing is deleted. Continue?",
+    "remove": "Remove",
+    "removeConfirm": "If you remove this member, their entries stay in their own ledger as personal. Continue?",
+    "payerBreakdownLabel": "Show who paid what",
+    "payerBreakdownHint": "When off, the group screen hides how much each person paid; the total and categories stay visible.",
+    "acceptTitle": "Group invite",
+    "acceptIntro": "If you accept, expenses marked for this group become visible to both of you. Your own ledger, balance and ungrouped entries are not shared.",
+    "acceptSignInHint": "Sign in first to accept the invite — you will be brought back here.",
+    "accept": "Accept invite",
+    "accepted": "You joined the group.",
+    "errors": {
+      "nameRequired": "Group name is required.",
+      "nameTooLong": "Group name is too long.",
+      "alreadyInGroup": "You are already a member of this group.",
+      "tooManyGroups": "You have too many groups. Leave one you no longer use to create another.",
+      "inviteInvalid": "This invite is invalid or has expired. Ask for a new link.",
+      "groupFull": "This group is full.",
+      "notInGroup": "You are not a member of this group.",
+      "noSession": "Session not found, please sign in again.",
+      "generic": "Could not complete the action, please try again.",
+      "notAdmin": "Only a group admin can do this.",
+      "lastAdmin": "You are the only admin in this group. Make someone else an admin first."
+    },
+    "summary": {
+      "totalLabel": "This period",
+      "entryCount": "{count} entries",
+      "byPayer": "Who paid what",
+      "byCategory": "By category",
+      "entriesTitle": "Expenses",
+      "noCategory": "Uncategorised",
+      "unnamed": "Unnamed member",
+      "empty": "No expenses marked for this group in this period.",
+      "previousMonth": "Previous month",
+      "nextMonth": "Next month",
+      "allTime": "All",
+      "backToMonth": "Back to month",
+      "detach": "Remove from group",
+      "crossPayerTitle": "The same expense may have been entered twice",
+      "crossPayerConfirm": "These are different expenses",
+      "onlyDuplicates": "Only possible duplicates",
+      "showAll": "Show all",
+      "crossPayerCount": "{count} possible duplicates",
+      "crossPayerReview": "Review",
+      "crossPayerSheetIntro": "Same amount, nearby dates, different payers. If it really is the same expense, remove one from the group; if they are different, confirm and you will not be asked again."
+    },
+    "rename": "Rename",
+    "addEntries": {
+      "trigger": "Add expenses",
+      "title": "Add expenses to group",
+      "description": "Pick from your own ungrouped expenses. They stay in your ledger and also count toward this group.",
+      "searchPlaceholder": "Search description or category",
+      "empty": "You have no ungrouped expenses to add.",
+      "selectedSummary": "{count} selected · {amount}",
+      "submit": "Add to group"
+    },
+    "addEntry": "Add expense",
+    "admin": "Admin",
+    "promote": "Make admin",
+    "demote": "Remove admin"
   },
   "stale": {
     "waiting": "Waiting for data…",
@@ -272,7 +349,10 @@
       "fxEquivalent": "≈ {amount}  ·  1 {currency} = {rate}",
       "fxHint": "Enter the amount and rate; the TRY equivalent is calculated.",
       "currencySearch": "Search currency",
-      "currencyNoMatch": "No matching currency"
+      "currencyNoMatch": "No matching currency",
+      "groupLabel": "Group (optional)",
+      "groupHint": "If selected, this expense counts toward that group's total. Your own balance is unchanged.",
+      "groupFixedLabel": "Group"
     },
     "fixedItems": {
       "expenseTitle": "Fixed expenses",
@@ -463,7 +543,8 @@
       "createAndContinue": "Create card and continue",
       "backToList": "Back to saved cards"
     },
-    "replacesManualEntry": "Replaces the {original} entry you added manually"
+    "replacesManualEntry": "Replaces the {original} entry you added manually",
+    "possibleDuplicateOf": "matches {amount} on {date}"
   },
   "creditCards": {
     "summaryTitle": "Credit Card Statements",

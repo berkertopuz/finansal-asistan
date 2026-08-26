@@ -19,7 +19,8 @@
     "ledger": "Defter",
     "portfolio": "Portföy",
     "analysis": "Analiz",
-    "settings": "Ayarlar"
+    "settings": "Ayarlar",
+    "groups": "Gruplar"
   },
   "disclaimer": {
     "text": "Bu öneriler yalnızca bilgilendirme amaçlıdır; yatırım tavsiyesi niteliği taşımaz. SPK lisanslı bir danışmana başvurunuz."
@@ -78,6 +79,82 @@
       "empty": "Henüz veri yok."
     },
     "categoriesTitle": "Kategorilerim"
+  },
+  "groups": {
+    "pageTitle": "Gruplar",
+    "intro": "Bir grup, birlikte takip etmek istediğin harcamaların kovası: eşinle ortak ev giderleri, bir tatil, bir düğün. Tek başına da kullanabilirsin — paylaşmak zorunlu değil. Kendi defterin ve bakiyen değişmez.",
+    "nameLabel": "Grup adı",
+    "namePlaceholder": "örn. Ev, Yurtdışı 2026",
+    "create": "Grup oluştur",
+    "backToList": "Gruplara dön",
+    "memberCount": "{count} üye",
+    "unnamedMember": "İsimsiz üye",
+    "inviteCreate": "Davet linki oluştur",
+    "inviteHint": "Link 7 gün geçerli ve tek kullanımlık. Yalnızca bu grubu paylaşacağın kişiyle paylaş — linke sahip olan herkes katılabilir.",
+    "inviteCopy": "Linki kopyala",
+    "inviteCopied": "Kopyalandı",
+    "inviteExpires": "{date} tarihine kadar geçerli",
+    "inviteRevoke": "İptal et",
+    "leave": "Gruptan ayrıl",
+    "leaveConfirm": "Ayrılırsan bu gruba işaretlediğin kayıtlar kişiselleşir; hiçbir kayıt silinmez. Devam edilsin mi?",
+    "remove": "Çıkar",
+    "removeConfirm": "Bu üyeyi çıkarırsan onun kayıtları kendi defterinde kişisel olarak kalır. Devam edilsin mi?",
+    "payerBreakdownLabel": "Kim ne ödedi görünsün",
+    "payerBreakdownHint": "Kapatırsan grup ekranında kimin ne kadar ödediği gizlenir; toplam ve kategoriler görünmeye devam eder.",
+    "acceptTitle": "Grup daveti",
+    "acceptIntro": "Bu daveti kabul edersen gruba işaretlenen harcamalar iki tarafta da görünür. Kendi defterin, bakiyen ve gruba işaretlemediğin kayıtların paylaşılmaz.",
+    "acceptSignInHint": "Daveti kabul etmek için önce giriş yap — sonra buraya geri döneceksin.",
+    "accept": "Daveti kabul et",
+    "accepted": "Gruba katıldın.",
+    "errors": {
+      "nameRequired": "Grup adı gerekli.",
+      "nameTooLong": "Grup adı çok uzun.",
+      "alreadyInGroup": "Bu gruba zaten üyesin.",
+      "tooManyGroups": "Çok fazla grubun var. Yenisini oluşturmak için kullanmadığın bir gruptan ayrıl.",
+      "inviteInvalid": "Bu davet geçersiz ya da süresi dolmuş. Seni davet eden kişiden yeni bir link iste.",
+      "groupFull": "Bu grup dolu.",
+      "notInGroup": "Bu gruba üye değilsin.",
+      "noSession": "Oturum bulunamadı, tekrar giriş yap.",
+      "generic": "İşlem tamamlanamadı, tekrar dene.",
+      "notAdmin": "Bu işlemi yalnızca grup yöneticisi yapabilir.",
+      "lastAdmin": "Gruptaki tek yöneticisin. Önce başka birini yönetici yap."
+    },
+    "summary": {
+      "totalLabel": "Bu dönem",
+      "entryCount": "{count} kayıt",
+      "byPayer": "Kim ne ödedi",
+      "byCategory": "Kategoriye göre",
+      "entriesTitle": "Harcamalar",
+      "noCategory": "Kategorisiz",
+      "unnamed": "İsimsiz üye",
+      "empty": "Bu dönemde bu gruba işaretlenmiş harcama yok.",
+      "previousMonth": "Önceki ay",
+      "nextMonth": "Sonraki ay",
+      "allTime": "Tümü",
+      "backToMonth": "Aya dön",
+      "detach": "Gruptan çıkar",
+      "crossPayerTitle": "Aynı harcama iki kez girilmiş olabilir",
+      "crossPayerConfirm": "Bunlar farklı harcamalar",
+      "onlyDuplicates": "Sadece olası mükerrerler",
+      "showAll": "Tümünü göster",
+      "crossPayerCount": "{count} olası mükerrer",
+      "crossPayerReview": "İncele",
+      "crossPayerSheetIntro": "Aynı tutar, birbirine yakın tarih, farklı ödeyen. Gerçekten aynı harcamaysa birini gruptan çıkar; farklı harcamalarsa onayla, bir daha sorulmaz."
+    },
+    "rename": "Adı değiştir",
+    "addEntries": {
+      "trigger": "Harcama ekle",
+      "title": "Gruba harcama ekle",
+      "description": "Gruplanmamış kendi harcamalarından seç. Kayıtlar defterinde kalır, sadece bu grubun toplamına da girer.",
+      "searchPlaceholder": "Açıklama ya da kategori ara",
+      "empty": "Eklenecek gruplanmamış harcaman yok.",
+      "selectedSummary": "{count} kalem seçildi · {amount}",
+      "submit": "Gruba ekle"
+    },
+    "addEntry": "Gider ekle",
+    "admin": "Yönetici",
+    "promote": "Yönetici yap",
+    "demote": "Yöneticiliği al"
   },
   "stale": {
     "waiting": "Veri bekleniyor…",
@@ -272,7 +349,10 @@
       "fxEquivalent": "≈ {amount}  ·  1 {currency} = {rate}",
       "fxHint": "Tutarı ve kuru gir; TL karşılığı hesaplanacak.",
       "currencySearch": "Para birimi ara",
-      "currencyNoMatch": "Eşleşen para birimi yok"
+      "currencyNoMatch": "Eşleşen para birimi yok",
+      "groupLabel": "Grup (opsiyonel)",
+      "groupHint": "Seçersen bu harcama o grubun toplamına girer. Kendi bakiyen değişmez.",
+      "groupFixedLabel": "Grup"
     },
     "fixedItems": {
       "expenseTitle": "Sabit giderler",
@@ -463,7 +543,8 @@
       "createAndContinue": "Kartı oluştur ve devam et",
       "backToList": "Kayıtlı kartlara dön"
     },
-    "replacesManualEntry": "Elle girdiğin {original} kaydının yerine geçecek"
+    "replacesManualEntry": "Elle girdiğin {original} kaydının yerine geçecek",
+    "possibleDuplicateOf": "{date} · {amount} ile eşleşti"
   },
   "creditCards": {
     "summaryTitle": "Kredi Kartı Ekstreleri",

@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 
-export function LoginForm() {
+export function LoginForm({ next }: { next?: string }) {
   const [state, action, pending] = useActionState(signInWithPassword, undefined);
   const t = useTranslations("auth");
   const tCommon = useTranslations("common");
@@ -16,6 +16,10 @@ export function LoginForm() {
   return (
     <div className="mt-6 flex flex-col gap-4">
       <form action={action} className="flex flex-col gap-4">
+        {/* Davet linkinden gelindiyse giriş sonrası oraya dönülür. Sunucu
+            tarafında safeNextPath ile doğrulanıyor — bu alan istemcide
+            değiştirilebilir. */}
+        {next ? <input type="hidden" name="next" value={next} /> : null}
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="email">{t("email")}</Label>
           <Input id="email" type="email" name="email" required autoComplete="email" />
@@ -45,6 +49,7 @@ export function LoginForm() {
       </div>
 
       <form action={signInWithGoogle}>
+        {next ? <input type="hidden" name="next" value={next} /> : null}
         <Button type="submit" variant="outline" size="touch" className="w-full">
           {t("google")}
         </Button>

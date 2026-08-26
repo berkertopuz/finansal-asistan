@@ -25,6 +25,7 @@ import type { AppLocale } from "@/lib/locale";
 import type { CreditCard } from "@/lib/credit-cards-data";
 import type { StatementImport } from "@/lib/statement-imports-data";
 import { ENTRY_CATEGORIES, toDateString, type Entry } from "@/lib/ledger";
+import { isPaymentAlreadyRecorded, matchStatementRows } from "@/lib/statement-import/match";
 
 type StatementRow = {
   tarih: string;
@@ -39,6 +40,10 @@ type StatementRow = {
 type ReviewRow = StatementRow & {
   selected: boolean;
   possibleDuplicate: boolean;
+  // Hangi kayıtla eşleştiği — rozetin GEREKÇESİ. Sezgisel bir eşleştirmede
+  // "olası mükerrer" demek yetmiyor; kullanıcı neye dayanıldığını görmeden
+  // karar veremez.
+  duplicateOf: { occurred_at: string; amount: number } | null;
   // Bu satır, kullanıcının elle girdiği dövizli bir kaydın ekstredeki
   // karşılığıysa o kayıt. İçe aktarma onu EKLEMİYOR, üstüne yazıyor.
   replaces: { id: string; label: string } | null;
@@ -49,59 +54,6 @@ type ReviewRow = StatementRow & {
   // borç olduğundan az görünürdü.
   alreadyRecorded: boolean;
 };
-
-// Yurt dışında kartla yapılan bir harcamada kullanıcı TCMB kuruyla giriyor,
-// banka kendi kuru + komisyonuyla kesiyor — iki tutar hiçbir zaman birebir
-// tutmuyor. %12'lik pencere bankaların uyguladığı makas + komisyonu rahatça
-// kapsıyor ama gerçekten farklı bir harcamayı yanlışlıkla eşleştirecek kadar
-// geniş değil (aynı kartta, aynı güne yakın, dövizli bir kayıt olmak zaten
-// güçlü bir kimlik).
-const FX_SPREAD_TOLERANCE = 0.12;
-const FX_DATE_WINDOW_DAYS = 3;
-
-function daysBetween(a: string, b: string): number {
-  return Math.abs(Date.parse(a + "T00:00:00") - Date.parse(b + "T00:00:00")) / 86_400_000;
-}
-
-// Ekstrenin "odeme" satırı (bankaya yapılan gerçek ödeme) bu karta zaten
-// kayıtlı bir card_payment'la mı örtüşüyor? Tarih penceresi bankanın işlem
-// tarihiyle kullanıcının "Tam ödedim" akışında seçtiği tarih arasındaki
-// olağan kaymayı (birkaç iş günü) kapsıyor için gevşek; tutarda ise
-// tolerans yok — bir ödeme miktarı kur/komisyon gibi tahmine dayalı
-// değil, tam eşleşmesi gerekiyor.
-const PAYMENT_DATE_WINDOW_DAYS = 5;
-
-function isPaymentAlreadyRecorded(row: StatementRow, existing: Entry[], creditCardId: string): boolean {
-  return existing.some(
-    (e) =>
-      e.kind === "card_payment" &&
-      e.credit_card_id === creditCardId &&
-      Math.abs(e.amount - row.tutar) < 0.01 &&
-      daysBetween(e.occurred_at, row.tarih) <= PAYMENT_DATE_WINDOW_DAYS,
-  );
-}
-
-// Ekstre satırının karşılık geldiği, elle girilmiş dövizli kaydı bulur.
-function findForeignMatch(
-  row: StatementRow,
-  existing: Entry[],
-  creditCardId: string,
-): { id: string; label: string } | null {
-  if (row.taksit_index !== null) return null;
-  const match = existing.find((e) => {
-    if (e.kind !== "expense" && e.kind !== "subscription") return false;
-    if (!e.original_currency || e.original_amount === null) return false;
-    // Zaten bir ekstreden gelmiş bir kaydın üstüne yazmıyoruz — bu eşleşme
-    // yalnızca ELLE girilmiş tahminler için.
-    if (e.credit_card_id !== creditCardId && e.credit_card_id !== null) return false;
-    if (daysBetween(e.occurred_at, row.tarih) > FX_DATE_WINDOW_DAYS) return false;
-    const diff = Math.abs(e.amount - row.tutar) / Math.max(e.amount, row.tutar);
-    return diff <= FX_SPREAD_TOLERANCE;
-  });
-  return match
-    ? { id: match.id, label: `${match.original_amount} ${match.original_currency}` }
-    : null;
-}
 
 const ENTRIES_KEY = "/api/entries";
 const entriesFetcher = (url: string) => fetch(url).then((res) => res.json());
@@ -123,79 +75,27 @@ function dayOfMonth(dateString: string | null): number | null {
   return Number.isInteger(day) && day >= 1 && day <= 31 ? day : null;
 }
 
-// TAKSİTLİ satırlarda mükerrer tespiti TARİHE BAKMAZ, seri kimliğine bakar.
-//
-// Sebep: aynı gerçek dünya olayı iki farklı şekilde modelleniyor. Kullanıcı
-// 5.000 TL'lik 6 taksitli bir alışverişi elle girdiğinde src/lib/installments.ts
-// tek bir gruba 6 satır yazıyor ve tarihleri ARDIŞIK aylara koyuyor
-// (anchor + i ay). Ekstredeki taksit satırı ise her ay ORİJİNAL ALIŞVERİŞ
-// TARİHİNİ taşıyor (bkz. supabase/functions/_shared/statements/prompts.ts
-// kural 7 — gerçek bir QNB ekstresinde Mayıs-Haziran dönemine ait ekstrede
-// 21/04 tarihli taksit satırları görüldü) ve tek üyeli kendi grubuna yazılıyor
-// (src/lib/actions/statements.ts).
-//
-// Eski kural (aynı tarih + aynı tutar) bu yüzden serinin yalnızca 1. taksitiyle
-// tesadüfen eşleşiyordu ve iki durumda kırılıyordu:
-//   - Son taksit kuruş kalanını yutuyor: 5.000/6 -> 833,33 ama son 833,35.
-//     Fark 0,02, tolerans "< 0,01" olduğu için eşleşme yok -> MÜKERRER.
-//     (1.000/3 gibi bazı vakalar kayan nokta şansıyla geçiyordu — yani tutar
-//     toleransı zaten güvenilmezdi.)
-//   - Kullanıcının girdiği alışveriş tarihi bankanın işlem tarihinden farklıysa
-//     hiçbir taksit eşleşmiyordu.
-//
-// Yeni kural: aynı kart + aynı taksit sayısı + aynı taksit sırası. Tutar hâlâ
-// kontrol ediliyor ama toleransı kuruş dağıtımından TÜRETİLİYOR: dağıtım en
-// fazla (count-1) kuruş sapma üretebildiği için tolerans count kuruş. Böylece
-// yuvarlama farkı eşleşmeyi bozmuyor, ama gerçekten farklı tutarlı bir
-// alışveriş de yanlışlıkla mükerrer sayılmıyor.
-function isInstallmentDuplicate(row: StatementRow, existing: Entry[], creditCardId: string): boolean {
-  if (row.taksit_index === null || row.taksit_sayisi === null) return false;
-  const tolerance = row.taksit_sayisi * 0.01;
-  return existing.some(
-    (e) =>
-      (e.kind === "expense" || e.kind === "subscription") &&
-      e.credit_card_id === creditCardId &&
-      e.installment_count === row.taksit_sayisi &&
-      e.installment_index === row.taksit_index &&
-      Math.abs(e.amount - row.tutar) <= tolerance,
-  );
-}
-
-
+// Eşleştirme mantığı ayrı modülde (src/lib/statement-import/match.ts) —
+// orada saf ve test edilebilir. Burada kalan tek karar arayüze ait:
+// hangi satır varsayılan olarak İŞARETLİ gelecek.
 function toReviewRows(rows: StatementRow[], existing: Entry[], creditCardId: string): ReviewRow[] {
-  return rows.map((row) => {
-    // kind === "expense" only would miss a row that started as an import
-    // (kind="expense") and was later converted into a real subscription
-    // rule (kind="subscription" — src/components/ledger/QuickEntryForm.tsx's
-    // "kart harcamalarından abonelik" edit flow) or was already tracked as
-    // one: re-uploading the same statement would silently offer it again as
-    // a "new" charge instead of flagging it.
-    const possibleDuplicate =
-      isInstallmentDuplicate(row, existing, creditCardId) ||
-      existing.some(
-        (e) =>
-          (e.kind === "expense" || e.kind === "subscription") &&
-          e.occurred_at === row.tarih &&
-          Math.abs(e.amount - row.tutar) < 0.01,
-      );
+  const matches = matchStatementRows(rows, existing, creditCardId);
+  return rows.map((row, index) => {
+    const match = matches[index];
     // "ucret" (faiz/KKDF/BSMV) gerçek bir masraf — varsayılan olarak seçili
     // gelir. "odeme" (kartın kendisine yapılan ödeme) ise yeni bir harcama
     // değil, zaten borcu doğuran asıl harcama ayrı bir satırda sayılıyor —
     // onu da eklemek çift sayım olurdu, o yüzden varsayılan olarak işaretsiz.
-    const replaces = findForeignMatch(row, existing, creditCardId);
+    //
     // Değiştirilecek satır MÜKERRER DEĞİL — tam tersi, işaretlenmesi gereken
     // satır o: onaylanınca elle girilen tahminin yerine bankanın gerçek
     // rakamı geçiyor. İşaretlenmezse tahmin defterde kalır.
     const selected =
-      (row.tur === "harcama" || row.tur === "ucret") && (!possibleDuplicate || replaces !== null);
-    const alreadyRecorded = row.tur === "odeme" && isPaymentAlreadyRecorded(row, existing, creditCardId);
-    return {
-      ...row,
-      selected,
-      possibleDuplicate: possibleDuplicate && !replaces,
-      replaces,
-      alreadyRecorded,
-    };
+      (row.tur === "harcama" || row.tur === "ucret") &&
+      (!match.possibleDuplicate || match.replaces !== null);
+    const alreadyRecorded =
+      row.tur === "odeme" && isPaymentAlreadyRecorded(row, existing, creditCardId);
+    return { ...row, ...match, selected, alreadyRecorded };
   });
 }
 
@@ -827,9 +727,20 @@ export function StatementUploadSheet({
                               </Badge>
                             )}
                             {row.possibleDuplicate && (
+                              // Rozet artık GEREKÇESİNİ taşıyor. Eşleştirme
+                              // sezgisel (tutar + yakın tarih) ve kanıt
+                              // değil — hangi kayıtla eşleştiğini
+                              // göstermeden kullanıcıyı sezgisele güvenmek
+                              // zorunda bırakıyorduk. Tarih + tutar yazılınca
+                              // kararı kendisi verebiliyor.
                               <Badge variant="outline" className="gap-1 text-signal-caution-foreground">
                                 <AlertTriangle className="size-3" />
-                                {t("possibleDuplicate")}
+                                {row.duplicateOf
+                                  ? t("possibleDuplicateOf", {
+                                      date: formatDate(row.duplicateOf.occurred_at, locale),
+                                      amount: formatCurrency(row.duplicateOf.amount, locale),
+                                    })
+                                  : t("possibleDuplicate")}
                               </Badge>
                             )}
                             {/* AI'nın kategori tahmini — yanlışsa kaydetmeden
